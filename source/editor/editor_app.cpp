@@ -171,10 +171,10 @@ DrawChar(font_atlas *Atlas, v2 *Positions, v2 *TexCoords, s32 *VerticesCount,
     MakeQuadV2(TexCoord, V2(Quad->s0, Quad->t0), V2(Quad->s1, Quad->t1));
 }
 
-internal rect_quad_data *
+internal rect_instance *
 DrawRect(rect Dest, v4 Color, f32 CornerRadius, f32 BorderThickness, f32 Softness)
 {
-    rect_quad_data *Result = GlobalRectQuadData + GlobalRectsCount;
+    rect_instance *Result = GlobalRectQuadData + GlobalRectsCount;
     GlobalRectsCount += 1;
     
     Result->Dest = Dest;
@@ -356,7 +356,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     MemoryCopy(RectsBufferData, QuadPosData, sizeof(QuadPosData));
     GlobalRectsCount = 0;
-    GlobalRectQuadData = (rect_quad_data *)(RectsBufferData + ArrayCount(QuadPosData));
+    GlobalRectQuadData = (rect_instance *)(RectsBufferData + ArrayCount(QuadPosData));
     
     //- Render text (rasterized on CPU)
     app_offscreen_buffer TextImage;
@@ -450,13 +450,55 @@ UPDATE_AND_RENDER(UpdateAndRender)
         f32 Time = (f32)OS_GetWallClock();
         // Window borders
         {
-            rect Dest = {0.f, 0.f, (f32)Buffer->Width, (f32)Buffer->Height};
-            rect_quad_data *Rec = DrawRect(Dest, WindowBorderColor, 0.f, (f32)WindowBorderSize, 0.f);
-            Rec->Color0 = WindowBorderColor;
-            Rec->Color1.W = 0.2f;
-            Rec->Color2.W = 0.2f;
-            Rec->Color3 = WindowBorderColor;
+            rect Dest = RectFromSize(V2(0.f, 0.f), V2S32(Buffer->Width, Buffer->Height));
+            rect_instance *Inst = DrawRect(Dest, WindowBorderColor, 0.f, (f32)WindowBorderSize, 0.f);
+            Inst->Color0 = WindowBorderColor;
+            Inst->Color1.W = 0.2f;
+            Inst->Color2.W = 0.2f;
+            Inst->Color3 = WindowBorderColor;
         }
+        
+#if 0        
+        // Demo rectangles
+        {
+            rect Dest = RectFromSize(V2(80.f, 80.f), V2(100.f, 60.f));
+            rect ShadowDest = Dest;
+            
+            f32 ShadowPx = 4.f;
+            V2Math
+            {
+                ShadowDest.Min.E += ShadowPx/2.f - ShadowPx;
+                ShadowDest.Max.E += ShadowPx/2.f + ShadowPx;
+            }
+            rect_instance *ShadowInst = DrawRect(ShadowDest, V4(0.f, 0.f, 0.f, 1.f), 0.8f, 0.f, ShadowPx);
+            
+            rect_instance *Inst = DrawRect(Dest, Color_Yellow, 8.f, 0.f, 1.f);
+            ShadowInst->CornerRadii = Inst->CornerRadii;
+            
+            Inst->Color2.W = 0.4f;
+            Inst->Color3.W = 0.4f;
+            Inst->Color0.W = 0.8f;
+            Inst->Color1.W = 0.8f;
+            
+            if(IsInsideRec((f32)Input->MouseX, (f32)Input->MouseY, Dest))
+            {
+                Inst->Color0.W = 0.9f;
+                Inst->Color1.W = 0.9f;
+                if(Input->MouseButtons[PlatformMouseButton_Left].EndedDown)
+                {
+                    Inst->Color0.W = 1.f;
+                    Inst->Color1.W = 1.f;
+                }
+            }
+            
+            DrawRect(RectFromSize(V2(283.f, 400.f), V2(396.f, 1.f)), Color_Red, 0.f, 0.f, 0.f);
+            DrawRect(RectFromSize(V2(280.f, 300.f), V2(200.f, 200.f)), Color_Blue, 100.f, 2.f, 1.f);
+            DrawRect(RectFromSize(V2(380.f, 300.f), V2(200.f, 200.f)), Color_Orange, 100.f, 2.f, 1.f);
+            DrawRect(RectFromSize(V2(480.f, 300.f), V2(200.f, 200.f)), Color_Green, 100.f, 2.f, 1.f);
+            
+        }
+#endif
+        
     }
     
     //- Rendering 
@@ -477,7 +519,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         glBindBuffer(GL_ARRAY_BUFFER, VBOs[2]);
         
-        u64 Size = sizeof(QuadPosData) + GlobalRectsCount*sizeof(rect_quad_data);
+        u64 Size = sizeof(QuadPosData) + GlobalRectsCount*sizeof(rect_instance);
         glBufferData(GL_ARRAY_BUFFER, Size, RectsBufferData, GL_STATIC_DRAW);
         
         glEnableVertexAttribArray(0);

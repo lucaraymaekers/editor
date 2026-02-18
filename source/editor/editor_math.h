@@ -22,6 +22,15 @@ V2AddF32(v2 A, f32 B)
 }
 
 internal inline v2 
+V2SubF32(v2 A, f32 B)
+{
+    v2 Result = {};
+    Result.X = A.X - B;
+    Result.Y = A.Y - B;
+    return Result;
+}
+
+internal inline v2 
 V2MulF32(v2 A, f32 B)
 {
     v2 Result = {};
@@ -144,6 +153,7 @@ MakeQuadV3(v3 *Quad, v2 Min, v2 Max, f32 Z)
 #define E e[_VecMathIdx]
 #define V2Math for EachIndex(_VecMathIdx, 2)
 #define V3Math for EachIndex(_VecMathIdx, 3)
+#define V4Math for EachIndex(_VecMathIdx, 4)
 /*
 v3 A = ;
 v3 B = ;

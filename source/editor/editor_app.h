@@ -6,8 +6,8 @@
 #define DefaultHeightPx 24
 
 NO_STRUCT_PADDING_BEGIN
-typedef struct rect_quad_data rect_quad_data;
-struct rect_quad_data
+typedef struct rect_instance rect_instance;
+struct rect_instance
 {
     rect Dest;
     v4 Color0;
@@ -53,7 +53,7 @@ struct app_state
 };
 
 //~ Globals
-global_variable rect_quad_data *GlobalRectQuadData;
+global_variable rect_instance *GlobalRectQuadData;
 global_variable s32 GlobalRectsCount;
 
 #endif //EDITOR_APP_H

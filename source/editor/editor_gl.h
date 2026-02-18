@@ -126,7 +126,7 @@ gl_SetQuadAttribute(s32 Index, s32 Count, u64 *Offset)
 {
     glEnableVertexAttribArray(Index);
     glVertexAttribDivisor(Index, 1);
-    glVertexAttribPointer(Index, Count, GL_FLOAT, false, sizeof(rect_quad_data), (void *)((*Offset)*sizeof(f32)));
+    glVertexAttribPointer(Index, Count, GL_FLOAT, false, sizeof(rect_instance), (void *)((*Offset)*sizeof(f32)));
     *Offset += Count;
 }
 
