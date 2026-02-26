@@ -206,6 +206,14 @@ RectFromSize(v2 TopLeft, v2 Size)
     return Result;
 }
 
+internal inline v2
+SizeFromRect(rect Rec)
+{
+    v2 Result = V2(Rec.Max.X - Rec.Min.X,
+                   Rec.Max.Y - Rec.Min.Y);
+    return Result;
+}
+
 internal inline b32
 IsInside(f32 X, f32 Y, v2 Min, v2 Max)
 {

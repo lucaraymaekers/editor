@@ -46,7 +46,30 @@ struct font_atlas
     stbtt_aligned_quad *AlignedQuads;
 };
 
-// TODO(luca): Remove ?
+typedef struct gl_render_state gl_render_state;
+struct gl_render_state
+{
+    gl_handle VAOs[1];
+    gl_handle VBOs[1];
+    gl_handle Textures[1];
+    gl_handle RectShader;
+    b32 ShadersCompiled;
+};
+
+struct panel
+{
+    panel *First;
+    panel *Last;
+    panel *Next;
+    panel *Prev;
+    panel *Parent;
+    
+    u32 Axis;
+    f32 PercentOfParent;
+    
+    rect Region;
+};
+
 struct ui_box;
 
 typedef struct app_state app_state;
@@ -59,6 +82,7 @@ struct app_state
     f32 PreviousHeightPx;
     f32 HeightPx;
     
+    s32 CursorPos;
     u64 TextCount;
     rune Text[KB(1)];
     
@@ -67,7 +91,13 @@ struct app_state
     u64 UIBoxTableSize;
     ui_box *UIBoxTable;
     
-    s32 CursorPos;
+    panel *FirstPanel;
+    panel *LastPanel;
+    panel *FreePanel;
+    
+    u64 FrameIndex;
+    
+    gl_render_state Render;
     
     // Nils
     ui_box *TrackerForUI_NilBox;

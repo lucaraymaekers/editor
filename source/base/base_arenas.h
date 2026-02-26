@@ -28,13 +28,13 @@ struct arena_alloc_params
 
 #define ArenaAlloc(...) ArenaAlloc_(StructCast(arena_alloc_params){.DefaultSize = ArenaAllocDefaultSize, ##__VA_ARGS__})
 internal arena *ArenaAlloc_(arena_alloc_params Params);
-internal void  *ArenaPush(arena *Arena, u64 Size, b32 Zero);
+internal void  *ArenaPush(arena *Arena, u64 Size, u64 Alignment, b32 Zero);
 internal u64 BeginScratch(arena *Arena);
 internal void EndScratch(arena *Arena, u64 BackPos);
 
-#define PushArray(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), false)
+#define PushArray(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), false)
 #define PushStruct(Arena, t) PushArray(Arena, t, 1)
-#define PushArrayZero(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), true)
+#define PushArrayZero(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), true)
 #define PushStructZero(Arena, t) PushArrayZero(Arena, t, 1)
 
 #endif //ARENAS_H

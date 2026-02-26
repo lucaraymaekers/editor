@@ -140,6 +140,7 @@ struct ui_state
     
     app_input *Input;
     font_atlas *Atlas;
+    u64 FrameIndex;
     
     v4_stack_node *BackgroundColorTop;
     v4_stack_node *BorderColorTop;

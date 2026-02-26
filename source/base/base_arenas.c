@@ -30,53 +30,30 @@ PushArena(arena *Arena, u64 Size)
     
     Result = PushStruct(Arena, arena);
     Result->Size = Size;
-    Result->Base = ArenaPush(Arena, Result->Size, false);
+    Result->Base = PushArray(Arena, u8, Result->Size);
     Result->Pos = 0;
     
     return Result;
 }
 
 internal void *
-ArenaPush(arena *Arena, u64 Size, b32 Zero)
+ArenaPush(arena *Arena, u64 Size, u64 Alignment, b32 Zero)
 {
-    void *Result = (u8 *)Arena->Base + Arena->Pos;
+    u64 AlignedPos = AlignPow2(Arena->Pos, Alignment);
+    u64 NewPos = AlignedPos + Size;
+    
+    Assert(NewPos <= Arena->Size);
+    
+    void *Result = (u8 *)Arena->Base + AlignedPos;
     
     AsanUnpoisonMemoryRegion(Result, Size);
+    
     if(Zero)
-    {        
+    {
         MemorySet(Result, 0, Size);
     }
     
-    Assert(Arena->Pos + Size < Arena->Size);
-    Arena->Pos += Size;
-    
-    return Result;
-}
-
-internal void *
-ArenaPushAligned(arena *Arena, u64 Size, u64 Alignment, b32 Zero)
-{
-    void *Result = 0;
-    
-    u8 *Base = (u8 *)Arena->Base + Arena->Pos;
-    u64 BaseAddress = (u64)Base;
-    
-    u64 Leftover = (BaseAddress % Alignment);
-    Arena->Pos += (Alignment - Leftover);
-    
-    Result = ArenaPush(Arena, Size, Zero);
-    
-    return Result;
-}
-
-internal u64 
-PadSize(u64 Size, u64 Padding)
-{
-    u64 Result = Size;
-    
-    u64 Leftover = Size%Padding;
-    Result += (Padding - Leftover);
-    Assert(Result % Padding == 0);
+    Arena->Pos = NewPos;
     
     return Result;
 }

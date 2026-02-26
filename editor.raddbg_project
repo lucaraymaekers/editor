@@ -1,16 +1,17 @@
 // raddbg 0.9.24 project file
 
 recent_file: path: "source/editor/editor_ui.cpp"
-recent_file: path: "source/editor/editor_platform_windows.cpp"
 recent_file: path: "source/editor/editor_app.cpp"
+recent_file: path: "source/base/base_arenas.c"
+recent_file: path: "source/base/base_os_windows.c"
+recent_file: path: "source/editor/editor_ui.h"
+recent_file: path: "source/editor/editor_platform_windows.cpp"
 recent_file: path: "source/editor/editor_platform.cpp"
 recent_file: path: "source/editor/editor_platform.h"
 recent_file: path: "source/editor/editor_gl.h"
 recent_file: path: "source/editor/editor_font.h"
-recent_file: path: "source/base/base_os_windows.c"
 recent_file: path: "source/editor/editor_math.h"
 recent_file: path: "source/lib/raddbg_markup.h"
-recent_file: path: "source/base/base_arenas.c"
 recent_file: path: "source/base/base_os.c"
 target:
 {
@@ -26,43 +27,22 @@ debug_info:
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor_app.pdb"
-  timestamp: 66207557593056
+  timestamp: 66207602456025
 }
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor.pdb"
-  timestamp: 66207557593806
-}
-breakpoint:
-{
-  source_location: "source/editor/editor_ui.cpp:246:1"
-  hit_count: 0
-  enabled: 0
-}
-breakpoint:
-{
-  address_location: 0x229f219ad4c
-  label: weird
-  break_on_write: 1
-  break_on_read: 1
-  break_on_execute: 1
-  enabled: 1
-  hit_count: 0
-}
-breakpoint:
-{
-  source_location: "source/editor/editor_ui.cpp:40:1"
-  hit_count: 0
-  enabled: 0
-}
-breakpoint:
-{
-  source_location: "source/editor/editor_app.cpp:469:1"
-  hit_count: 0
-  enabled: 0
+  timestamp: 66207602456751
 }
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor.rdi"
   timestamp: 66207518490596
+}
+breakpoint:
+{
+  address_location: 0x7ff821fadda0
+  break_on_write: 1
+  break_on_read: 1
+  hit_count: 0
 }

@@ -55,6 +55,12 @@ commands =
         .save_dirty_files = false,
         .footer_panel = true,
     },
+    .build_lexer = 
+    {
+        .out = "*compilation*", .save_dirty_files = true,
+        .linux = "sh ./source/test.sh",
+        .win = ".\\source\\build.bat",
+    },
 };
 
 fkey_command =

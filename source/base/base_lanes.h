@@ -13,7 +13,7 @@ typedef struct thread_context thread_context;
 struct thread_context
 {
     s64 LaneCount;
-    s64 LaneIdx;
+    s64 LaneIndex;
     
     thread_handle Handle;
     
@@ -29,7 +29,7 @@ struct thread_context
 thread_static thread_context *ThreadContext;
 
 #define LaneCount() (ThreadContext->LaneCount)
-#define LaneIdx() (ThreadContext->LaneIdx)
+#define LaneIndex() (ThreadContext->LaneIndex)
 
 internal void ThreadInit(thread_context *ContextToSelect);
 

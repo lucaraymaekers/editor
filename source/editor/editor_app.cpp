@@ -178,6 +178,54 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
 
 #include "editor_ui.cpp"
 
+
+internal void
+gl_InitState(gl_render_state *Render)
+{
+    glGenVertexArrays(ArrayCount(Render->VAOs), &Render->VAOs[0]);
+    glGenTextures(ArrayCount(Render->Textures), &Render->Textures[0]);
+    glGenBuffers(ArrayCount(Render->VBOs), &Render->VBOs[0]);
+    glBindVertexArray(Render->VAOs[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, Render->VBOs[0]);
+    
+}
+
+internal void
+gl_CleanupState(gl_render_state *Render)
+{
+    glDeleteVertexArrays(ArrayCount(Render->VAOs), &Render->VAOs[0]);
+    glDeleteTextures(ArrayCount(Render->Textures), &Render->Textures[0]);
+    glDeleteBuffers(ArrayCount(Render->VBOs), &Render->VBOs[0]);
+    glDeleteProgram(Render->RectShader);
+}
+
+internal void
+GetPanelRegion(panel *Panel, rect Region)
+{
+    
+    u32 Axis = Panel->Axis;
+    u32 OtherAxis = 1 - Axis;
+    v2 Pos = Region.Min;
+    
+    v2 Size = {};
+    Size.e[Axis] = Panel->PercentOfParent*(Region.Max.e[Axis] - Region.Min.e[Axis]);
+    Size.e[OtherAxis] = (Region.Max.e[OtherAxis] - Region.Min.e[OtherAxis]);
+    Panel->Region = RectFromSize(Pos, Size);
+    
+    if(Panel->First)
+    {
+        GetPanelRegion(Panel->First, Panel->Region);
+    }
+    
+    if(Panel->Next)
+    {
+        rect FreeRegion = Region;
+        FreeRegion.Min.e[Axis] = Panel->Region.Max.e[Axis];
+        
+        GetPanelRegion(Panel->Next, FreeRegion);
+    }
+}
+
 C_LINKAGE
 UPDATE_AND_RENDER(UpdateAndRender)
 {
@@ -230,6 +278,42 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         App->TrackerForUI_NilBox = &_UI_NilBox;
         
+        gl_InitState(&App->Render);
+        
+        // Panels
+        {        
+            // Push first panel
+            {        
+                panel *New = PushStruct(PermanentArena, panel);
+                New->PercentOfParent = .08f;
+                New->Axis = Axis2_Y;
+                
+                App->LastPanel = App->FirstPanel = New;
+            }
+            
+            // Append panel to the end
+            {        
+                panel *New = PushStruct(PermanentArena, panel);
+                New->PercentOfParent = .5f;
+                New->Axis = Axis2_X;
+                
+                New->Prev = App->LastPanel;
+                App->LastPanel->Next = New;
+                App->LastPanel = New;
+            }
+            
+            // Append panel to the end
+            {        
+                panel *New = PushStruct(PermanentArena, panel);
+                New->PercentOfParent = 1.f;
+                New->Axis = Axis2_X;
+                
+                New->Prev = App->LastPanel;
+                App->LastPanel->Next = New;
+                App->LastPanel = New;
+            }
+            
+        }
         Memory->Initialized = true;
     }
     
@@ -243,16 +327,30 @@ UPDATE_AND_RENDER(UpdateAndRender)
         if(!Key.IsSymbol)
         {
             // Ignore shift.
-            Key.Modifiers = (Key.Modifiers & ~PlatformKeyModifier_Shift);
+            u32 ModifiersShiftIgnored = (Key.Modifiers & ~PlatformKeyModifier_Shift);
             
             if(Key.Modifiers & PlatformKeyModifier_Alt && Key.Codepoint == 'b')
             {
                 DebugBreak();
             }
             
-            if(Key.Modifiers == PlatformKeyModifier_Control)
+            if(ModifiersShiftIgnored == PlatformKeyModifier_Control)
             {
                 if(0) {}
+                else if(Key.Codepoint == 'p')
+                {
+                    // TODO(luca): Selected panel
+                    panel *Panel = App->FirstPanel->Next;
+                    if(!(Key.Modifiers & PlatformKeyModifier_Shift))
+                    {
+                        Panel->PercentOfParent += .01f;
+                    }
+                    else
+                    {
+                        Panel->PercentOfParent -= .01f;
+                    }
+                    Panel->PercentOfParent = Clamp(0.01f, Panel->PercentOfParent, 1.f);
+                }
                 else if(Key.Codepoint == 'h')
                 {
                     DeleteChar(App);
@@ -284,7 +382,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 }
             }
             
-            if(Key.Modifiers == PlatformKeyModifier_None)
+            if(ModifiersShiftIgnored == PlatformKeyModifier_None)
             {
                 AppendChar(App, Key.Codepoint);
             }
@@ -307,14 +405,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
     }
     
-    gl_handle VAOs[2] = {};
-    gl_handle VBOs[3] = {};
-    gl_handle Textures[2] = {};
-    gl_handle RectShader;
-    glGenVertexArrays(ArrayCount(VAOs), &VAOs[0]);
-    glGenTextures(ArrayCount(Textures), &Textures[0]);
-    glGenBuffers(ArrayCount(VBOs), &VBOs[0]);
-    glBindVertexArray(VAOs[0]);
     
     glViewport(0, 0, Buffer->Width, Buffer->Height);
     
@@ -368,70 +458,55 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
     }
     
-    // TODO(luca): Titlebar
-    // Open | Save                                                   Close
+    // Init panels
+    {
+        v2 Pos = V2(0.f, 0.f);
+        v2 Size = BufferDim;
+        Pos = V2AddF32(Pos, WindowBorderSize);
+        Size = V2SubF32(Size, 2.f*WindowBorderSize);
+        
+        GetPanelRegion(App->FirstPanel, RectFromSize(Pos, Size));
+    }
     
-    ui_box *Root = PushStructZero(FrameArena, ui_box);
-    Root->FixedPosition = V2(0.f, 0.f);
-    Root->FixedSize = BufferDim;
-    Root->FixedPosition = V2AddF32(Root->FixedPosition, WindowBorderSize);
-    Root->FixedSize = V2SubF32(Root->FixedSize, 2.f*WindowBorderSize);
-    
-    UI_State = PushStructZero(FrameArena, ui_state);
-    UI_State->Root = Root;
-    UI_State->Current = Root;
-    UI_State->AppendToParent = false;
-    UI_State->Input = Input;
-    UI_State->Atlas = &App->FontAtlas;
-    UI_State->RectDebugMode = false;
     
     UI_BoxTableSize = App->UIBoxTableSize;
     UI_BoxTable = App->UIBoxTable;
     UI_BoxArena = App->UIBoxArena;
     
-    // TODO(luca): 
-    //1. Have a hash table
-    //2. Have a frame index
-    //3. If box wasn't touched in this iteration, evict from hash table?
-    //4. You can get the previous size and position from this hash table.
+    u32 Flags = (UI_BoxFlag_DrawBorders | UI_BoxFlag_DrawBackground |
+                 UI_BoxFlag_DrawDisplayString |
+                 UI_BoxFlag_CenterTextHorizontally | UI_BoxFlag_CenterTextVertically );
+    u32 ButtonFlags = (Flags | 
+                       UI_BoxFlag_AnimateColorOnHover |
+                       UI_BoxFlag_AnimateColorOnPress);
+    u32 TitlebarFlags = (Flags ^ 
+                         UI_BoxFlag_DrawDisplayString ^ 
+                         UI_BoxFlag_DrawBackground ^
+                         UI_BoxFlag_DrawBorders);
     
-    Root->Parent = Root->First = Root->Next = Root->Last = UI_NilBox;
+    UI_State = PushStructZero(FrameArena, ui_state);
     
-    // Create UI tree
+    // First panel
     {    
-        u32 Flags = (UI_BoxFlag_DrawBorders | UI_BoxFlag_DrawBackground |
-                     UI_BoxFlag_DrawDisplayString |
-                     UI_BoxFlag_CenterTextHorizontally | UI_BoxFlag_CenterTextVertically );
-        u32 ButtonFlags = (Flags | 
-                           UI_BoxFlag_AnimateColorOnHover |
-                           UI_BoxFlag_AnimateColorOnPress);
-        u32 TitlebarFlags = (Flags ^ 
-                             UI_BoxFlag_DrawDisplayString ^ 
-                             UI_BoxFlag_DrawBackground);
+        UI_InitState(App->FirstPanel, Input, App, false);
         
-        UI_PushBox();
-        
-        UI_BackgroundColor(Color_ButtonBackground) UI_TextColor(Color_ButtonText) UI_BorderColor(Color_ButtonBorder) UI_Softness(.5f) UI_BorderThickness(2.f) UI_CornerRadii(V4(5.f, 5.f, 5.f, 5.f)) UI_LayoutAxis(Axis2_X)
-        {    
-            UI_SemanticHeight(UI_SizeChildren(1.f)) UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
+        // UI tree
+        {
+            UI_SemanticHeight(UI_SizeChildren(1.f)) 
             {
                 UI_AddBox(S8("titlebar"), TitlebarFlags);
             }
             
             UI_PushBox();
             
-            UI_SemanticWidth(UI_SizeParent(1.f/4.f, 1.f)) UI_SemanticHeight(UI_SizeText(2.f, 1.f))
+            UI_SemanticWidth(UI_SizeParent(1.f/5.f, 1.f)) 
+                UI_SemanticHeight(UI_SizeText(2.f, 1.f))
             {    
                 UI_AddBox(S8("Open"), ButtonFlags);
+                UI_AddBox(S8("Help"), ButtonFlags);
+                UI_AddBox(S8("Save"), ButtonFlags);
                 
-                UI_BackgroundColor(Color_Yellow) UI_BorderColor(Color_Yellow)
-                {            
-                    UI_AddBox(S8("Help"), ButtonFlags);
-                    UI_AddBox(S8("Save"), ButtonFlags);
-                }
-                
-                // TODO(luca): Spacer
-                // UI_AddBox();
+                UI_AddBox(S8(""), UI_BoxFlag_None);
                 
                 if(UI_AddBox(S8("Close"), ButtonFlags)->Clicked)
                 {
@@ -439,49 +514,65 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 }
                 
                 UI_PopBox();
-                
-                UI_LayoutAxis(Axis2_Y) UI_BorderColor(Color_Black) UI_SemanticWidth(UI_SizeParent(1.f, 1.f)) UI_SemanticHeight(UI_SizeParent(.5f, 1.f))
-                {
-                    UI_AddBox(S8("Textarea"), UI_BoxFlag_DrawBorders);
-                }
             }
         }
-    }
-    
-    for EachIndex(Idx, Axis2_Count)
-    {        
-        axis2 Axis = (axis2)Idx;
         
-        UI_CalculateStandaloneSizes(Root->First, Axis);
-        UI_CalculateUpwardSizes(Root->First, Axis);
-        UI_CalculateDownwardSizes(Root->First, Axis);
-        //UI_CalculateViolations(Root->First, Axis);
+        UI_ResolveLayout(UI_State->Root);
     }
-    UI_CalculatePositionsAndDrawBoxes(Root->First);
     
-    //UI_DebugPrintBoxes(Root->First);
+    // Second panel
+    {    
+        UI_InitState(App->FirstPanel->Next, Input, App, false);
+        
+        // UI tree
+        {
+            UI_BorderColor(Color_Black)
+                UI_AddBox(S8("FirstArea"), UI_BoxFlag_DrawBorders);
+        }
+        
+        UI_ResolveLayout(UI_State->Root);
+    }
+    
+    // Third panel
+    {    
+        UI_InitState(App->FirstPanel->Next->Next, Input, App, false);
+        
+        // UI tree
+        {
+            UI_BorderColor(Color_Black)
+                UI_AddBox(S8("SecondArea"), UI_BoxFlag_DrawBorders);
+        }
+        
+        UI_ResolveLayout(UI_State->Root);
+    }
     
     //- Rendering 
     
     // Render rectangles
     {
-        glBindVertexArray(VAOs[0]);
-        RectShader = gl_ProgramFromShaders(FrameArena, Memory->ExeDirPath,
-                                           S8("../source/shaders/rect_vert.glsl"),
-                                           S8("../source/shaders/rect_frag.glsl"));
-        glUseProgram(RectShader);
-        
-        // Uniforms
-        {
-            gl_handle UViewport = glGetUniformLocation(RectShader, "Viewport");
-            glUniform2f(UViewport, V2Arg(BufferDim));
+        if(!App->Render.ShadersCompiled)
+        {            
+            gl_handle RectShader = App->Render.RectShader;
             
-            gl_LoadTextureFromImage(Textures[0], Atlas->Width, Atlas->Height, Atlas->Data, GL_RED, RectShader, "Texture");
+            RectShader = gl_ProgramFromShaders(FrameArena, Memory->ExeDirPath,
+                                               S8("../source/shaders/rect_vert.glsl"),
+                                               S8("../source/shaders/rect_frag.glsl"));
+            glUseProgram(RectShader);
             
+            // Uniforms
+            {
+                gl_handle UViewport = glGetUniformLocation(RectShader, "Viewport");
+                glUniform2f(UViewport, V2Arg(BufferDim));
+                
+                gl_LoadTextureFromImage(App->Render.Textures[0], Atlas->Width, Atlas->Height, Atlas->Data, GL_RED, RectShader, "Texture");
+            }
             
+            App->Render.ShadersCompiled = true;
         }
         
-        glBindBuffer(GL_ARRAY_BUFFER, VBOs[2]);
+#if EDITOR_HOT_RELOAD_SHADERS
+        App->Render.ShadersCompiled = false;
+#endif
         
         Assert(GlobalRectsCount < MaxRectsCount);
         u64 Size = GlobalRectsCount*sizeof(rect_instance);
@@ -504,13 +595,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, GlobalRectsCount);
     }
     
-    // Cleanup
-    {
-        glDeleteVertexArrays(ArrayCount(VAOs), &VAOs[0]);
-        glDeleteTextures(ArrayCount(Textures), &Textures[0]);
-        glDeleteBuffers(ArrayCount(VBOs), &VBOs[0]);
-        glDeleteProgram(RectShader);
-    }
+    App->FrameIndex += 1;
     
     return ShouldQuit;
 }

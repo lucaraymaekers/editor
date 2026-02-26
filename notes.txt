@@ -28,7 +28,7 @@ Animation data can be kept on the core side.
 Some widgets have overlapping features with others, so they shouldn't be exclusive.
 
 # Part 4
-
+Design for the effects you want using composition (bottom-up).
 
 # Part 5
 We cannot cache empty string nodes, since you could have multiple of them.
@@ -36,14 +36,19 @@ We cannot cache empty string nodes, since you could have multiple of them.
 
 The keying mechanism is only used for interactions.
 
+The parent is usually the same so we can group styles per parent by using a stack of styles.
+
 # Part 7
 The user interaction of the UI element dictates the builder code.
 The builder code will have the mapping with the state management requirements already, so it should not go into the core.
 
 Important state management actions can be deferred to a command list to avoid bugs.
 
-
 # Part 8
+UI is cyclical, it is responsible for producing the data and transforming it.
+Disagreements on the data might arise from the order of the mutations.
+
+We are people and objectiveness is reductive.
 
 # Questions 
 What bout DPI?

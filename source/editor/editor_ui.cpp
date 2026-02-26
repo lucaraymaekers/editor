@@ -48,73 +48,87 @@ UI_KeyMatch(ui_key A, ui_key B)
 }
 
 internal ui_box *
-UI_AddBox(str8 DisplayString, u32 Flags)
+UI_AddBox(str8 String, u32 Flags)
 {
-#if 0    
-    // TODO(luca): Seed with parent key and avoid null boxes and keys.
-    //1. Take the current pattern, if they don't have a null key then we can use it
-    //2. Otherwise go to parent's parent
-    //3. Step 1
-#else
-    u64 AncestorKey = UI_State->Current->Parent->Key.U64[0];
-#endif
-    ui_key Key = {U64HashFromSeedStr8(AncestorKey, DisplayString)};
-    ui_box *Box = 0;
+    str8 DisplayString = String;
+    ui_box *Box;
+    ui_key Key = UI_KeyNull();
     b32 FirstTime = true;
     
-    // Get the box based on key
-    {    
-        u64 Slot = (Key.U64[0] % UI_BoxTableSize);
-        ui_box *HashBox = UI_BoxTable + Slot;
-        ui_box *HashLast = 0;
-        
-        // There are three scenario's
-        //1. We find the slot empty
-        //2. We find the slot occupied
-        //2.1 The key matches the slot or one from the linked list
-        //2.2 The key did not match
-        
-        if(UI_KeyMatch(UI_KeyNull(), HashBox->Key))
+    if(String.Size)
+    {
+        u64 HashCutOff = 0;
+        for EachIndex(Idx, String.Size - 1)
         {
-            // 1.
-            Box = HashBox;
-            
-            Box->First = Box->Last = Box->Next = Box->Prev = Box->Parent = UI_NilBox;
-            Box->HashNext = Box->HashPrev = UI_NilBox;
-        }
-        else
-        {     
-            while(!UI_IsNilBox(HashBox))
-            {        
-                if(UI_KeyMatch(HashBox->Key, Key))
-                {
-                    break;
-                }
-                
-                HashLast = HashBox;
-                HashBox = HashBox->Next;
-            }
-            
-            if(!UI_IsNilBox(HashBox))
+            if(S8Match(S8FromTo(String, Idx, Idx + 1), S8("##"), true))
             {
-                //2.1
+                DisplayString = S8To(String, Idx);
+                break;
+            }
+        }
+        
+        // TODO(luca): Seed with sibling's hash as well?
+        u64 AncestorKey = UI_State->Current->Parent->Key.U64[0];
+        Key = {U64HashFromSeedStr8(AncestorKey, String)};
+        
+        // Get the box based on key
+        {    
+            u64 Slot = (Key.U64[0] % UI_BoxTableSize);
+            ui_box *HashBox = UI_BoxTable + Slot;
+            ui_box *HashLast = 0;
+            
+            // There are three scenario's
+            //1. We find the slot empty
+            //2. We find the slot occupied
+            //2.1 The key matches the slot or one from the linked list
+            //2.2 The key did not match
+            
+            if(UI_KeyMatch(UI_KeyNull(), HashBox->Key))
+            {
+                // 1.
                 Box = HashBox;
-                FirstTime = false;
+                Box->HashNext = Box->HashPrev = UI_NilBox;
             }
             else
-            {
-                //2.2
-                HashLast->HashNext = PushStruct(UI_BoxArena, ui_box);
-                Box = HashLast->HashNext;
-                Box->HashPrev = HashLast;
+            {     
+                while(!UI_IsNilBox(HashBox))
+                {        
+                    if(UI_KeyMatch(HashBox->Key, Key))
+                    {
+                        break;
+                    }
+                    
+                    HashLast = HashBox;
+                    HashBox = HashBox->Next;
+                }
+                
+                if(!UI_IsNilBox(HashBox))
+                {
+                    //2.1
+                    Box = HashBox;
+                    FirstTime = false;
+                }
+                else
+                {
+                    //2.2
+                    HashLast->HashNext = PushStruct(UI_BoxArena, ui_box);
+                    Box = HashLast->HashNext;
+                    Box->HashPrev = HashLast;
+                }
             }
         }
-        
     }
+    else
+    {
+        Box = PushStruct(FrameArena, ui_box);
+    }
+    
+    Box->First = Box->Last = Box->Next = Box->Prev = Box->Parent = UI_NilBox;
     
     Box->Key = Key;
     Box->DisplayString = DisplayString;
     Box->Flags = Flags;
+    Box->LastFrameTouchedIndex = UI_State->FrameIndex;
     
     Box->BackgroundColor = UI_State->BackgroundColorTop->Value;
     Box->BorderColor = UI_State->BorderColorTop->Value;
@@ -194,9 +208,6 @@ UI_MeasureTextWidth(str8 String)
 internal void
 UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
 {
-    // TODO(luca): Use size .Value as padding
-    f32 BorderWidth = Box->BorderThickness;
-    
     switch(Box->SemanticSize[Axis].Kind)
     {
         default: {}break;
@@ -209,12 +220,12 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
             if(Axis == Axis2_X)
             {
                 Box->FixedSize.e[Axis] = (UI_MeasureTextWidth(Box->DisplayString) + 
-                                          2.f*BorderWidth);
+                                          2.f*Box->SemanticSize[Axis].Value);
             }
             else
             {
                 Box->FixedSize.e[Axis] = (UI_State->Atlas->HeightPx + 
-                                          2.f*BorderWidth);
+                                          2.f*Box->SemanticSize[Axis].Value);
             }
         } break;
     }
@@ -433,3 +444,49 @@ UI_DebugPrintBoxes(ui_box *Box)
 }
 
 //- Calculations End
+
+internal void
+UI_InitState(panel *Panel, app_input *Input, app_state *App, b32 DebugMode)
+{
+    ui_box *Root = PushStructZero(FrameArena, ui_box);
+    Root->Parent = Root->First = Root->Next = Root->Last = UI_NilBox;
+    Root->FixedPosition = Panel->Region.Min;
+    Root->FixedSize = SizeFromRect(Panel->Region);
+    
+    UI_State->Root = Root;
+    UI_State->Current = Root;
+    UI_State->AppendToParent = false;
+    UI_State->Input = Input;
+    UI_State->Atlas = &App->FontAtlas;
+    UI_State->FrameIndex = App->FrameIndex;
+    UI_State->RectDebugMode = DebugMode;
+    
+    // Defaults
+    UI_PushBackgroundColor(Color_ButtonBackground);
+    UI_PushTextColor(Color_ButtonText);
+    UI_PushBorderColor(Color_ButtonBorder);
+    UI_PushSoftness(.5f);
+    UI_PushBorderThickness(2.f);
+    UI_PushCornerRadii(V4(5.f, 5.f, 5.f, 5.f));
+    UI_PushLayoutAxis(Axis2_X);
+    UI_PushSemanticWidth(UI_SizeParent(1.f, 1.f));
+    UI_PushSemanticHeight(UI_SizeParent(1.f, 1.f));
+    
+    UI_PushBox();
+}
+
+internal void
+UI_ResolveLayout(ui_box *Root)
+{
+    for EachIndex(Idx, Axis2_Count)
+    {        
+        axis2 Axis = (axis2)Idx;
+        
+        UI_CalculateStandaloneSizes(Root->First, Axis);
+        UI_CalculateUpwardSizes(Root->First, Axis);
+        UI_CalculateDownwardSizes(Root->First, Axis);
+        //UI_CalculateViolations(Root->First, Axis);
+    }
+    UI_CalculatePositionsAndDrawBoxes(Root->First);
+    //UI_DebugPrintBoxes(Root->First);
+}

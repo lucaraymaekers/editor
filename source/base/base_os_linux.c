@@ -316,7 +316,7 @@ LinuxMainEntryPoint(int ArgsCount, char **Args)
     for EachIndex(Idx, ThreadsCount)
     {
         entry_point_params *Params = &Threads[Idx].Params;
-        Params->Context.LaneIdx = Idx;
+        Params->Context.LaneIndex = Idx;
         Params->Context.LaneCount = ThreadsCount;
         Params->Context.Barrier   = Barrier;
         Params->Context.SharedStorage = &SharedStorage;
@@ -343,7 +343,7 @@ AndroidMainEntryPoint(int ArgsCount, char **Args)
     entry_point_params Params = {0};
     Params.ArgsCount = ArgsCount;
     Params.Args = Args;
-    Params.Context.LaneIdx = 0;
+    Params.Context.LaneIndex = 0;
     Params.Context.LaneCount = 1;
     
     ThreadInitEntryPoint(&Params);

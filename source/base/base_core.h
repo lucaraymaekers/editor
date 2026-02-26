@@ -256,6 +256,18 @@ __asan_unpoison_memory_region((Address), (Size))
 # define AsanUnpoisonMemoryRegion(Address, Size) ((void)(Address), (void)(Size))
 #endif
 
+// Alignment
+#if COMPILER_MSVC
+# define AlignOf(T) __alignof(T)
+#elif COMPILER_CLANG
+# define AlignOf(T) __alignof(T)
+#elif COMPILER_GCC
+# define AlignOf(T) __alignof__(T)
+#else
+# error AlignOf not defined for this compiler.
+#endif
+#define AlignPow2(x,b) (((x) + (b) - 1)&(~((b) - 1)))
+
 // Push/Pop warnings
 #if COMPILER_GNU
 # define NO_WARNINGS_BEGIN \

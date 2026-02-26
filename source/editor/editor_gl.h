@@ -3,9 +3,9 @@
 #ifndef EDITOR_GL_H
 #define EDITOR_GL_H
 
-#include "editor/editor_app.h"
-
 typedef unsigned int gl_handle;
+
+#include "editor/editor_app.h"
 
 //- GL helpers 
 

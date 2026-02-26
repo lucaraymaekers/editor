@@ -1,23 +1,35 @@
-- windows: repaint and resizing.
-- 24:36
+- Strictness and constraints
+- panels
+  - selected panel
+  - draggable array to change PercentOfParent
+  - create new panel / close panel buttonu
+- https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language
+  - all properties from here
+- ? Use signal/comm to have all the events with flags
+  since the common case is no signal, it should be optional?
+
+- win32: flickering
+- albedo sample 
 
 - Evict boxes from cache when they aren't touched anymore
 - Smooth smooth animations
-
+  - self-correcting exponential animation curves for hot_t & active_t
 - profile compile times on linux
-- Spacer
 - Add back text rendering of the input buffer
-- Check text rendering extensively (xoff & leftsidebearing)
+- Improve text rendering
+  - Check text rendering extensively (xoff & leftsidebearing)
+  - kb_text_shape()
 
-- kb_text_shape()
+- win32: repaint and resizing.
+ 
+- 24:36
 
-- Strictness and constraints
 - Assertion that the text fits into the rectangle
 		- otherwise clip?
 
 - Shader:
   - group draw calls with those that need the same texture and those that don't without changing draw order (because foreground&background) 
-   - find a way to push a texture for a number of rectangles
+  - find a way to push a texture for a number of rectangles
   - then pop when not adding characters anymore
 
 - UI: Specify to attach to parent or sibling? AppendToParent
@@ -33,3 +45,6 @@ x Assert that rect instances does not exceed the max instances allowed.\
 x Use DrawRect() in DrawRectChar()
 x Remove ReadOnlyMemoryBlock
 x Stacks for selecting options like ryan
+x make hot reloading shader optional
+x Spacer
+x Proper hashing of string and splitting up into DisplayString

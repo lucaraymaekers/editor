@@ -22,13 +22,13 @@ LaneIceberg(void)
 internal void 
 LaneSyncU64(u64 *Value, s64 SourceIdx)
 {
-    if(LaneIdx() == SourceIdx)
+    if(LaneIndex() == SourceIdx)
     {
         *(u64 *)ThreadContext->SharedStorage = *(u64 *)Value;
     }
     LaneIceberg();
     
-    if(LaneIdx() != SourceIdx)
+    if(LaneIndex() != SourceIdx)
     {
         *(u64 *)Value = *(u64 *)ThreadContext->SharedStorage;
     }
@@ -43,12 +43,12 @@ LaneRange(s64 ValuesCount)
     s64 ValuesPerThread = ValuesCount/LaneCount();
     
     s64 LeftoverValuesCount = ValuesCount%LaneCount();
-    b32 ThreadHasLeftover = (LaneIdx() < LeftoverValuesCount);
+    b32 ThreadHasLeftover = (LaneIndex() < LeftoverValuesCount);
     s64 LeftoversBeforeThisThreadIdx = ((ThreadHasLeftover) ? 
-                                        LaneIdx(): 
+                                        LaneIndex(): 
                                         LeftoverValuesCount);
     
-    Result.Min = (ValuesPerThread*LaneIdx()+
+    Result.Min = (ValuesPerThread*LaneIndex()+
                   LeftoversBeforeThisThreadIdx);
     Result.Max = (Result.Min + ValuesPerThread + !!ThreadHasLeftover);
     
@@ -66,6 +66,6 @@ ThreadInit(thread_context *ContextToSelect)
     str8 ThreadName = {0};
     ThreadName.Data = ThreadNameBuffer;
     ThreadName.Size = 1;
-    ThreadName.Data[0] = (u8)LaneIdx() + '0';
+    ThreadName.Data[0] = (u8)LaneIndex() + '0';
     OS_SetThreadName(ThreadName);
 }

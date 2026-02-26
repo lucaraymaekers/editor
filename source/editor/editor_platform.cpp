@@ -19,7 +19,7 @@
 
 C_LINKAGE ENTRY_POINT(EntryPoint)
 {
-    if(LaneIdx() == 0)
+    if(LaneIndex() == 0)
     {
         u64 PlatformMemorySize = GB(4);
         u64 AppMemorySize = GB(1);
@@ -71,7 +71,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         app_memory AppMemory = {};
         AppMemory.MemorySize = AppMemorySize;
-        AppMemory.Memory = ArenaPush(PermanentArena, AppMemory.MemorySize, false);
+        AppMemory.Memory = PushArray(PermanentArena, u8, AppMemory.MemorySize);
         
         AppMemory.ExeDirPath = ExeDirPath;
 #if EDITOR_INTERNAL
@@ -111,7 +111,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         u64 RecordingFileHandle = 0;
         u64 MaxRecordingFramesCount = (u64)GameUpdateHz * 60 * 10;
         u64 RecordingBufferMaxSize = AppMemory.MemorySize + (MaxRecordingFramesCount*sizeof(app_input));
-        void *RecordingBuffer = ArenaPush(PermanentArena, RecordingBufferMaxSize, false);
+        void *RecordingBuffer = PushArray(PermanentArena, u8, RecordingBufferMaxSize);
         u64 RecordingBufferSize = 0;
         u64 RecordingBufferPos = 0;
         char *RecordingPath = PathFromExe(FrameArena, AppMemory.ExeDirPath, S8("loop_edit.edi"));
