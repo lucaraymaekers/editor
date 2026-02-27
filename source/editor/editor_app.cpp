@@ -502,14 +502,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
             
             UI_PushBox();
             
-            UI_SemanticWidth(UI_SizeParent(1.f/5.f, 1.f)) 
+            UI_SemanticWidth(UI_SizeParent(.21f, 1.f)) 
                 UI_SemanticHeight(UI_SizeText(2.f, 1.f))
             {    
                 UI_AddBox(S8("Open"), ButtonFlags);
                 UI_AddBox(S8("Help"), ButtonFlags);
                 UI_AddBox(S8("Save"), ButtonFlags);
                 
-                UI_AddBox(S8(""), UI_BoxFlag_None);
+                UI_SemanticWidth(UI_SizeParent(0.2f, 0.f))
+                    UI_AddBox(S8(""), UI_BoxFlag_None);
                 
                 if(UI_AddBox(S8("Close"), ButtonFlags)->Clicked)
                 {

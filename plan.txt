@@ -1,4 +1,3 @@
-- Strictness and constraints
 - panels
   - selected panel
   - draggable array to change PercentOfParent
@@ -35,6 +34,14 @@
 
 - UI: Specify to attach to parent or sibling? AppendToParent
 
+
+# dump 
+- check out the violation calc code
+- then check out the positions calc code
+- we might want to decouple calculating positions and drawing the boxes for panels
+
+
+# Archived
 x Ryan's layout algorithm
 x Specify axis
 x Draw background + border + gradient
@@ -49,3 +56,4 @@ x Stacks for selecting options like ryan
 x make hot reloading shader optional
 x Spacer
 x Proper hashing of string and splitting up into DisplayString
+x Solving violations

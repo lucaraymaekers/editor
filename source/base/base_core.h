@@ -137,7 +137,8 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 #define DoOnce local_persist s32 Var(X) = 0; Var(X) += 1; if(Var(X) < 2)
 #define DebugBreakOnce() do { DoOnce { DebugBreak(); }; } while(0);
 
-# define TrapMsg(Format, ...) do { ErrorLog(Format, ##__VA_ARGS__); Trap(); } while(0)
+#define DebugBreakMsg(Format, ...) do { ErrorLog(Format, ##__VA_ARGS__); DebugBreak(); } while(0)
+#define TrapMsg(Format, ...) do { ErrorLog(Format, ##__VA_ARGS__); Trap(); } while(0)
 #define AssertMsg(Expression, Format, ...) \
 do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 #define Assert(Expression) AssertMsg(Expression, "Hit assertion")

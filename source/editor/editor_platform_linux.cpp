@@ -682,8 +682,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                                 else
                                 {
                                     Input->Text.Count -= 1;
-                                    ErrorLog("Unhandled special key(%d): %s", Symbol, LinuxReturnStringForSymbol(Symbol));
-                                    DebugBreak();
+                                    DebugBreakMsg("Unhandled special key(%d): %s (Consider adding it to the if statement above)", Symbol, LinuxReturnStringForSymbol(Symbol));
                                 }
                                 
                             }

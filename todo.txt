@@ -1,3 +1,5 @@
+app:
+
 misc:
 - metaprogramming
   - replace X macros
@@ -21,3 +23,6 @@ Archived:
  windows:
  x editor_libs.o in .bat script
  x rename to editor.exe
+ app:
+ x ui bug when using PercentOfParent, can overflow with rounding error. (tested with .25f)
+   -> wasn't a rounding error.

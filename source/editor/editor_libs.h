@@ -14,7 +14,7 @@ C_LINKAGE_BEGIN
 
 # define XXH_STATIC_LINKING_ONLY
 # define XXH_IMPLEMENTATION
-// TODO(luca): Does not work because this implies XXH_IMPLEMENTATION and will make the function signatures mismatch
+// TODO(luca): Does not work because firstly, this implies XXH_IMPLEMENTATION and secondly, it will make the function signatures mismatch
 //# define XXH_INLINE_ALL
 
 #else

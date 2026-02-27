@@ -60,7 +60,7 @@ UI_AddBox(str8 String, u32 Flags)
         u64 HashCutOff = 0;
         for EachIndex(Idx, String.Size - 1)
         {
-            if(S8Match(S8FromTo(String, Idx, Idx + 1), S8("##"), true))
+            if(S8Match(S8From(String, Idx), S8("##"), true))
             {
                 DisplayString = S8To(String, Idx);
                 break;
@@ -298,7 +298,49 @@ UI_CalculateDownwardSizes(ui_box *Box, axis2 Axis)
 internal void
 UI_CalculateViolations(ui_box *Box, axis2 Axis)
 {
-    NotImplemented();
+    ui_box *Parent = Box->Parent;
+    
+    f32 ParentSize = Parent->FixedSize.e[Axis];
+    
+    // TODO(luca): This is inefficient since the violations should be solved once per level.
+    f32 TotalSize = 0.f;
+    {    
+        ui_box *Sibling = Parent->First;
+        while(!UI_IsNilBox(Sibling))
+        {
+            if(Sibling->LayoutAxis == Axis)
+            {            
+                TotalSize += Sibling->FixedSize.e[Axis];
+            }
+            
+            Sibling = Sibling->Next;
+        }
+    }
+    
+    f32 ViolationSize = TotalSize - ParentSize;
+    
+    if(ViolationSize > 0.f)
+    {
+        ui_box *Sibling = Parent->First;
+        // TODO(luca): epsilon compare?
+        while(!UI_IsNilBox(Sibling) && ViolationSize != 0.f)
+        {
+            f32 Strictness = Sibling->SemanticSize[Axis].Strictness;
+            f32 AllowedSizeToTake = ((1.f - Strictness)*Sibling->FixedSize.e[Axis]);
+            f32 TakenSize = Min(ViolationSize, AllowedSizeToTake);
+            
+            Sibling->FixedSize.e[Axis] = Sibling->FixedSize.e[Axis] - TakenSize;
+            ViolationSize -= TakenSize;
+            
+            Sibling = Sibling->Next;
+        }
+        
+        if(!EqualsWithEpsilon(ViolationSize, 0.f, .001f))
+        {
+            DebugBreakMsg("Clipping");
+        }
+        
+    }
     
     if(!UI_IsNilBox(Box->Next))
     {
@@ -474,6 +516,7 @@ UI_InitState(panel *Panel, app_input *Input, app_state *App, b32 DebugMode)
     UI_PushSemanticWidth(UI_SizeParent(1.f, 1.f));
     UI_PushSemanticHeight(UI_SizeParent(1.f, 1.f));
     
+    // NOTE(luca): This ensures every box has a parent, namely the root box.
     UI_PushBox();
 }
 
@@ -487,7 +530,7 @@ UI_ResolveLayout(ui_box *Root)
         UI_CalculateStandaloneSizes(Root->First, Axis);
         UI_CalculateUpwardSizes(Root->First, Axis);
         UI_CalculateDownwardSizes(Root->First, Axis);
-        //UI_CalculateViolations(Root->First, Axis);
+        UI_CalculateViolations(Root->First, Axis);
     }
     UI_CalculatePositionsAndDrawBoxes(Root->First);
     //UI_DebugPrintBoxes(Root->First);
