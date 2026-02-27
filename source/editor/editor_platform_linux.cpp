@@ -892,16 +892,18 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
     {
         Code->LastWriteTime = CurrentWriteTime;
         
-        if(Library)
-        {
-            s32 Error = dlclose(Library);
-            if(Error != 0)
-            {
-                ErrorLog("%s", dlerror());
-            }
+        str8 TempDLLFileName = StringFormat(Arena, "editor_app_temp_%lu.so", (u64)OS_GetWallClock());
+        char *TempDLLPath = PathFromExe(Arena, Memory->ExeDirPath, TempDLLFileName);
+        
+        int File = open(Code->LibraryPath, O_RDONLY, 0600);
+        if(File != -1)
+        {            
+            int TempFile = open(TempDLLPath, O_WRONLY|O_CREAT|O_TRUNC, 0700);
+            smm BytesCopied = copy_file_range(File, 0, TempFile, 0, Size, 0);
+            close(TempFile);
         }
         
-        Library = dlopen(Code->LibraryPath, RTLD_NOW);
+        Library = dlopen(TempDLLPath, RTLD_NOW);
         if(Library)
         {
             // Load code from library
