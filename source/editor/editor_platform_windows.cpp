@@ -265,6 +265,12 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                             {
                                 Button->Codepoint = Codepoint;
                             }
+                            else if (Codepoint > 0 && IsPrintable(VKCode))
+                            {
+                                // NOTE(luca): VKCodes are uppercase by default
+                                if(IsAlpha(VKCode)) VKCode += 32;
+                                Button->Codepoint = VKCode;
+                            }
                             else
                             {
                                 Button->IsSymbol = true;
@@ -275,6 +281,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                                 else if(Codepoint == 13) Button->Symbol = PlatformKey_Return; 
                                 else 
                                 {
+                                    Input->Text.Count -= 1;
                                     // Not implemented
                                     DebugBreak();
                                 };
@@ -288,6 +295,19 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                             else if(VKCode == VK_DOWN) Button->Symbol = PlatformKey_Down;
                             else if(VKCode == VK_LEFT) Button->Symbol = PlatformKey_Left;
                             else if(VKCode == VK_RIGHT) Button->Symbol = PlatformKey_Right;
+                            else if(IsPrintable(VKCode))
+                            {
+                                Button->IsSymbol = false;
+                                if(IsAlpha(VKCode)) VKCode += 32;
+                                Button->Codepoint = VKCode;
+                            }
+                            else
+                            {
+                                char KeyName[64] = {};
+                                GetKeyNameTextA(Message.lParam, KeyName, sizeof(KeyName));
+                                Log("Unhandled key(%d): %s\n", VKCode, KeyName);
+                                Input->Text.Count -= 1;
+                            }
                         }
                     }
                 } break;
@@ -311,14 +331,8 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
             POINT MouseP;
             GetCursorPos(&MouseP);
             ScreenToClient(Win32Context->Window, &MouseP);
-            
-            if(MouseP.x >= 0 && MouseP.x < Buffer->Width &&
-               MouseP.y >= 0 && MouseP.y < Buffer->Height)
-            {                    
-                Input->MouseX = MouseP.x;
-                Input->MouseY = MouseP.y;
-            }
-            
+            Input->MouseX = MouseP.x;
+            Input->MouseY = MouseP.y;
             // TODO(luca): Support mousewheel
             Input->MouseZ = 0; 
             

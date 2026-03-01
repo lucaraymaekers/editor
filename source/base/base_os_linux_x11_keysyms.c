@@ -260,7 +260,7 @@ LinuxReturnStringForSymbol(KeySym Symbol)
         case XK_dead_small_schwa: return "dead_small_schwa"; break;
         case XK_dead_capital_schwa: return "dead_capital_schwa"; break;
         case XK_dead_greek: return "dead_greek"; break;
-        case XK_dead_hamza: return "dead_hamza"; break;
+        //case XK_dead_hamza: return "dead_hamza"; break;
         case XK_First_Virtual_Screen: return "First_Virtual_Screen"; break;
         case XK_Prev_Virtual_Screen: return "Prev_Virtual_Screen"; break;
         case XK_Next_Virtual_Screen: return "Next_Virtual_Screen"; break;

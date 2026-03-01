@@ -56,6 +56,8 @@ struct gl_render_state
     b32 ShadersCompiled;
 };
 
+struct ui_box;
+
 struct panel
 {
     panel *First;
@@ -64,13 +66,15 @@ struct panel
     panel *Prev;
     panel *Parent;
     
-    u32 Axis;
-    f32 PercentOfParent;
+    s32 Axis;
+    f32 ParentPct;
+    
+    ui_box *Root;
     
     rect Region;
+    
+    b32 DisableInteraction;
 };
-
-struct ui_box;
 
 typedef struct app_state app_state;
 struct app_state
@@ -91,9 +95,12 @@ struct app_state
     u64 UIBoxTableSize;
     ui_box *UIBoxTable;
     
+    panel *TitlebarPanel;
+    panel *SelectedPanel;
     panel *FirstPanel;
     panel *LastPanel;
     panel *FreePanel;
+    arena *PanelArena;
     
     u64 FrameIndex;
     
@@ -101,6 +108,7 @@ struct app_state
     
     // Nils
     ui_box *TrackerForUI_NilBox;
+    panel *TrackerForNilPanel;
 };
 
 //~ Globals
@@ -133,6 +141,8 @@ SET(Orange,           0xffd08770) \
 SET(Yellow,           0xffebcb8b) \
 SET(Green,            0xffa3be8c) \
 SET(Magenta,          0xffb48ead) \
+SET(Cyan,             0xff81a1c1) \
+SET(Blue,             0xff5e81ac) \
 SET(Black,            0xff000000) \
 
 #define SET(Name, Value) u32 ColorU32_##Name = Value;
@@ -143,10 +153,10 @@ ColorList
 ColorList
 #undef SET
 
-v4 Color_Background = Color_Night3;
-v4 Color_Foreground = Color_Snow0;
-v4 Color_ButtonBorder = Color_Night2;
-v4 Color_ButtonBackground = Color_Night0;
-v4 Color_ButtonText = Color_Black;
+global_variable v4 Color_Background = Color_Night3;
+global_variable v4 Color_Foreground = Color_Snow0;
+global_variable v4 Color_ButtonBorder = Color_Night2;
+global_variable v4 Color_ButtonBackground = Color_Night0;
+global_variable v4 Color_ButtonText = Color_Black;
 
 #endif //EDITOR_APP_H

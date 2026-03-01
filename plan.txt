@@ -1,13 +1,28 @@
-- panels
-  - selected panel
-  - draggable array to change PercentOfParent
-  - create new panel / close panel buttonu
+0. Draw debug borders in post-order on panels
+
+1. panel tree so you can have split in splits
+  - if the panel has a next then it must draw a split border
+  - otherwise no border
+
+2. ui events as a queue so you can eat them
+3. multithreading
+
+- Clip all elements to window border
 - https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language
   - all properties from here
+- inset elements
+- panels
+  - selected panel so that input events only go to one panel
+  - create/split new panel
+  - close panel button
+- prune stale elements from cache on the end of UI_ResolveLayout()
+
 - ? Use signal/comm to have all the events with flags
   since the common case is no signal, it should be optional?
+- open windows & close windows
+  - inspecting ui window
+- tick() function?
 
-- win32: flickering
 - albedo sample 
 
 - Evict boxes from cache when they aren't touched anymore
@@ -57,3 +72,6 @@ x make hot reloading shader optional
 x Spacer
 x Proper hashing of string and splitting up into DisplayString
 x Solving violations
+x win32: flickering
+x panel: draggable array to change PercentOfParent
+x proper mouse dragging

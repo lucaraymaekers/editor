@@ -159,7 +159,7 @@ struct app_memory
     
     b32 Initialized;
 };
-#define UPDATE_AND_RENDER(Name) b32 Name(thread_context *Context, app_memory *Memory, app_offscreen_buffer *Buffer, app_input *Input)
+#define UPDATE_AND_RENDER(Name) b32 Name(thread_context *Context, app_memory *Memory, app_offscreen_buffer *Buffer, app_input *Input, app_input *OldInput)
 
 typedef UPDATE_AND_RENDER(update_and_render);
 

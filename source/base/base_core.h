@@ -152,7 +152,7 @@ do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 #define EachIndex(Index, Count)           EachIndexType(u64, Index, Count)
 #define EachElement(Index, Array)         EachIndexType(u64, Index, ArrayCount(Array))
 #define EachInRange(Index, Range)         (u64 Index = (Range).Min; Index < (Range).Max; Index += 1)
-#define EachNode(Index, t, First)      (t *Index = First; Index != 0; Index = Index->next)
+#define EachNode(Index, t, First)      (t *Index = First; Index != 0; Index = Index->Next)
 
 #define MemoryCopy(Dest, Source, Count) memmove(Dest, Source, Count)
 #define MemorySet(Dest, Value, Count)  memset(Dest, Value, Count)
@@ -181,6 +181,12 @@ do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 // like writing to that section reliably produces access violations, strangely
 // enough. (It does on Clang)
 # define read_only
+#endif
+
+#if COMPILER_MSVC
+# define PrintfFunc(FormatIdx, FirstArgIdx)
+#elif COMPILER_CLANG || COMPILER_GNU
+# define PrintfFunc(FormatIdx, FirstArgIdx) __attribute__((format(printf, FormatIdx, FirstArgIdx)))
 #endif
 
 #if COMPILER_MSVC

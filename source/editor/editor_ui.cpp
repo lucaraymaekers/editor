@@ -146,7 +146,7 @@ UI_AddBox(str8 String, u32 Flags)
     {
         v2 MouseP = V2S32(UI_State->Input->MouseX, UI_State->Input->MouseY);
         
-        b32 Hovered = IsInsideRectV2(MouseP, RectFromSize(Box->FixedPosition, Box->FixedSize));
+        b32 Hovered = IsInsideRecV2(MouseP, RectFromSize(Box->FixedPosition, Box->FixedSize));
         b32 Clicked = (Hovered && (WasPressed(UI_State->Input->MouseButtons[PlatformMouseButton_Left]))); 
         b32 Pressed = (Hovered && UI_State->Input->MouseButtons[PlatformMouseButton_Left].EndedDown);
         
@@ -219,6 +219,7 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
         } break;
         case UI_SizeKind_TextContent:
         {
+            // TODO(luca): This is the only part that needs the UI_State variable, if we can rid of it, we could get totally UI_State agnostic layout computation. 
             if(Axis == Axis2_X)
             {
                 Box->FixedSize.e[Axis] = (UI_MeasureTextWidth(Box->DisplayString) + 
@@ -337,7 +338,7 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
         
         if(!EqualsWithEpsilon(ViolationSize, 0.f, .001f))
         {
-            DebugBreakMsg("Clipping");
+            ErrorLog("Clipping");
         }
         
     }
@@ -384,26 +385,34 @@ UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
     
     rect Dest = RectFromSize(Box->FixedPosition, Box->FixedSize);
     
+    if(Box->Flags & UI_BoxFlag_DrawShadow)
+    {
+        f32 ShadowSize = 4.f;
+        rect ShadowDest = RectV2(V2AddF32(Dest.Min, ShadowSize), 
+                                 V2AddF32(Dest.Max, ShadowSize)); 
+        rect_instance *Inst = DrawRect(ShadowDest, Color_Black, 0.f, ShadowSize, .5f*ShadowSize);
+        V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
+    }
+    
     if(Box->Flags & UI_BoxFlag_DrawBackground)
     {    
         rect_instance *Inst = DrawRect(Dest, Box->BackgroundColor, 0.f, 0.f, Box->Softness);
         V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
         
-        if(Box->Flags & UI_BoxFlag_AnimateColorOnHover)
+        if(Box->Flags & UI_BoxFlag_MouseClickability)
         {
             if(Box->Hovered)
             {
-                Inst->Color0.W = .2f;
-                Inst->Color1.W = .2f;
-                
                 if(Box->Pressed)
                 {
-                    Inst->Color0.W = 1.f;
-                    Inst->Color1.W = 1.f;
-                    Inst->Color2.W = .2f;
-                    Inst->Color3.W = .2f;
+                    V3Math Inst->Color2.E *= .5f;
+                    V3Math Inst->Color3.E *= .5f;
                 }
-                
+                else
+                {                    
+                    V3Math Inst->Color0.E *= .5f;
+                    V3Math Inst->Color1.E *= .5f;
+                }
             }
         }
     }
@@ -490,13 +499,8 @@ UI_DebugPrintBoxes(ui_box *Box)
 //- Calculations End
 
 internal void
-UI_InitState(panel *Panel, app_input *Input, app_state *App, b32 DebugMode)
+UI_InitState(ui_box *Root, app_input *Input, app_state *App, b32 DebugMode)
 {
-    ui_box *Root = PushStructZero(FrameArena, ui_box);
-    Root->Parent = Root->First = Root->Next = Root->Last = UI_NilBox;
-    Root->FixedPosition = Panel->Region.Min;
-    Root->FixedSize = SizeFromRect(Panel->Region);
-    
     UI_State->Root = Root;
     UI_State->Current = Root;
     UI_State->AppendToParent = false;
@@ -521,17 +525,22 @@ UI_InitState(panel *Panel, app_input *Input, app_state *App, b32 DebugMode)
 }
 
 internal void
-UI_ResolveLayout(ui_box *Root)
+UI_ResolveLayout(ui_box *FirstFromRoot)
 {
-    for EachIndex(Idx, Axis2_Count)
+    if(!UI_IsNilBox(FirstFromRoot))
     {        
-        axis2 Axis = (axis2)Idx;
-        
-        UI_CalculateStandaloneSizes(Root->First, Axis);
-        UI_CalculateUpwardSizes(Root->First, Axis);
-        UI_CalculateDownwardSizes(Root->First, Axis);
-        UI_CalculateViolations(Root->First, Axis);
+        for EachIndex(Idx, Axis2_Count)
+        {        
+            axis2 Axis = (axis2)Idx;
+            
+            UI_CalculateStandaloneSizes(FirstFromRoot, Axis);
+            UI_CalculateUpwardSizes(FirstFromRoot, Axis);
+            UI_CalculateDownwardSizes(FirstFromRoot, Axis);
+            UI_CalculateViolations(FirstFromRoot, Axis);
+        }
+        UI_CalculatePositionsAndDrawBoxes(FirstFromRoot);
+        //UI_DebugPrintBoxes(FirstFromRoot->First);
     }
-    UI_CalculatePositionsAndDrawBoxes(Root->First);
-    //UI_DebugPrintBoxes(Root->First);
+    
 }
+

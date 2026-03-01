@@ -1,5 +1,5 @@
 version(2);
-project_name = "RL Codebase";
+project_name = "editor";
 
 patterns = 
 {
@@ -46,6 +46,8 @@ commands =
         .linux = "sh ./source/build.sh",
         .win = ".\\source\\build.bat",
         .save_dirty_files = true,
+        .footer_panel = false,
+        .cursor_at_end = false,
     },
     .run_default = 
     {
@@ -53,13 +55,26 @@ commands =
         .linux = "./build/editor",
         .win = "raddbg --ipc run",
         .save_dirty_files = false,
-        .footer_panel = true,
+        .footer_panel = false,
+        .cursor_at_end = false,
     },
     .build_lexer = 
     {
-        .out = "*compilation*", .save_dirty_files = true,
+        .out = "*compilation*", 
         .linux = "sh ./source/test.sh",
         .win = ".\\source\\build.bat",
+        .save_dirty_files = true,
+        .footer_panel = false,
+        .cursor_at_end = false,
+    },
+    .raddbg_kill = 
+    {
+        .out = "*compilation*", 
+        .linux = "sh ./source/test.sh",
+        .win = "raddbg --ipc kill_all",
+        .save_dirty_files = true,
+        .footer_panel = false,
+        .cursor_at_end = false,
     },
 };
 
@@ -67,4 +82,5 @@ fkey_command =
 {
     .F1 = "build_default",
     .F2 = "run_default",
+    .F5 = "raddbg_kill",
 };

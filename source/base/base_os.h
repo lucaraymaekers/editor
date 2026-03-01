@@ -49,7 +49,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint);
 internal str8  OS_ReadEntireFileIntoMemory(char *FileName);
 internal void  OS_FreeFileMemory(str8 File);
 internal b32   OS_WriteEntireFile(char *FileName, str8 File);
-internal void  OS_PrintFormat(char *Format, ...);
+internal void  OS_PrintFormat(char *Format, ...) PrintfFunc(1, 2);
 internal void  OS_BarrierWait(barrier Barrier);
 internal void  OS_SetThreadName(str8 ThreadName);
 internal void *OS_Allocate(u64  Size);

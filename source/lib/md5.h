@@ -35,7 +35,7 @@ static inline void md5_finish(md5_ctx* ctx, uint8_t digest[MD5_DIGEST_SIZE]);
 #   pragma clang diagnostic ignored "-Wcast-align"
 // TODO(luca): We should check clang version instead.
 #if !OS_ANDROID
-#   pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+//#   pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #endif
 #   pragma clang diagnostic ignored "-Wlanguage-extension-token"
 #   pragma clang diagnostic ignored "-Wdeclaration-after-statement"

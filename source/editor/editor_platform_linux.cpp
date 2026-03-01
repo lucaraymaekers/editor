@@ -682,7 +682,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                                 else
                                 {
                                     Input->Text.Count -= 1;
-                                    DebugBreakMsg("Unhandled special key(%d): %s (Consider adding it to the if statement above)", Symbol, LinuxReturnStringForSymbol(Symbol));
+                                    DebugBreakMsg("Unhandled special key(%lu): %s (Consider adding it to the if statement above)", Symbol, LinuxReturnStringForSymbol(Symbol));
                                 }
                                 
                             }
@@ -754,7 +754,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                 case MotionNotify:
                 {
                     XMotionEvent *Event = (XMotionEvent *)&WindowEvent;
-                    
+                    Log("Mouse event: (%d, %d) %lu\n", Event->x, Event->y, Event->time);
                     if(Event->x >= 0 && Event->x < Buffer->Width &&
                        Event->y >= 0 && Event->y < Buffer->Height)
                     {                    

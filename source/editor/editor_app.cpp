@@ -35,6 +35,15 @@ LoadImage(arena *Arena, str8 ExeDirPath, str8 Path)
     return Result;
 }
 
+internal inline b32
+InRange(f32 P, f32 Min, f32 Max, f32 Size)
+{
+    b32 Result = ((P >= Min        && P < Min + Size) ||
+                  (P >= Max - Size && P < Max));
+    
+    return Result;
+}
+
 internal inline u32 *
 GetPixel(app_offscreen_buffer *Buffer, s32 X, s32 Y)
 {
@@ -200,32 +209,208 @@ gl_CleanupState(gl_render_state *Render)
     glDeleteProgram(Render->RectShader);
 }
 
-internal void
-GetPanelRegion(panel *Panel, rect Region)
+//- Panels 
+read_only global_variable panel _NilPanel =
 {
+    &_NilPanel, 
+    &_NilPanel,
+    &_NilPanel,
+    &_NilPanel,
+    &_NilPanel,
+};
+global_variable panel *NilPanel = &_NilPanel;
+
+internal b32
+IsNilPanel(panel *Panel)
+{
+    b32 Result = (!Panel || Panel == NilPanel);
+    return Result;
+}
+
+global_variable arena *PanelArena = 0;
+global_variable b32 PanelAppendToParent = false;
+global_variable panel *PanelCurrent = 0;
+global_variable panel *PanelRoot = 0;
+global_variable app_state *PanelApp = 0;
+global_variable app_input *PanelInput = 0;
+
+global_variable u32 PanelDebugIndentation = 0;
+global_variable u32 PanelDebugLevel = 0;
+global_variable v4 PanelDebugColors[] = {Color_Red, Color_Green, Color_Orange, Color_Magenta, Color_Yellow, Color_Blue};
+
+global_variable axis2_stack_node *PanelAxisTop = 0; 
+
+internal panel *
+PanelAdd(f32 ParentPct)
+{
+    panel *New = PushStructZero(PanelArena, panel);
     
-    u32 Axis = Panel->Axis;
-    u32 OtherAxis = 1 - Axis;
-    v2 Pos = Region.Min;
+    New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
     
-    v2 Size = {};
-    Size.e[Axis] = Panel->PercentOfParent*(Region.Max.e[Axis] - Region.Min.e[Axis]);
-    Size.e[OtherAxis] = (Region.Max.e[OtherAxis] - Region.Min.e[OtherAxis]);
-    Panel->Region = RectFromSize(Pos, Size);
+    New->ParentPct = ParentPct;
+    New->Axis = PanelAxisTop->Value;
     
-    if(Panel->First)
-    {
-        GetPanelRegion(Panel->First, Panel->Region);
+    if(!IsNilPanel(PanelCurrent))
+    {            
+        if(PanelAppendToParent)
+        {
+            PanelCurrent->First = New;
+            New->Parent = PanelCurrent;
+        }
+        else
+        {
+            PanelCurrent->Next = New;
+            New->Prev = PanelCurrent;
+            New->Parent = PanelCurrent->Parent;
+        }
+        
+        New->Parent->Last = New;
     }
     
-    if(Panel->Next)
+    PanelCurrent = New;
+    PanelAppendToParent = false;
+    
+    return New;
+}
+
+internal void
+PanelPush()
+{
+    PanelAppendToParent = true;
+}
+
+internal void
+PanelPop(void)
+{
+    PanelCurrent = PanelCurrent->Parent;
+}
+
+internal void PanelPushAxis(axis2 Axis) { StackPush(FrameArena, axis2_stack_node, Axis, PanelAxisTop); }
+internal void PanelPopAxis() { StackPop(PanelAxisTop); }
+
+
+
+#define PanelGroup() DeferLoop(PanelPush(), PanelPop())
+#define PanelAxis(Axis) DeferLoop(PanelPushAxis(Axis), PanelPopAxis())
+
+internal void
+PanelDebugPrint(panel *Panel)
+{
+    Log("%*s %.2f %u:\n"
+        "%*s  (%.0f,%.0f)\n"
+        "%*s  (%.0f,%.0f)\n",
+        PanelDebugIndentation, "", Panel->ParentPct, Panel->Axis,
+        PanelDebugIndentation, "", V2Arg(Panel->Region.Min),
+        PanelDebugIndentation, "", V2Arg(Panel->Region.Max));
+    
+    if(!IsNilPanel(Panel->First))
     {
-        rect FreeRegion = Region;
-        FreeRegion.Min.e[Axis] = Panel->Region.Max.e[Axis];
-        
-        GetPanelRegion(Panel->Next, FreeRegion);
+        PanelDebugIndentation += 1;
+        PanelDebugPrint(Panel->First);
+        PanelDebugIndentation -= 1;
+    }
+    
+    if(!IsNilPanel(Panel->Next))
+    {
+        PanelDebugPrint(Panel->Next);
     }
 }
+
+internal void
+PanelGetRegion(panel *Panel, rect FreeRegion)
+{
+    panel *Parent = Panel->Parent;
+    s32 Axis = Panel->Parent->Axis;
+    s32 OtherAxis = 1 - Axis;
+    
+    v2 Pos = FreeRegion.Min;
+    v2 Size = {};
+    
+    f32 ParentSize = (Parent->Region.Max.e[Axis] - Parent->Region.Min.e[Axis]);
+    f32 OtherSize = (FreeRegion.Max.e[OtherAxis] - FreeRegion.Min.e[OtherAxis]);
+    
+    Size.e[Axis] = (!IsNilPanel(Parent) ?
+                    (Panel->ParentPct*ParentSize) :
+                    (FreeRegion.Max.e[Axis] - FreeRegion.Min.e[Axis]));
+    Size.e[OtherAxis] = OtherSize;
+    
+    Panel->Region = RectFromSize(Pos, Size);
+    
+    if(!IsNilPanel(Panel->First))
+    {
+        PanelDebugLevel += 1;
+        PanelGetRegion(Panel->First, Panel->Region);
+        PanelDebugLevel -= 1;
+    }
+    
+    if(!IsNilPanel(Panel->Next))
+    {
+        FreeRegion.Min.e[Axis] = Panel->Region.Max.e[Axis];
+        PanelGetRegion(Panel->Next, FreeRegion);
+    }
+    
+    v2 MouseP = V2S32(PanelInput->MouseX, PanelInput->MouseY);
+    
+    f32 BorderSize = 2.f;
+    
+    // NOTE(luca): This happens post-order so that the borders are overlaid correctly.
+    if(!IsNilPanel(Panel->Next) && !Panel->DisableInteraction)
+    {
+        rect Border = Panel->Region;
+        Border.Min.e[Axis] = Panel->Region.Max.e[Axis] - BorderSize;
+        
+        // TODO(luca): Only one border should be dragged at a time, this should be taken care of by an input queue
+        local_persist b32 IsDragging = false;
+        local_persist v2 OldMouseP = {};
+        
+        // TODO(luca): Make this actually good.
+#if 1        
+        b32 MouseIsDown = PanelInput->MouseButtons[PlatformMouseButton_Left].EndedDown;
+        b32 MouseWasPressed = WasPressed(PanelInput->MouseButtons[PlatformMouseButton_Left]);
+        
+        if(!MouseIsDown)
+        {
+            IsDragging = false;
+        }
+        
+        v4 BorderColor = Color_Blue;
+        
+        if(IsInsideRecV2(MouseP, Border) && !IsDragging)
+        {
+            BorderColor = Color_Cyan;
+            
+            if(MouseWasPressed)
+            {
+                IsDragging = true;
+                OldMouseP = MouseP;
+                PanelApp->SelectedPanel = Panel;
+            }
+        }
+        
+        if(IsDragging && Panel == PanelApp->SelectedPanel)
+        {
+            BorderColor = Color_Yellow;
+            
+            f32 dP = (OldMouseP.e[Axis] - MouseP.e[Axis]);
+            f32 ParentOtherSize = (Parent->Region.Max.e[OtherAxis] - Parent->Region.Min.e[OtherAxis]);
+            f32 dPPct = (dP/ParentSize);
+            
+            panel *Next = Panel->Next;
+            
+            Panel->ParentPct = Clamp(0.05f, Panel->ParentPct - dPPct, .95f);
+            Next->ParentPct  = Clamp(0.05f, Next->ParentPct  + dPPct, .95f);
+            
+            OldMouseP = MouseP;
+        }
+        
+        Panel->Region.Max.e[Axis] -= BorderSize;
+#endif
+        
+        DrawRect(Border, BorderColor, 0.f, 0.f, 0.f);
+    }
+}
+
+//- 
 
 C_LINKAGE
 UPDATE_AND_RENDER(UpdateAndRender)
@@ -268,6 +453,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     OS_ProfileAndPrint("Init");
     
+    f32 WindowBorderSize = 2.f;
+    v2 BufferDim = V2S32(Buffer->Width, Buffer->Height);
+    v2 OldMouseP = V2S32(OldInput->MouseX, OldInput->MouseY);
+    v2 MouseP = V2S32(Input->MouseX, Input->MouseY);
+    
     if(!Memory->Initialized)
     {
         char *FontPath = PathFromExe(FrameArena, Memory->ExeDirPath, S8("../data/font_regular.ttf"));
@@ -284,48 +474,60 @@ UPDATE_AND_RENDER(UpdateAndRender)
         App->UIBoxArena = PushArena(PermanentArena, 256*sizeof(ui_box));
         
         App->TrackerForUI_NilBox = &_UI_NilBox;
+        App->TrackerForNilPanel = &_NilPanel;
         
         gl_InitState(&App->Render);
         
         // Panels
         {        
-            // Push first panel
-            {        
-                panel *New = PushStruct(PermanentArena, panel);
-                New->PercentOfParent = .08f;
-                New->Axis = Axis2_Y;
-                
-                App->LastPanel = App->FirstPanel = New;
-            }
+            f32 TopSplitPct = (App->HeightPx + 2.f*2.f)/(BufferDim.Y - 2.f*WindowBorderSize);
             
-            // Append panel to the end
-            {        
-                panel *New = PushStruct(PermanentArena, panel);
-                New->PercentOfParent = .5f;
-                New->Axis = Axis2_X;
+            PanelArena = App->PanelArena = ArenaAlloc();
+            PanelAxis(Axis2_Y) PanelGroup()
+            {
+                panel *RootPanel = PanelAdd(1.f);
                 
-                New->Prev = App->LastPanel;
-                App->LastPanel->Next = New;
-                App->LastPanel = New;
+                PanelAxis(Axis2_X) PanelGroup()
+                {
+                    panel *TitlebarPanel = PanelAdd(TopSplitPct);
+                    App->TitlebarPanel = TitlebarPanel;
+                    TitlebarPanel->DisableInteraction = true;
+                    
+                    panel *AppPanel      = PanelAdd(1.f - TopSplitPct);
+                    PanelAxis(Axis2_Y) PanelGroup()
+                    {
+                        panel *LeftPanel = PanelAdd(.4f);
+                        PanelGroup()
+                        {            
+                            panel *TopLeftPanel    = PanelAdd(.33f);
+                            panel *MiddleLeftPanel = PanelAdd(.33f);
+                            panel *BottomLeftPanel = PanelAdd(.34f);
+                        }
+                        panel *MiddlePanel = PanelAdd(.2f);
+                        panel *RightPanel  = PanelAdd(.4f);
+                        PanelGroup()
+                        {            
+                            panel *TopRightPanel    = PanelAdd(.6f);
+                            panel *BottomRightPanel = PanelAdd(.4f);
+                        }
+                    }
+                }
+                PanelDebugPrint(RootPanel);
+                App->FirstPanel = RootPanel;
+                App->LastPanel = RootPanel;
             }
-            
-            // Append panel to the end
-            {        
-                panel *New = PushStruct(PermanentArena, panel);
-                New->PercentOfParent = 1.f;
-                New->Axis = Axis2_X;
-                
-                New->Prev = App->LastPanel;
-                App->LastPanel->Next = New;
-                App->LastPanel = New;
-            }
-            
         }
+        
         Memory->Initialized = true;
         OS_ProfileAndPrint("Memory Init");
     }
     
     UI_NilBox = App->TrackerForUI_NilBox;
+    NilPanel = App->TrackerForNilPanel;
+    
+    PanelArena = App->PanelArena;
+    PanelInput = Input;
+    PanelApp = App;
     
     // Text input
     for EachIndex(Idx, Input->Text.Count)
@@ -345,20 +547,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             if(ModifiersShiftIgnored == PlatformKeyModifier_Control)
             {
                 if(0) {}
-                else if(Key.Codepoint == 'p')
-                {
-                    // TODO(luca): Selected panel
-                    panel *Panel = App->FirstPanel->Next;
-                    if(!(Key.Modifiers & PlatformKeyModifier_Shift))
-                    {
-                        Panel->PercentOfParent += .01f;
-                    }
-                    else
-                    {
-                        Panel->PercentOfParent -= .01f;
-                    }
-                    Panel->PercentOfParent = Clamp(0.01f, Panel->PercentOfParent, 1.f);
-                }
                 else if(Key.Codepoint == 'h')
                 {
                     DeleteChar(App);
@@ -418,13 +606,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
     glViewport(0, 0, Buffer->Width, Buffer->Height);
     OS_ProfileAndPrint("GL setup");
     
-    f32 WindowBorderSize = 2.f;
     v4 WindowBorderColor;
     if(0) {}
     else if(Input->PlatformIsRecording) WindowBorderColor = Color_Red;
     else if(Input->PlatformIsPlaying) WindowBorderColor = Color_Green;
     else if(Input->PlatformWindowIsFocused) WindowBorderColor = Color_Snow0;
-    else WindowBorderColor = Color_Night3;
+    else WindowBorderColor = Color_Black;
     
     //- Prepare rects rendering 
     u64 MaxRectsCount = 1024;
@@ -445,8 +632,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     OS_ProfileAndPrint("Atlas");
     
-    v2 BufferDim = V2S32(Buffer->Width, Buffer->Height);
-    
     // Draw rectangles 
     {
         // Window borders
@@ -460,16 +645,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
     }
     
-    // Init panels
-    {
-        v2 Pos = V2(0.f, 0.f);
-        v2 Size = BufferDim;
-        Pos = V2AddF32(Pos, WindowBorderSize);
-        Size = V2SubF32(Size, 2.f*WindowBorderSize);
-        
-        GetPanelRegion(App->FirstPanel, RectFromSize(Pos, Size));
-    }
-    
     UI_BoxTableSize = App->UIBoxTableSize;
     UI_BoxTable = App->UIBoxTable;
     UI_BoxArena = App->UIBoxArena;
@@ -478,76 +653,63 @@ UPDATE_AND_RENDER(UpdateAndRender)
     u32 Flags = (UI_BoxFlag_DrawBorders | UI_BoxFlag_DrawBackground |
                  UI_BoxFlag_DrawDisplayString |
                  UI_BoxFlag_CenterTextHorizontally | UI_BoxFlag_CenterTextVertically );
-    u32 ButtonFlags = (Flags | 
-                       UI_BoxFlag_AnimateColorOnHover |
-                       UI_BoxFlag_AnimateColorOnPress);
+    u32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickability);
     u32 TitlebarFlags = (Flags ^ 
                          UI_BoxFlag_DrawDisplayString ^ 
-                         UI_BoxFlag_DrawBackground ^
-                         UI_BoxFlag_DrawBorders);
-    
+                         UI_BoxFlag_DrawBackground);
     
     OS_ProfileAndPrint("UI setup");
     
-    // First panel
-    {    
-        UI_InitState(App->FirstPanel, Input, App, false);
+    v2 Pos = V2(0.f, 0.f);
+    v2 Size = BufferDim;
+    Pos = V2AddF32(Pos, WindowBorderSize);
+    Size = V2SubF32(Size, 2.f*WindowBorderSize);
+    
+    rect FreeRegion = RectFromSize(Pos, Size);
+    
+    
+    // UI Panels
+    {
+        //1. For each panel 
+        // 2. Add split borders for resizing
+        // 3. Capture input events for dragging
+        // 4. Compute the region for UI and create root ui_box
+        // 5. Solve layout for UI
+        // 6. Solve UI for each panel
         
-        // UI tree
+        PanelGetRegion(App->FirstPanel, FreeRegion);
+        
+        //PanelDebugPrint(App->FirstPanel);
+        // UI for this panel
         {
-            UI_SemanticHeight(UI_SizeChildren(1.f)) 
-            {
-                UI_AddBox(S8("titlebar"), TitlebarFlags);
-            }
+            App->TitlebarPanel->Root = PushStructZero(FrameArena, ui_box);
             
-            UI_PushBox();
+            ui_box *Root = App->TitlebarPanel->Root;
+            Root->First = Root->Last = Root->Next = Root->Prev = Root->Parent = UI_NilBox;
             
-            UI_SemanticWidth(UI_SizeParent(.21f, 1.f)) 
+            Root->FixedPosition = App->TitlebarPanel->Region.Min;
+            Root->FixedSize = SizeFromRect(App->TitlebarPanel->Region);
+            
+            UI_InitState(Root, Input, App, false);
+            
+            UI_SemanticWidth(UI_SizeParent(1.f/5.f, 1.f)) 
                 UI_SemanticHeight(UI_SizeText(2.f, 1.f))
             {    
                 UI_AddBox(S8("Open"), ButtonFlags);
                 UI_AddBox(S8("Help"), ButtonFlags);
                 UI_AddBox(S8("Save"), ButtonFlags);
                 
-                UI_SemanticWidth(UI_SizeParent(0.2f, 0.f))
-                    UI_AddBox(S8(""), UI_BoxFlag_None);
+                UI_AddBox(S8(""), UI_BoxFlag_None);
                 
                 if(UI_AddBox(S8("Close"), ButtonFlags)->Clicked)
                 {
                     ShouldQuit = true;
                 }
-                
-                UI_PopBox();
             }
+            
+            UI_ResolveLayout(Root->First);
         }
         
-        UI_ResolveLayout(UI_State->Root);
-    }
-    
-    // Second panel
-    {    
-        UI_InitState(App->FirstPanel->Next, Input, App, false);
-        
-        // UI tree
-        {
-            UI_BorderColor(Color_Black)
-                UI_AddBox(S8("FirstArea"), UI_BoxFlag_DrawBorders);
-        }
-        
-        UI_ResolveLayout(UI_State->Root);
-    }
-    
-    // Third panel
-    {    
-        UI_InitState(App->FirstPanel->Next->Next, Input, App, false);
-        
-        // UI tree
-        {
-            UI_BorderColor(Color_Black)
-                UI_AddBox(S8("SecondArea"), UI_BoxFlag_DrawBorders);
-        }
-        
-        UI_ResolveLayout(UI_State->Root);
     }
     
     OS_ProfileAndPrint("UI");
@@ -570,7 +732,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         {            
             gl_handle RectShader = App->Render.RectShader;
             
-            RectShader = gl_ProgramFromShaders(FrameArena, Memory->ExeDirPath,
+            RectShader = GL_ProgramFromShaders(FrameArena, Memory->ExeDirPath,
                                                S8("../source/shaders/rect_vert.glsl"),
                                                S8("../source/shaders/rect_frag.glsl"));
             glUseProgram(RectShader);
@@ -580,7 +742,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 gl_handle UViewport = glGetUniformLocation(RectShader, "Viewport");
                 glUniform2f(UViewport, V2Arg(BufferDim));
                 
-                gl_LoadTextureFromImage(App->Render.Textures[0], Atlas->Width, Atlas->Height, Atlas->Data, GL_RED, RectShader, "Texture");
+                GL_LoadTextureFromImage(App->Render.Textures[0], Atlas->Width, Atlas->Height, Atlas->Data, GL_RED, RectShader, "Texture");
             }
             
             App->Render.ShadersCompiled = true;
@@ -602,7 +764,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         s32 TotalSize = 0;
         for EachElement(Idx, Counts)
         {            
-            gl_SetQuadAttribute((s32)Idx + 1, Counts[Idx], &Offset);
+            GL_SetQuadAttribute((s32)Idx + 1, Counts[Idx], &Offset);
             TotalSize += Counts[Idx];
         }
         Assert(TotalSize == (sizeof(rect_instance)/sizeof(f32)));

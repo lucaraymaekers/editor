@@ -32,7 +32,7 @@ mkdir -p "$Build"
 
 [ -f "./base/base_build.h" ] && personal=1
 
-C_Compile()
+Compile()
 {
  SourceFiles="$1"
  Out="$2"
@@ -105,13 +105,13 @@ then
      { [ "$asan" = 1 ] && ! nm "$LibsFile" 2>/dev/null | grep 'asan' > /dev/null; } ||
      [ ! -f "$LibsFile" ]; }
   then
-   C_Compile ./editor/editor_libs.h "$LibsFile" "-fPIC -x c++ -c -DEDITOR_SLOW_COMPILE=1 -Wno-unused-command-line-argument"
+   Compile ./editor/editor_libs.h "$LibsFile" "-fPIC -x c++ -c -DEDITOR_SLOW_COMPILE=1 -Wno-unused-command-line-argument"
   fi
   AppFlags="$AppFlags $LibsFile"
  fi
 
- C_Compile "./editor/editor_app.cpp" editor_app.so "$AppFlags"
- C_Compile "./editor/editor_platform.cpp" editor "-lX11 -lGL -lGLX"
+ Compile "./editor/editor_app.cpp" editor_app.so "$AppFlags"
+ Compile "./editor/editor_platform.cpp" editor "-lX11 -lGL -lGLX"
 fi
 
 if [ "$windows" = 1 ]

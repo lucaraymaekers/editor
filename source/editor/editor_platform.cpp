@@ -250,7 +250,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
                 AppMemory.IsProfiling = GlobalIsProfiling;
                 
-                b32 ShouldQuit = Code.UpdateAndRender(ThreadContext, &AppMemory, &Buffer, NewInput);
+                b32 ShouldQuit = Code.UpdateAndRender(ThreadContext, &AppMemory, &Buffer, NewInput, OldInput);
                 // NOTE(luca): Since UpdateAndRender can take some time, there could have been a signal sent to INT the app.
                 ReadWriteBarrier;
                 *Running = *Running && !ShouldQuit;

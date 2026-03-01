@@ -154,18 +154,14 @@ MakeQuadV3(v3 *Quad, v2 Min, v2 Max, f32 Z)
 #define V2Math for EachIndex(_VecMathIdx, 2)
 #define V3Math for EachIndex(_VecMathIdx, 3)
 #define V4Math for EachIndex(_VecMathIdx, 4)
-/*
-v3 A = ;
-v3 B = ;
-v3 C = ;
-V3Math { C.e = A.e * B.e; } 
-*/
+// V3Math { C.E = A.E * B.E; } 
 
 //- 
 typedef union rect rect;
 union rect
 {
     f32 e[4];
+    v2 eV2[2];
     struct
     {            
         v2 Min;
@@ -185,6 +181,15 @@ Rect(f32 MinX, f32 MinY, f32 MaxX, f32 MaxY)
     rect Result = {0};
     Result.Min = V2(MinX, MinY);
     Result.Max = V2(MaxX, MaxY);
+    return Result;
+}
+
+internal inline rect
+RectV2(v2 Min, v2 Max)
+{
+    rect Result = {0};
+    Result.Min = Min;
+    Result.Max = Max;
     return Result;
 }
 
@@ -214,26 +219,25 @@ SizeFromRect(rect Rec)
     return Result;
 }
 
+internal inline v4
+V4FromRec(rect Rec)
+{
+    v4 Result = V4(Rec.Min.X, Rec.Min.Y, Rec.Max.X, Rec.Max.Y);
+    return Result;
+}
+
 internal inline b32
 IsInside(f32 X, f32 Y, v2 Min, v2 Max)
 {
-    b32 Result = (X >= Min.X && X <= Max.X &&
-                  Y >= Min.Y && Y <= Max.Y);
+    b32 Result = (X >= Min.X && X < Max.X &&
+                  Y >= Min.Y && Y < Max.Y);
     return Result;
 }
 
 internal inline b32
 IsInsideV2(v2 P, v2 Min, v2 Max)
 {
-    b32 Result = (P.X >= Min.X && P.X <= Max.X &&
-                  P.Y >= Min.Y && P.Y <= Max.Y);
-    return Result;
-}
-
-internal inline v4
-V4FromRec(rect Rec)
-{
-    v4 Result = V4(Rec.Min.X, Rec.Min.Y, Rec.Max.X, Rec.Max.Y);
+    b32 Result = IsInside(P.X, P.Y, Min, Max);
     return Result;
 }
 
@@ -245,16 +249,16 @@ IsInsideV4(f32 X, f32 Y, v4 Rec)
 }
 
 internal inline b32
-IsInsideRec(f32 X, f32 Y, rect Rectangle)
+IsInsideRec(f32 X, f32 Y, rect Rec)
 {
-    b32 Result = IsInside(X, Y, Rectangle.Min, Rectangle.Max);
+    b32 Result = IsInside(X, Y, Rec.Min, Rec.Max);
     return Result;
 }
 
 internal inline b32
-IsInsideRectV2(v2 Pos, rect Rectangle)
+IsInsideRecV2(v2 Pos, rect Rec)
 {
-    b32 Result = IsInsideRec(Pos.X, Pos.Y, Rectangle);
+    b32 Result = IsInsideRec(Pos.X, Pos.Y, Rec);
     return Result;
 }
 

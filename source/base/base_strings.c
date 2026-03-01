@@ -3,6 +3,28 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+internal b32 
+IsPrintable(u8 Char)
+{
+    b32 Result = (Char >= ' ' && Char <= '~');
+    return Result;
+}
+
+internal b32
+IsDigit(u8 Char)
+{
+    b32 Result = (Char >= '0' && Char <= '9');
+    return Result;
+}
+
+internal b32
+IsAlpha(u8 Char)
+{
+    b32 Result = ((Char >= 'A' && Char <= 'Z') ||
+                  (Char >= 'a' && Char <= 'z'));
+    return Result;
+}
+
 internal str8 
 S8SkipLastSlash(str8 String)
 {

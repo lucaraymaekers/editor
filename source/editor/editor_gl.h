@@ -10,7 +10,7 @@ typedef unsigned int gl_handle;
 //- GL helpers 
 
 internal void
-gl_ErrorStatus(gl_handle Handle, b32 IsShader)
+GL_ErrorStatus(gl_handle Handle, b32 IsShader)
 {
     b32 Success = true;
     
@@ -33,7 +33,7 @@ gl_ErrorStatus(gl_handle Handle, b32 IsShader)
 }
 
 internal gl_handle
-gl_CompileShaderFromSource(arena *Arena, str8 ExeDirPath, str8 FileNameAfterExe, s32 Type)
+GL_CompileShaderFromSource(arena *Arena, str8 ExeDirPath, str8 FileNameAfterExe, s32 Type)
 {
     gl_handle Handle = glCreateShader(Type);
     
@@ -44,7 +44,7 @@ gl_CompileShaderFromSource(arena *Arena, str8 ExeDirPath, str8 FileNameAfterExe,
     {    
         glShaderSource(Handle, 1, (const char **)&Source.Data, NULL);
         glCompileShader(Handle);
-        gl_ErrorStatus(Handle, true);
+        GL_ErrorStatus(Handle, true);
     }
     
     OS_FreeFileMemory(Source);
@@ -53,19 +53,19 @@ gl_CompileShaderFromSource(arena *Arena, str8 ExeDirPath, str8 FileNameAfterExe,
 }
 
 internal gl_handle
-gl_ProgramFromShaders(arena *Arena, str8 ExeDirPath, str8 VertPath, str8 FragPath)
+GL_ProgramFromShaders(arena *Arena, str8 ExeDirPath, str8 VertPath, str8 FragPath)
 {
     gl_handle Program = 0;
     
     gl_handle VertexShader, FragmentShader;
-    VertexShader = gl_CompileShaderFromSource(Arena, ExeDirPath, VertPath, GL_VERTEX_SHADER);
-    FragmentShader = gl_CompileShaderFromSource(Arena, ExeDirPath, FragPath, GL_FRAGMENT_SHADER);
+    VertexShader = GL_CompileShaderFromSource(Arena, ExeDirPath, VertPath, GL_VERTEX_SHADER);
+    FragmentShader = GL_CompileShaderFromSource(Arena, ExeDirPath, FragPath, GL_FRAGMENT_SHADER);
     
     Program = glCreateProgram();
     glAttachShader(Program, VertexShader);
     glAttachShader(Program, FragmentShader);
     glLinkProgram(Program);
-    gl_ErrorStatus(Program, false);
+    GL_ErrorStatus(Program, false);
     
     glDeleteShader(FragmentShader); 
     glDeleteShader(VertexShader);
@@ -74,7 +74,7 @@ gl_ProgramFromShaders(arena *Arena, str8 ExeDirPath, str8 VertPath, str8 FragPat
 }
 
 internal void
-gl_LoadFloatsIntoBuffer(gl_handle BufferHandle, gl_handle ShaderHandle, char *AttributeName, u64 Count, s32 VecSize, void *Buffer)
+GL_LoadFloatsIntoBuffer(gl_handle BufferHandle, gl_handle ShaderHandle, char *AttributeName, u64 Count, s32 VecSize, void *Buffer)
 {
     gl_handle AttribHandle;
     
@@ -91,7 +91,7 @@ gl_LoadFloatsIntoBuffer(gl_handle BufferHandle, gl_handle ShaderHandle, char *At
 }
 
 internal void
-gl_LoadTextureFromImage(gl_handle Texture, s32 Width, s32 Height, u8 *Image, s32 Format, gl_handle ShaderProgram, char *TextureHandle)
+GL_LoadTextureFromImage(gl_handle Texture, s32 Width, s32 Height, u8 *Image, s32 Format, gl_handle ShaderProgram, char *TextureHandle)
 {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Texture);
@@ -122,7 +122,7 @@ gl_LoadTextureFromImage(gl_handle Texture, s32 Width, s32 Height, u8 *Image, s32
 }
 
 void
-gl_SetQuadAttribute(s32 Index, s32 Count, u64 *Offset)
+GL_SetQuadAttribute(s32 Index, s32 Count, u64 *Offset)
 {
     glEnableVertexAttribArray(Index);
     glVertexAttribDivisor(Index, 1);
