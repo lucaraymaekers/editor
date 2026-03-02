@@ -1,4 +1,5 @@
 global_variable f64 GlobalPerfCountFrequency;
+global_variable thread_context *DEBUGThreadContext; 
 
 //- Helpers 
 
@@ -142,19 +143,31 @@ OS_PrintFormat(char *Format, ...)
 internal void
 OS_BarrierWait(barrier Barrier)
 {
-    NotImplemented();
+    EnterSynchronizationBarrier((LPSYNCHRONIZATION_BARRIER)Barrier, 0);
 }
 
 internal void 
 OS_SetThreadName(str8 ThreadName)
 {
-    NotImplemented();
+    wchar_t *Name = PushArrayZero(ThreadContext->Arena, wchar_t, ThreadName.Size+ 1);
+    for EachIndex(Idx, ThreadName.Size)
+    {
+        Name[Idx] = ThreadName.Data[Idx];
+    }
+    SetThreadDescription((HANDLE)ThreadContext->Handle, Name);
 }
 
 internal void *
-OS_Allocate(u64  Size)
+OS_AllocateAtOffset(u64 Size, u64 Offset)
 {
-    void *Result = VirtualAlloc(0, Size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    void *Result = VirtualAlloc((LPVOID)Offset, Size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    return Result;
+}
+
+internal void *
+OS_Allocate(u64 Size)
+{
+    void *Result = OS_AllocateAtOffset(Size, 0);
     return Result;
 }
 
@@ -196,6 +209,21 @@ OS_ChangeDirectory(char *Path)
 	Win32LogIfError();
 }
 
+DWORD 
+WINAPI ThreadInitEntryPoint(LPVOID FuncParams)
+{
+    entry_point_params *Params = (entry_point_params *)FuncParams;
+    
+    ThreadInit(&Params->Context);
+    
+    DEBUGThreadContext = ThreadContext;
+    
+#if !BASE_NO_ENTRYPOINT
+    EntryPoint(Params);
+#endif
+    return 0;
+}
+
 //~ Entrypoint
 #if !BASE_NO_ENTRYPOINT
 int CALLBACK
@@ -204,8 +232,6 @@ WinMain(HINSTANCE Instance,
         LPSTR CommandLine,
         int ShowCode)
 {
-    u64 SharedStorage = 0;
-    entry_point_params Params = {0};
     
     GlobalDebuggerIsAttached = raddbg_is_attached();
     
@@ -218,12 +244,48 @@ WinMain(HINSTANCE Instance,
     QueryPerformanceFrequency(&PerfCountFrequencyResult);
     GlobalPerfCountFrequency = PerfCountFrequencyResult.QuadPart;
     
-    thread_context *Context = &Params.Context;
-    Context->LaneCount = 1;
-    Context->SharedStorage = &SharedStorage;
-    ThreadContext = Context;
+#if FORCE_THREADS_COUNT
+    u64 ThreadsCount = FORCE_THREADS_COUNT;
+#else
+    u64 ThreadsCount = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+#endif
     
-    EntryPoint(&Params);
+    arena *Arena = ArenaAlloc();
+    os_thread *Threads = PushArray(Arena, os_thread, ThreadsCount);
+    
+    u64 SharedStorage = 0;
+    
+    SYNCHRONIZATION_BARRIER Barrier = {0};
+    
+    BOOL BarrierInitialized = InitializeSynchronizationBarrier(&Barrier, ThreadsCount, -1);
+    
+    for EachIndex(Idx, ThreadsCount)
+    {
+        entry_point_params *Params = &Threads[Idx].Params;
+        Params->Context.LaneIndex = Idx;
+        Params->Context.LaneCount = ThreadsCount;
+        Params->Context.Barrier   = (barrier)&Barrier;
+        Params->Context.SharedStorage = &SharedStorage;
+        //Params->Args = Args;
+        //Params->ArgsCount = ArgsCount;
+        
+        Params->Context.Handle = (thread_handle)CreateThread(0, 0, ThreadInitEntryPoint, Params, 0, 0);
+        
+        if(!Params->Context.Handle)
+        {
+            printf("Failed to create thread. Error: %lu\n", GetLastError());
+            return 1;
+        }
+    }
+    
+    for EachIndex(Idx, ThreadsCount)
+    {
+        entry_point_params *Params = &Threads[Idx].Params;
+        
+        WaitForSingleObject((HANDLE)Params->Context.Handle, INFINITE);
+        CloseHandle((HANDLE)Params->Context.Handle);
+    }
+    
     return 0;
 }
 #endif

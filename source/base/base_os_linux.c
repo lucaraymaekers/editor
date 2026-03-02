@@ -29,14 +29,6 @@
 //~ Types
 typedef void *pthread_entry_point_func(void *);
 
-typedef struct os_thread os_thread;
-struct os_thread
-{
-    void *Result;
-    
-    entry_point_params Params;
-};
-
 //~ Helpers
 internal s64
 LinuxTimeSpecToNS(struct timespec Counter)
@@ -149,9 +141,16 @@ OS_SetThreadName(str8 ThreadName)
 }
 
 internal void *
-OS_Allocate(u64  Size)
+OS_AllocateAtOffset(u64 Size, u64 Offset)
 {
-    void *Result = mmap(0, Size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+    void *Result = mmap((void *)Offset, Size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+    return Result;
+}
+
+internal void *
+OS_Allocate(u64 Size)
+{
+    void *Result = OS_AllocateAtOffset(Size, 0);
     return Result;
 }
 
@@ -300,7 +299,7 @@ LinuxMainEntryPoint(int ArgsCount, char **Args)
     s64 ThreadsCount = get_nprocs();
 #endif
     
-    os_thread *Threads = PushArray(Arena, os_thread, (u64 )ThreadsCount);
+    os_thread *Threads = PushArray(Arena, os_thread, (u64)ThreadsCount);
     s32 Ret = 0;
     
     Ret = prctl(PR_SET_NAME, ThreadName);

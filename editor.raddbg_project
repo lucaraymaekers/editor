@@ -1,11 +1,12 @@
 // raddbg 0.9.24 project file
 
 recent_file: path: "source/editor/editor_app.cpp"
-recent_file: path: "source/editor/editor_ui.cpp"
+recent_file: path: "source/base/base_lanes.c"
 recent_file: path: "source/base/base_os_windows.c"
 recent_file: path: "source/editor/editor_platform.cpp"
 recent_file: path: "source/editor/editor_platform_windows.cpp"
 recent_file: path: "source/base/base_arenas.c"
+recent_file: path: "source/editor/editor_ui.cpp"
 recent_file: path: "source/editor/editor_ui.h"
 recent_file: path: "source/editor/editor_platform.h"
 recent_file: path: "source/editor/editor_gl.h"
@@ -27,12 +28,12 @@ debug_info:
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor_app.pdb"
-  timestamp: 66208229784331
+  timestamp: 66208233410743
 }
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor.pdb"
-  timestamp: 66208229012540
+  timestamp: 66208233411490
 }
 debug_info:
 {

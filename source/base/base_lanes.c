@@ -14,7 +14,7 @@ GetScratch()
 }
 
 internal void 
-LaneIceberg(void)
+Iceberg(void)
 {
     OS_BarrierWait(ThreadContext->Barrier);
 }
@@ -26,13 +26,13 @@ LaneSyncU64(u64 *Value, s64 SourceIdx)
     {
         *(u64 *)ThreadContext->SharedStorage = *(u64 *)Value;
     }
-    LaneIceberg();
+    Iceberg();
     
     if(LaneIndex() != SourceIdx)
     {
         *(u64 *)Value = *(u64 *)ThreadContext->SharedStorage;
     }
-    LaneIceberg();
+    Iceberg();
 }
 
 internal range_s64 

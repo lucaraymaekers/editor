@@ -25,7 +25,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         u64 AppMemorySize = GB(1);
         
         // NOTE(luca): Total memory also for game.
-        arena *PermanentArena = ArenaAlloc(.Size = PlatformMemorySize);
+        arena *PermanentArena = ArenaAlloc(.Size = PlatformMemorySize, .Offset = TB(2));
         arena *FrameArena = ArenaAlloc();
         
         b32 *Running = PushStruct(PermanentArena, b32);

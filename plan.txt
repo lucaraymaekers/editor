@@ -1,11 +1,4 @@
-0. Draw debug borders in post-order on panels
-
-1. panel tree so you can have split in splits
-  - if the panel has a next then it must draw a split border
-  - otherwise no border
-
 2. ui events as a queue so you can eat them
-3. multithreading
 
 - Clip all elements to window border
 - https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language

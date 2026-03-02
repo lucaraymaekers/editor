@@ -9,7 +9,7 @@ ArenaAlloc_(arena_alloc_params Params)
         Size = Params.Size;
     }
     
-    void *Base = OS_Allocate(Size);
+    void *Base = OS_AllocateAtOffset(Size, Params.Offset);
     AsanPoisonMemoryRegion(Base, Size);
     
     u64 HeaderSize = sizeof(arena);

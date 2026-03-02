@@ -12,8 +12,8 @@ struct entry_point_params
     char **Args;
 };
 
-typedef struct OS_profiler OS_profiler;
-struct OS_profiler
+typedef struct os_profiler os_profiler;
+struct os_profiler
 {
     f64 Start;
     f64 End;
@@ -25,9 +25,17 @@ struct os_file_handle
     u64 Handle;
 };
 
+typedef struct os_thread os_thread;
+struct os_thread
+{
+    void *Result;
+    
+    entry_point_params Params;
+};
+
 //~ Globals
 global_variable u8 LogBuffer[KB(64)];
-global_variable OS_profiler GlobalProfiler = {}; 
+global_variable os_profiler GlobalProfiler = {}; 
 global_variable char *GlobalProfilerPrefix = ""; 
 
 #if EDITOR_PROFILE
@@ -52,6 +60,7 @@ internal b32   OS_WriteEntireFile(char *FileName, str8 File);
 internal void  OS_PrintFormat(char *Format, ...) PrintfFunc(1, 2);
 internal void  OS_BarrierWait(barrier Barrier);
 internal void  OS_SetThreadName(str8 ThreadName);
+internal void *OS_AllocateAtOffset(u64 Size, u64 Offset);
 internal void *OS_Allocate(u64  Size);
 internal void  OS_BarrierWait(barrier Barrier);
 internal f64   OS_GetWallClock(void);

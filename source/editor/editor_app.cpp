@@ -512,7 +512,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         }
                     }
                 }
-                PanelDebugPrint(RootPanel);
                 App->FirstPanel = RootPanel;
                 App->LastPanel = RootPanel;
             }

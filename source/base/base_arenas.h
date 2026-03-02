@@ -16,6 +16,7 @@ struct arena_alloc_params
 {
     u64 DefaultSize;
     u64 Size;
+    u64 Offset;
 };
 
 #define ArenaAllocDefaultSize MB(64)
