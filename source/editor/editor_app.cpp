@@ -240,28 +240,37 @@ global_variable v4 PanelDebugColors[] = {Color_Red, Color_Green, Color_Orange, C
 
 global_variable axis2_stack_node *PanelAxisTop = 0; 
 
+#define PanelAdd(ParentPct) PanelAdd_(PanelArena, PanelAxisTop->Value, PanelCurrent, PanelAppendToParent, ParentPct)
+
 internal panel *
-PanelAdd(f32 ParentPct)
+PanelPush(arena *Arena)
 {
-    panel *New = PushStructZero(PanelArena, panel);
+    panel *New = PushStructZero(Arena, panel);
+    New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
+    return New;
+}
+internal panel *
+PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 ParentPct)
+{
+    panel *New = PanelPush(Arena);
     
     New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
     
     New->ParentPct = ParentPct;
-    New->Axis = PanelAxisTop->Value;
+    New->Axis = Axis;
     
-    if(!IsNilPanel(PanelCurrent))
+    if(!IsNilPanel(Current))
     {            
-        if(PanelAppendToParent)
+        if(AppendToParent)
         {
-            PanelCurrent->First = New;
-            New->Parent = PanelCurrent;
+            Current->First = New;
+            New->Parent = Current;
         }
         else
         {
-            PanelCurrent->Next = New;
-            New->Prev = PanelCurrent;
-            New->Parent = PanelCurrent->Parent;
+            Current->Next = New;
+            New->Prev = Current;
+            New->Parent = Current->Parent;
         }
         
         New->Parent->Last = New;
@@ -271,6 +280,116 @@ PanelAdd(f32 ParentPct)
     PanelAppendToParent = false;
     
     return New;
+}
+
+internal panel *
+SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
+{
+    
+    panel *Result = To;
+    
+    // TODO(luca): The new split size should 1/n where n is the number of children.
+    // We want the ParentPct to be taken in the same way than when we resize. See TODO at resizing.
+    f32 ParentPct = .5f*To->ParentPct;
+    
+    {
+        panel *New = PanelPush(Arena);
+        panel *Parent = To->Parent;
+        
+        // NOTE(luca): Must be a leaf node.
+        Assert(IsNilPanel(To->First));
+        
+        if(Axis == Parent->Axis)
+        {        
+            New->ParentPct = ParentPct;
+            To->ParentPct -= ParentPct;
+            
+            New->Parent = Parent;
+            
+            if(!Backwards)
+            {
+                if(To == Parent->Last)
+                {
+                    Parent->Last = New;
+                }
+            }
+            else
+            {
+                if(To == Parent->First)
+                {
+                    Parent->First = New;
+                }
+            }
+            
+            if(!Backwards)
+            {    
+                New->Next = To->Next;
+                
+                if(!IsNilPanel(To->Next)) To->Next->Prev = New;
+                
+                To->Next = New;
+                New->Prev = To;
+            }
+            else
+            {
+                New->Next = To;
+                
+                if(!IsNilPanel(To->Prev)) To->Prev->Next = New;
+                
+                New->Prev = To->Prev;
+                To->Prev = New;
+            }
+            
+            Result = New;
+        }
+        else
+        {
+            //1. Create NewParent replacing Parent
+            //  - update To siblings and Parent child links
+            //2. To becomes child of NewParent
+            //3. Split To
+            
+            panel *NewParent = New;
+            NewParent->Axis = Axis;
+            NewParent->ParentPct = To->ParentPct;
+            NewParent->Parent = Parent;
+            
+            //1.
+            if(To == Parent->First)
+            {
+                Parent->First = NewParent;
+            }
+            
+            if(To == Parent->Last)
+            {
+                Parent->Last = NewParent;
+            }
+            
+            if(!IsNilPanel(To->Prev))
+            {
+                To->Prev->Next = NewParent;
+                NewParent->Prev = To->Prev;
+            }
+            
+            if(!IsNilPanel(To->Next))
+            {
+                To->Next->Prev = NewParent;
+                NewParent->Next = To->Next;
+            }
+            
+            //2. 
+            To->Parent = NewParent;
+            NewParent->First = To;
+            NewParent->Last = To;
+            To->Next = To->Prev = NilPanel;
+            
+            //3. 
+            To->ParentPct = 1.f;
+            Result = SplitPanel(Arena, To, Axis, Backwards); 
+        }
+    }
+    
+    return Result;
 }
 
 internal void
@@ -316,17 +435,113 @@ PanelDebugPrint(panel *Panel)
     }
 }
 
-internal app_input *
-GetInput(app_input *Input)
+internal inline b32 
+IsLeafPanel(panel *Panel)
 {
-    app_input *Result = 0;
+    b32 Result = IsNilPanel(Panel->First);
+    return Result;
+}
+
+internal panel *
+PanelNextLeaf(panel *Start, b32 Backwards)
+{
+    panel *Result = Start;
+    // NOTE(luca): If nothing was found we will return the starting point
     
-    if(Input && !Input->Consumed)
+    b32 IsLeaf = false;
+    
+    panel *Search = Start;
+    
+    while(!IsLeaf && !IsNilPanel(Search))
     {
-        Result = Input;
+        panel *Next = (Backwards ? Search->Prev : Search->Next);
+        
+        if(!IsNilPanel(Next) || IsNilPanel(Search->Parent))
+        {
+            if(!IsNilPanel(Next))
+            {            
+                Search = Next;
+                
+                IsLeaf = IsLeafPanel(Search);
+            }
+            
+            while(!IsLeaf)
+            {
+                Search = (Backwards ? Search->Last : Search->First);
+                
+                IsLeaf = IsLeafPanel(Search);
+            }
+        }
+        else
+        {
+            Search = Search->Parent;
+        }
     }
     
-    return Input;
+    if(IsLeaf)
+    { 
+        Assert(!IsNilPanel(Search) || Search == Start);
+        Result = Search;
+    }
+    
+    return Result;
+}
+
+internal panel *
+ClosePanel(panel *Panel)
+{
+    // NOTE(luca): The panel which will take over the side of the deleted one.
+    panel *Collapse = NilPanel;
+    
+    panel *Parent = Panel->Parent;
+    
+    if(!IsNilPanel(Panel))
+    {        
+        if(Parent->First == Panel)
+        {
+            Parent->First = Panel->Next;
+        }
+        
+        if(Parent->Last == Panel)
+        {
+            Parent->Last = Panel->Prev;
+        }
+        
+        // TODO(luca): When this becomes the first and last child, should we collapse it together with the parent?
+        
+        if(!IsNilPanel(Panel->Next)) 
+        {
+            Panel->Next->Prev = Panel->Prev;
+            
+            Collapse = Panel->Next;
+        }
+        
+        if(!IsNilPanel(Panel->Prev)) 
+        {
+            Panel->Prev->Next = Panel->Next;
+            
+            Collapse = Panel->Prev;
+        }
+        
+        if(!IsNilPanel(Collapse))
+        {
+            Collapse->ParentPct += Panel->ParentPct;
+        }
+        else
+        {
+            // Last node of its parent, parent should get deleted.  End of the bloodline.
+            Collapse = ClosePanel(Panel->Parent);
+        }
+        
+        // TODO(luca): Push onto the free list
+    }
+    
+    if(!IsLeafPanel(Collapse))
+    {
+        Collapse = PanelNextLeaf(Collapse, false);
+    }
+    
+    return Collapse;
 }
 
 internal void
@@ -368,7 +583,7 @@ PanelGetRegion(panel *Panel, rect FreeRegion)
     b32 MouseIsDown = PanelInput->MouseButtons[PlatformMouseButton_Left].EndedDown;
     b32 MouseWasPressed = WasPressed(PanelInput->MouseButtons[PlatformMouseButton_Left]);
     
-    b32 DrawResizeBorder = !IsNilPanel(Panel->Next) && !Panel->DisableInteraction; 
+    b32 DrawResizeBorder = !IsNilPanel(Panel->Next); 
     if(DrawResizeBorder)
     {
         v4 ResizeBorderColor = Color_Red;
@@ -384,7 +599,7 @@ PanelGetRegion(panel *Panel, rect FreeRegion)
         local_persist panel *DraggingPanel = 0;
         
         // TODO(luca): Make good resizing ->
-        // Other panels should be clamped to a minimum sieze
+        // Other panels should be clamped to a minimum size, which should be pixel based since percents can mean visible on large screen but invisible on small screens 
         // More size taken from bigger panels than from smaller panels.
         // The delta distance computed should be relative to the new position of the Panel Min.  This elimitates being able to resize to the right when being on the left of the border. (User should pass over the border to resize in that direction).
         
@@ -433,7 +648,6 @@ PanelGetRegion(panel *Panel, rect FreeRegion)
 #endif
     }
     
-    
     v4 PanelBorderColor = Color_Blue;
     
     // NOTE(luca): This happens post-order so that the borders are overlaid correctly.
@@ -457,11 +671,22 @@ PanelGetRegion(panel *Panel, rect FreeRegion)
         DrawRect(Panel->Region, PanelBorderColor, 0.f, PanelBorderSize, 0.f);
         Panel->Region = RectShrink(Panel->Region, PanelBorderSize);
     }
-    
-    
 }
 
-//- 
+internal app_input *
+GetInput(app_input *Input)
+{
+    app_input *Result = 0;
+    
+    if(Input && !Input->Consumed)
+    {
+        Result = Input;
+    }
+    
+    return Input;
+}
+
+//-
 
 C_LINKAGE
 UPDATE_AND_RENDER(UpdateAndRender)
@@ -477,7 +702,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     GlobalIsProfiling = Memory->IsProfiling;
     
     Input->Consumed = false;
-    Input->PlatformCursor = 0;
+    Input->PlatformCursor = PlatformCursorShape_Arrow;
     
     OS_ProfileInit(" G");
     
@@ -547,7 +772,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     panel *TitlebarPanel = PanelAdd(TopSplitPct);
                     App->TitlebarPanel = TitlebarPanel;
-                    TitlebarPanel->DisableInteraction = true;
+                    App->SelectedPanel = TitlebarPanel;
                     
                     panel *AppPanel      = PanelAdd(1.f - TopSplitPct);
                     PanelAxis(Axis2_Y) PanelGroup()
@@ -588,11 +813,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
     for EachIndex(Idx, Input->Text.Count)
     {
         app_text_button Key = Input->Text.Buffer[Idx];
+        // Ignore shift.
+        u32 ModifiersShiftIgnored = (Key.Modifiers & ~PlatformKeyModifier_Shift);
         
         if(!Key.IsSymbol)
         {
-            // Ignore shift.
-            u32 ModifiersShiftIgnored = (Key.Modifiers & ~PlatformKeyModifier_Shift);
             
             if(Key.Modifiers & PlatformKeyModifier_Alt && Key.Codepoint == 'b')
             {
@@ -601,7 +826,38 @@ UPDATE_AND_RENDER(UpdateAndRender)
             
             if(ModifiersShiftIgnored == PlatformKeyModifier_Control)
             {
+                //- Panels 
                 if(0) {}
+                else if(Key.Codepoint == 'p')
+                {
+                    if(!(Key.Modifiers & PlatformKeyModifier_Shift))
+                    {                        
+                        App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_X, false);
+                    }
+                    else
+                    {
+                        App->SelectedPanel = ClosePanel(App->SelectedPanel);
+                    }
+                }
+                else if(Key.Codepoint == '-')
+                {
+                    if(!(Key.Modifiers & PlatformKeyModifier_Shift))
+                    {                        
+                        App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_Y, false);
+                    }
+                }
+                else if(Key.Codepoint == ',')
+                {
+                    if(!(Key.Modifiers & PlatformKeyModifier_Shift))
+                    {
+                        App->SelectedPanel = PanelNextLeaf(App->SelectedPanel, false);
+                    }
+                    else
+                    {
+                        App->SelectedPanel = PanelNextLeaf(App->SelectedPanel, true);
+                    }
+                }
+                //- Text Input
                 else if(Key.Codepoint == 'h')
                 {
                     DeleteChar(App);
@@ -619,6 +875,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     Log("Saved.\n");
                 }
+                //- Font 
                 else if(Key.Codepoint == '+')
                 {
                     App->HeightPx += 1.f;
@@ -641,6 +898,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         else
         {
             if(0) {}
+            //- Text Input 
             else if(Key.Codepoint == PlatformKey_BackSpace)
             {
                 DeleteChar(App);
@@ -724,6 +982,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     // UI Panels
     {
+        // TODO(luca): 
         //1. For each panel 
         // 2. Add split borders for resizing
         // 3. Capture input events for dragging

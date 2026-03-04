@@ -88,7 +88,8 @@ struct app_button_state
 
 enum platform_cursor_shape
 {
-    PlatformCursorShape_None = 0,
+    PlatformCursorShape_Arrow = 0,
+    PlatformCursorShape_None,
     PlatformCursorShape_Grab,
     PlatformCursorShape_ResizeHorizontal,
     PlatformCursorShape_ResizeVertical,

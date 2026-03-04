@@ -6,8 +6,6 @@
 - inset elements
 - panels
   - selected panel so that input events only go to one panel
-  - create/split new panel
-  - close panel button
 - prune stale elements from cache on the end of UI_ResolveLayout()
 
 - ? Use signal/comm to have all the events with flags
@@ -66,5 +64,8 @@ x Spacer
 x Proper hashing of string and splitting up into DisplayString
 x Solving violations
 x win32: flickering
-x panel: draggable array to change PercentOfParent
+x panels: 
+  x draggable array to change PercentOfParent
+  x create/split new panel
+  x close panel button
 x proper mouse dragging

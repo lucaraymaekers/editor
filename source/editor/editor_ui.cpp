@@ -405,13 +405,13 @@ UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
             {
                 if(Box->Pressed)
                 {
-                    V3Math Inst->Color2.E *= .5f;
-                    V3Math Inst->Color3.E *= .5f;
+                    V3Math Inst->Color2.E *= .6f;
+                    V3Math Inst->Color3.E *= .6f;
                 }
                 else
                 {                    
-                    V3Math Inst->Color0.E *= .5f;
-                    V3Math Inst->Color1.E *= .5f;
+                    V3Math Inst->Color0.E *= .7f;
+                    V3Math Inst->Color1.E *= .7f;
                 }
             }
         }
@@ -450,6 +450,10 @@ UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
     
     if(Box->Flags & UI_BoxFlag_DrawBorders)
     {    
+        if(Box->Hovered)
+        {
+            Box->BorderColor = Color_Snow2;
+        }
         rect_instance *Inst = DrawRect(Dest, Box->BorderColor, 0.f, Box->BorderThickness, Box->Softness);
         V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
     }

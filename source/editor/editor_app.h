@@ -58,6 +58,7 @@ struct gl_render_state
 
 struct ui_box;
 
+typedef struct panel panel;
 struct panel
 {
     panel *First;
@@ -72,9 +73,9 @@ struct panel
     ui_box *Root;
     
     rect Region;
-    
-    b32 DisableInteraction;
 };
+raddbg_type_view(panel, ParentPct);
+
 
 typedef struct app_state app_state;
 struct app_state

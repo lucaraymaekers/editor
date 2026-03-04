@@ -214,9 +214,13 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
     switch(Input->PlatformCursor)
     {
         default:
-        case PlatformCursorShape_None:
+        case PlatformCursorShape_Arrow:
         {
             GlobalCursor = IDC_ARROW;
+        } break;
+        case PlatformCursorShape_None:
+        {
+            GlobalCursor = 0;
         } break;
         case PlatformCursorShape_Grab:
         {
@@ -318,6 +322,19 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                             else if(VKCode == VK_DOWN) Button->Symbol = PlatformKey_Down;
                             else if(VKCode == VK_LEFT) Button->Symbol = PlatformKey_Left;
                             else if(VKCode == VK_RIGHT) Button->Symbol = PlatformKey_Right;
+                            else if(VKCode == VK_CONTROL) Button->Symbol = PlatformKey_Control;
+                            else if(VKCode == VK_SHIFT) Button->Symbol = PlatformKey_Shift;
+                            else if(VKCode == VK_DELETE) Button->Symbol = PlatformKey_Delete;
+                            else if(VKCode == VK_OEM_MINUS) 
+                            {
+                                Button->IsSymbol = false;
+                                Button->Codepoint = L'-';
+                            }
+                            else if(VKCode == VK_OEM_COMMA)
+                            {
+                                Button->IsSymbol = false;
+                                Button->Codepoint = L',';
+                            }
                             else if(IsPrintable(VKCode))
                             {
                                 Button->IsSymbol = false;
