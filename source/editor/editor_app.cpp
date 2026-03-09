@@ -1092,7 +1092,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
             UI_State = PushStructZero(FrameArena, ui_state);
             UI_InitState(App->DebugPanel->Root, Input, App);
             
-            u32 Flags = (UI_BoxFlag_DrawBorders | UI_BoxFlag_DrawBackground |
+            u32 Flags = (UI_BoxFlag_Clip |
+                         UI_BoxFlag_DrawBorders |
+                         UI_BoxFlag_DrawBackground |
                          UI_BoxFlag_DrawDisplayString |
                          UI_BoxFlag_CenterTextVertically);
             
@@ -1103,9 +1105,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
                 local_persist f64 StartTime = OS_GetWallClock();
                 
-                UI_AddBox(StringFormat(FrameArena, "Time: %.7f###time", OS_GetWallClock() - StartTime), Flags);
+                UI_AddBox(StringFormat(FrameArena, "Time: %.7f###time", OS_GetWallClock() - StartTime), Flags );
                 
-                UI_AddBox(StringFormat(FrameArena, "Text count: %lu", App->TextCount), Flags);
+                UI_AddBox(StringFormat(FrameArena, "Text count: %lu", App->TextCount), Flags | UI_BoxFlag_Clip);
             }
             
             UI_ResolveLayout(Root->First);

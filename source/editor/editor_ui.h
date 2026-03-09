@@ -15,17 +15,16 @@ typedef enum axis2 axis2;
 // TODO(luca): Metaprogram
 enum ui_box_flag
 {
-    UI_BoxFlag_None =              (0 << 0),
-    UI_BoxFlag_DrawBackground =    (1 << 0),
-    UI_BoxFlag_DrawBorders =       (1 << 1),
-    UI_BoxFlag_DrawDebugBorder =   (1 << 2),
-    UI_BoxFlag_DrawShadow =        (1 << 3),
-    UI_BoxFlag_DrawDisplayString = (1 << 4),
-    
+    UI_BoxFlag_None                   = 0,
+    UI_BoxFlag_DrawBackground         = (1 << 0),
+    UI_BoxFlag_DrawBorders            = (1 << 1),
+    UI_BoxFlag_DrawDebugBorder        = (1 << 2),
+    UI_BoxFlag_DrawShadow             = (1 << 3),
+    UI_BoxFlag_DrawDisplayString      = (1 << 4),
     UI_BoxFlag_CenterTextHorizontally = (1 << 5),
-    UI_BoxFlag_CenterTextVertically =   (1 << 6),
-    
-    UI_BoxFlag_MouseClickability = (1 << 7),
+    UI_BoxFlag_CenterTextVertically   = (1 << 6),
+    UI_BoxFlag_MouseClickability      = (1 << 7),
+    UI_BoxFlag_Clip                   = (1 << 8),
 };
 typedef enum ui_box_flag ui_box_flag;
 

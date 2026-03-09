@@ -352,7 +352,10 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
         
         if(!EqualsWithEpsilon(ViolationSize, 0.f, .001f))
         {
+#if 0
+            DebugBreak();
             ErrorLog("Clipping");
+#endif
         }
         
     }
@@ -371,13 +374,15 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
 internal void
 UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
 {
+    ui_box *Parent = Box->Parent;
+    
     // TODO(luca): This won't work since the root box will never be passed only the first child of that box, so its index will never be set.
     Box->LastTouchedFrameIndex = UI_State->FrameIndex;
     
-    if(Box->Parent->First == Box)
+    if(Parent->First == Box)
     {
-        Box->FixedPosition.X = Box->Parent->FixedPosition.X;
-        Box->FixedPosition.Y = Box->Parent->FixedPosition.Y;
+        Box->FixedPosition.X = Parent->FixedPosition.X;
+        Box->FixedPosition.Y = Parent->FixedPosition.Y;
     }
     else
     {            
@@ -402,77 +407,96 @@ UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
     
     rect Dest = RectFromSize(Box->FixedPosition, Box->FixedSize);
     
-    if(Box->Flags & UI_BoxFlag_DrawShadow)
+    if(Box->Flags & UI_BoxFlag_Clip)
     {
-        f32 ShadowSize = 4.f;
-        rect ShadowDest = RectV2(V2AddF32(Dest.Min, ShadowSize), 
-                                 V2AddF32(Dest.Max, ShadowSize)); 
-        rect_instance *Inst = DrawRect(ShadowDest, Color_Black, 0.f, ShadowSize, .5f*ShadowSize);
-        V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
+        rect ParentDest = RectFromSize(Parent->FixedPosition, Parent->FixedSize);
+        
+        Dest.Min = V2(Max(Dest.Min.X, ParentDest.Min.X), Max(Dest.Min.Y, ParentDest.Min.Y));
+        Dest.Max = V2(Min(Dest.Max.X, ParentDest.Max.X), Min(Dest.Max.Y, ParentDest.Max.Y));
     }
     
-    if(Box->Flags & UI_BoxFlag_DrawBackground)
+    if(Dest.Min.X < Dest.Max.X && 
+       Dest.Min.Y < Dest.Max.Y)
     {    
-        rect_instance *Inst = DrawRect(Dest, Box->BackgroundColor, 0.f, 0.f, Box->Softness);
-        V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
-        
-        if(Box->Flags & UI_BoxFlag_MouseClickability)
+        if(Box->Flags & UI_BoxFlag_DrawShadow)
         {
-            if(Box->Hovered)
+            f32 ShadowSize = 4.f;
+            rect ShadowDest = RectV2(V2AddF32(Dest.Min, ShadowSize), 
+                                     V2AddF32(Dest.Max, ShadowSize)); 
+            rect_instance *Inst = DrawRect(ShadowDest, Color_Black, 0.f, ShadowSize, .5f*ShadowSize);
+            MemoryCopyArray(&Inst->CornerRadii, &Box->CornerRadii);
+        }
+        
+        if(Box->Flags & UI_BoxFlag_DrawBackground)
+        {    
+            rect_instance *Inst = DrawRect(Dest, Box->BackgroundColor, 0.f, 0.f, Box->Softness);
+            MemoryCopyArray(&Inst->CornerRadii, &Box->CornerRadii);
+            
+            if(Box->Flags & UI_BoxFlag_MouseClickability)
             {
-                if(Box->Pressed)
+                if(Box->Hovered)
                 {
-                    V3Math Inst->Color2.E *= .6f;
-                    V3Math Inst->Color3.E *= .6f;
-                }
-                else
-                {                    
-                    V3Math Inst->Color0.E *= .7f;
-                    V3Math Inst->Color1.E *= .7f;
+                    if(Box->Pressed)
+                    {
+                        V3Math Inst->Color2.E *= .6f;
+                        V3Math Inst->Color3.E *= .6f;
+                    }
+                    else
+                    {                    
+                        V3Math Inst->Color0.E *= .7f;
+                        V3Math Inst->Color1.E *= .7f;
+                    }
                 }
             }
         }
-    }
-    
-    
-    if(Box->Flags & UI_BoxFlag_DrawDisplayString)
-    {
-        v2 TextPos = Box->FixedPosition;
-        TextPos.Y += Box->BorderThickness;
-        TextPos.X += Box->BorderThickness;
         
-        if(Box->Flags & UI_BoxFlag_CenterTextHorizontally)
-        {
-            f32 TextWidth = UI_MeasureTextWidth(Box->DisplayString);
-            TextPos.X += .5f*((Box->FixedSize.X - 2.f*Box->BorderThickness) - TextWidth);
-        }
         
-        if(Box->Flags & UI_BoxFlag_CenterTextVertically)
+        if(Box->Flags & UI_BoxFlag_DrawDisplayString)
         {
-            f32 TextHeight = UI_State->Atlas->HeightPx;
-            TextPos.Y += .5f*((Box->FixedSize.Y - 2.f*Box->BorderThickness) - TextHeight);
-        }
-        
-        for EachIndex(Idx, Box->DisplayString.Size)
-        {
-            rune Char = Box->DisplayString.Data[Idx];
+            v2 Cur = Box->FixedPosition;
+            Cur.Y += Box->BorderThickness;
+            Cur.X += Box->BorderThickness;
             
-            // TODO(luca): Leftsidebearing is missing.
-            DrawRectChar(UI_State->Atlas, TextPos, Char, Color_ButtonText);
+            if(Box->Flags & UI_BoxFlag_CenterTextHorizontally)
+            {
+                f32 TextWidth = UI_MeasureTextWidth(Box->DisplayString);
+                Cur.X += .5f*((Box->FixedSize.X - 2.f*Box->BorderThickness) - TextWidth);
+            }
             
-            f32 CharWidth = (UI_State->Atlas->PackedChars[Char].xadvance);
-            TextPos.X += CharWidth;
+            if(Box->Flags & UI_BoxFlag_CenterTextVertically)
+            {
+                f32 TextHeight = UI_State->Atlas->HeightPx;
+                Cur.Y += .5f*((Box->FixedSize.Y - 2.f*Box->BorderThickness) - TextHeight);
+            }
+            
+            for EachIndex(Idx, Box->DisplayString.Size)
+            {
+                rune Char = Box->DisplayString.Data[Idx];
+                f32 CharWidth = (UI_State->Atlas->PackedChars[Char].xadvance);
+                
+                v2 CharDim = V2(CharWidth, UI_State->Atlas->HeightPx); 
+                v2 CurMax = V2AddV2(Cur, CharDim);
+                
+                if(IsInsideRectV2(Cur, Dest) &&
+                   IsInsideRectV2(CurMax, Dest))
+                {
+                    // TODO(luca): Leftsidebearing is missing.
+                    DrawRectChar(UI_State->Atlas, Cur, Char, Color_ButtonText);
+                    
+                    Cur.X += CharWidth;
+                }
+            }
         }
-    }
-    
-    if(Box->Flags & UI_BoxFlag_DrawBorders)
-    {    
-        if(Box->Flags & UI_BoxFlag_MouseClickability && Box->Hovered)
-        {
-            Box->BorderColor = Color_Snow2;
+        
+        if(Box->Flags & UI_BoxFlag_DrawBorders)
+        {    
+            if(Box->Flags & UI_BoxFlag_MouseClickability && Box->Hovered)
+            {
+                Box->BorderColor = Color_Snow2;
+            }
+            rect_instance *Inst = DrawRect(Dest, Box->BorderColor, 0.f, Box->BorderThickness, Box->Softness);
+            V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
         }
-        rect_instance *Inst = DrawRect(Dest, Box->BorderColor, 0.f, Box->BorderThickness, Box->Softness);
-        V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
     }
     
     if(UI_State->RectDebugMode || Box->Flags & UI_BoxFlag_DrawDebugBorder)
