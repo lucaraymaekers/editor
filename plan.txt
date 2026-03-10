@@ -1,18 +1,18 @@
-2. ui events as a queue so you can eat them
+- Metaprogramming
+  - enums
+  - shaders
 
-- clipping
+- Custom draw command for rendering text edit view.
 
-- after splitting multiply all old panes on same axis by (1 - 1/n) and give the new pane size
-1/n
+- UI Input
+  - ui events as a queue so you can eat them
 
-- Clip all elements to window border
 - https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language
   - all properties from here
 - inset elements
 - panels
   - rotate columns
   - selected panel so that input events only go to one panel
-- prune stale elements from cache on the end of UI_ResolveLayout()
 
 - ? Use signal/comm to have all the events with flags
   since the common case is no signal, it should be optional?
@@ -22,12 +22,8 @@
 
 - albedo sample 
 
-- Evict boxes from cache when they aren't touched anymore
 - Smooth smooth animations
   - self-correcting exponential animation curves for hot_t & active_t
-- profile compile times on linux
-  - standard libraries (linux et al): 100ms, math.h: 100ms, gl_core: 50ms
-- Add back text rendering of the input buffer
 - Improve text rendering
   - Check text rendering extensively (xoff & leftsidebearing)
   - kb_text_shape()
@@ -75,3 +71,11 @@ x panels:
   x create/split new panel
   x close panel button
 x proper mouse dragging
+x clipping
+x after splitting multiply all old panes on same axis by (1 - 1/n) and give the new pane size 1/n
+x Evict boxes from cache when they aren't touched anymore
+x prune stale elements from cache on the end of UI_ResolveLayout()
+x Add back text rendering of the input buffer
+x profile compile times on linux
+  - standard libraries (linux et al): 100ms, math.h: 100ms, gl_core: 50ms
+x Fix UI layouting not working for nested elements

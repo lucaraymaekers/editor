@@ -1,14 +1,14 @@
 // raddbg 0.9.24 project file
 
 recent_file: path: "source/editor/editor_app.cpp"
-recent_file: path: "source/editor/editor_platform_windows.cpp"
 recent_file: path: "source/editor/editor_ui.cpp"
-recent_file: path: "source/base/base_lanes.c"
-recent_file: path: "source/editor/editor_platform.cpp"
-recent_file: path: "d:/os/obj/amd64fre/minkernel/crts/ucrt/src/appcrt/string/xmt/objfre/amd64/minkernel/crts/ucrt/src/appcrt/string/strnlen.cpp"
-recent_file: path: "source/base/base_strings.c"
-recent_file: path: "source/base/base_os_windows.c"
 recent_file: path: "source/base/base_arenas.c"
+recent_file: path: "source/base/base_strings.c"
+recent_file: path: "source/editor/editor_platform_windows.cpp"
+recent_file: path: "source/editor/editor_platform.cpp"
+recent_file: path: "source/base/base_lanes.c"
+recent_file: path: "d:/os/obj/amd64fre/minkernel/crts/ucrt/src/appcrt/string/xmt/objfre/amd64/minkernel/crts/ucrt/src/appcrt/string/strnlen.cpp"
+recent_file: path: "source/base/base_os_windows.c"
 recent_file: path: "source/editor/editor_ui.h"
 recent_file: path: "source/editor/editor_platform.h"
 recent_file: path: "source/editor/editor_gl.h"
@@ -30,12 +30,12 @@ debug_info:
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor_app.pdb"
-  timestamp: 66208932966324
+  timestamp: 66208952951634
 }
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor.pdb"
-  timestamp: 66208932967077
+  timestamp: 66208952914081
 }
 debug_info:
 {
@@ -48,4 +48,8 @@ breakpoint:
   hit_count: 0
   enabled: 0
 }
-type_view
+type_view:
+{
+  type: axis2
+  expr: "$ == Axis2_X ? \"X\" : \"Y\""
+}

@@ -944,6 +944,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     GlobalTextCursor = App->TextCursor;
     
+    StringsScratch = FrameArena;
+    
     PanelArena = App->PanelArena;
     PanelInput = Input;
     PanelApp = App;
@@ -1259,40 +1261,50 @@ UPDATE_AND_RENDER(UpdateAndRender)
                          UI_BoxFlag_DrawDisplayString |
                          UI_BoxFlag_CenterTextVertically);
             
-            UI_CornerRadii(V4(0.f, 0.f, 0.f, 0.f))
-                UI_LayoutAxis(Axis2_Y)
-                UI_SemanticWidth(UI_SizeParent(1.f, 1.f)) 
-                UI_SemanticHeight(UI_SizeText(2.f, 1.f))
-            {
-                local_persist f64 StartTime = OS_GetWallClock();
-                
-                StringsScratch = FrameArena;
-                
-                UI_AddBox(Str8Fmt("Time: %.7f###time", OS_GetWallClock() - StartTime), Flags);
-                
-                // TODO(luca): This does not work.
-                //UI_LayoutAxis(Axis2_X) UI_AddBox(S8(""), 0);
-                UI_AddBox(Str8Fmt("Count: %lu###Text Count", App->TextCount), Flags);
-                UI_AddBox(Str8Fmt("Cursor: %lu###Cursor Pos", App->TextCursor), Flags);
-                
-                // Text
-                {                
-                    str8 AppText = PushS8(FrameArena, App->TextCount);
-                    for EachIndex(Idx, App->TextCount)
+            // NOTE(luca): Adding an extra parent like this makes it easy to override defaults
+            UI_LayoutAxis(Axis2_Y) 
+                UI_SemanticWidth(UI_SizeParent(1.f, 1.f)) UI_SemanticHeight(UI_SizeParent(1.f, 1.f))
+                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+            
+            UI_Push()
+            {            
+                UI_CornerRadii(V4(0.f, 0.f, 0.f, 0.f))
+                    UI_SemanticWidth(UI_SizeParent(1.f, 1.f)) 
+                    UI_SemanticHeight(UI_SizeText(2.f, 1.f))
+                {
+                    local_persist f64 StartTime = OS_GetWallClock();
+                    
+                    UI_AddBox(Str8Fmt("Time: %.7f###time", OS_GetWallClock() - StartTime), Flags);
+                    
+                    // TODO(luca): This does not work.
+                    UI_LayoutAxis(Axis2_X) UI_SemanticHeight(UI_SizeChildren(1.f)) 
+                        UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                    UI_Push() UI_SemanticWidth(UI_SizeParent(1.f/2.f, 1.f)) UI_BorderThickness(1.f)
                     {
-                        AppText.Data[Idx] = (u8)App->Text[Idx];
+                        UI_AddBox(Str8Fmt("Count: %lu###Text Count", App->TextCount), Flags);
+                        UI_AddBox(Str8Fmt("Cursor: %lu###Cursor Pos", App->TextCursor), Flags);
                     }
                     
-                    UI_SemanticHeight(UI_SizeParent(1.f, 0.f))
-                        UI_TextColor(Color_Snow0)
-                        UI_AddBox(Str8Fmt(S8Fmt "###app text", S8Arg(AppText)), 
-                                  (Flags | UI_BoxFlag_TextWrap | UI_BoxFlag_DrawCursor) & 
-                                  ~(UI_BoxFlag_CenterTextVertically |
-                                    UI_BoxFlag_CenterTextHorizontally));
+                    // Text
+                    {                
+                        str8 AppText = PushS8(FrameArena, App->TextCount);
+                        for EachIndex(Idx, App->TextCount)
+                        {
+                            AppText.Data[Idx] = (u8)App->Text[Idx];
+                        }
+                        
+                        UI_SemanticHeight(UI_SizeParent(1.f, 0.f))
+                            UI_TextColor(Color_Snow0)
+                            UI_AddBox(Str8Fmt(S8Fmt "###app text", S8Arg(AppText)), 
+                                      (Flags | UI_BoxFlag_TextWrap | UI_BoxFlag_DrawCursor) & 
+                                      ~(UI_BoxFlag_CenterTextVertically |
+                                        UI_BoxFlag_CenterTextHorizontally));
+                    }
                 }
             }
             
             UI_ResolveLayout(Root->First);
+            
         }
         
     }

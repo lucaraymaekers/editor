@@ -45,18 +45,18 @@ S8SkipLastSlash(str8 String)
 }
 
 internal b32
-S8Match(str8 A, str8 B, b32 AIsPrefix)
+S8Match(str8 A, str8 B, b32 BIsPrefix)
 {
     b32 Match = false;
     
     b32 Requirements = false;
-    Requirements |= ( AIsPrefix && (A.Size <= B.Size));
-    Requirements |= (!AIsPrefix && (A.Size == B.Size));
+    Requirements |= ( BIsPrefix && (B.Size <= A.Size));
+    Requirements |= (!BIsPrefix && (B.Size == A.Size));
     
     if(Requirements)
     {
         Match = true;
-        for EachIndex(Idx, A.Size)
+        for EachIndex(Idx, B.Size)
         {
             if((A.Data[Idx] != B.Data[Idx]))
             {

@@ -94,6 +94,8 @@ struct ui_box
     axis2 LayoutAxis;
 };
 
+#define UI_EachBox(Node, First) (ui_box *Node = First; !UI_IsNilBox(Node); Node = Node->Next)  
+
 //- Stack nodes 
 typedef struct b32_stack_node b32_stack_node;
 struct b32_stack_node

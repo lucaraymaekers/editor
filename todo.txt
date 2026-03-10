@@ -5,8 +5,6 @@ misc:
 - metaprogramming
   - replace X macros
   - f32 buffers, sizes and offsets
-- profiler
-		- toggle key bind
 - unified logs
 		- with date, system, level and stacktraces
 
@@ -14,13 +12,14 @@ platform:
 - fix keyboard input (pressing & holding, vs text)
   - easier query of keys & modifiers.
 - linux: investigate startup time.
-- resizing (fast atlas baking)
+- window resizing
 - sleep when idle
-- custom decorations
+- custom borders and titlebar
 
 Archived:
  platform:
  x loop editing
+ x profiler: toggle key bind
  windows:
  x editor_libs.o in .bat script
  x rename to editor.exe

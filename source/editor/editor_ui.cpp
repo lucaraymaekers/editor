@@ -41,6 +41,14 @@ UI_PushBox(void)
     UI_State->AppendToParent = true;
 }
 
+internal void
+UI_PopBox(void)
+{
+    UI_State->Current = UI_State->Current->Parent;
+}
+
+#define UI_Push() DeferLoop(UI_PushBox(), UI_PopBox()) 
+
 internal ui_key
 UI_KeyNull(void)
 {
@@ -68,14 +76,14 @@ UI_AddBox(str8 String, u32 Flags)
         u64 HashCutOff = 0;
         for EachIndex(Idx, String.Size - 1)
         {
-            if(S8Match(S8("###"), S8From(String, Idx), true))
+            if(S8Match(S8From(String, Idx), S8("###"), true))
             {
                 DisplayString = S8To(String, Idx);
                 
                 String = S8From(String, Idx + 3);
                 break;
             }
-            if(S8Match(S8("##"), S8From(String, Idx), true))
+            if(S8Match(S8From(String, Idx), S8("##"), true))
             {
                 DisplayString = S8To(String, Idx);
                 break;
@@ -197,12 +205,6 @@ UI_AddBox(str8 String, u32 Flags)
     return Box;
 }
 
-internal void
-UI_PopBox()
-{
-    UI_State->Current = UI_State->Current->Parent;
-}
-
 internal f32
 UI_MeasureTextWidth(str8 String)
 {
@@ -290,10 +292,8 @@ UI_CalculateDownwardSizes(ui_box *Box, axis2 Axis)
     
     if(Box->SemanticSize[Axis].Kind == UI_SizeKind_ChildrenSum)
     {
-        ui_box *Child = Box->First;
-        
         f32 TotalSize = 0.f;
-        while(!UI_IsNilBox(Child))
+        for UI_EachBox(Child, Box->First)
         {
             b32 IsFirstChild = (Child == Box->First);
             b32 IsPreviousAligned = (Child->Prev->LayoutAxis == Axis); 
@@ -320,8 +320,7 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
     // TODO(luca): This is inefficient since the violations should be solved once per level.
     f32 TotalSize = 0.f;
     {    
-        ui_box *Sibling = Parent->First;
-        while(!UI_IsNilBox(Sibling))
+        for UI_EachBox(Sibling, Parent->First)
         {
             if(Sibling->LayoutAxis == Axis)
             {            
@@ -371,8 +370,9 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
     }
 }
 
+
 internal void
-UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
+UI_CalculatePositions(ui_box *Box)
 {
     ui_box *Parent = Box->Parent;
     
@@ -386,7 +386,7 @@ UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
     }
     else
     {            
-        switch(Box->LayoutAxis)
+        switch(Parent->LayoutAxis)
         {
             default: InvalidPath(); break;
             case Axis2_X:
@@ -405,14 +405,30 @@ UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
         }
     }
     
-    rect Dest = RectFromSize(Box->FixedPosition, Box->FixedSize);
+    Box->Rec = RectFromSize(Box->FixedPosition, Box->FixedSize);
+    
+    if(!UI_IsNilBox(Box->First))
+    {
+        UI_CalculatePositions(Box->First);
+    }
+    if(!UI_IsNilBox(Box->Next))
+    {
+        UI_CalculatePositions(Box->Next);
+    }
+}
+
+internal void
+UI_DrawBoxes(ui_box *Box)
+{
+    ui_box *Parent = Box->Parent;
+    
+    rect Dest = Box->Rec;
     
     if(Box->Flags & UI_BoxFlag_Clip)
     {
         Dest = RectIntersect(Parent->Rec, Dest);
+        Box->Rec = Dest;
     }
-    
-    Box->Rec = Dest;
     
     if(RectValid(Dest))
     {    
@@ -547,11 +563,11 @@ UI_CalculatePositionsAndDrawBoxes(ui_box *Box)
     
     if(!UI_IsNilBox(Box->First))
     {
-        UI_CalculatePositionsAndDrawBoxes(Box->First);
+        UI_DrawBoxes(Box->First);
     }
     if(!UI_IsNilBox(Box->Next))
     {
-        UI_CalculatePositionsAndDrawBoxes(Box->Next);
+        UI_DrawBoxes(Box->Next);
     }
 }
 
@@ -560,7 +576,7 @@ global_variable u32 UI_DebugIndentation = 0;
 internal void
 UI_DebugPrintBoxes(ui_box *Box)
 {
-    Log("%*s" S8Fmt ":\n"
+    Log("%*s\"" S8Fmt "\":\n"
         "%*s %d,%d\n"
         "%*s %.0f,%.0f %.0fx%.0f\n"
         ,
@@ -614,20 +630,20 @@ UI_InitState(ui_box *Root, app_input *Input, app_state *App)
 }
 
 internal void
-UI_ResolveLayout(ui_box *FirstFromRoot)
+UI_ResolveLayout(ui_box *Root)
 {
-    if(!UI_IsNilBox(FirstFromRoot))
+    if(!UI_IsNilBox(Root))
     {        
         for EachIndex(Idx, Axis2_Count)
         {        
             axis2 Axis = (axis2)Idx;
             
-            UI_CalculateStandaloneSizes(FirstFromRoot, Axis);
-            UI_CalculateUpwardSizes(FirstFromRoot, Axis);
-            UI_CalculateDownwardSizes(FirstFromRoot, Axis);
-            UI_CalculateViolations(FirstFromRoot, Axis);
+            UI_CalculateStandaloneSizes(Root, Axis);
+            UI_CalculateUpwardSizes(Root, Axis);
+            UI_CalculateDownwardSizes(Root, Axis);
+            UI_CalculateViolations(Root, Axis);
         }
-        UI_CalculatePositionsAndDrawBoxes(FirstFromRoot);
-        //UI_DebugPrintBoxes(FirstFromRoot->First);
+        UI_CalculatePositions(Root);
+        UI_DrawBoxes(Root);
     }
 }
