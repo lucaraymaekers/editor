@@ -1,4 +1,11 @@
 internal inline b32
+IsWhiteSpace(rune Character)
+{
+    return (Character == '\n' || Character == '\r' ||
+            Character == ' ' || Character == '\t');
+}
+
+internal inline b32
 IsAlpha(rune Character)
 {
     return ((Character >= 'a' && Character <= 'z') ||
@@ -37,13 +44,6 @@ IsNilToken(token *Token)
     return Token == &nil_token || Token == NULL;
 }
 
-internal inline b32
-IsWhiteSpace(rune Character)
-{
-    return (Character == '\n' || Character == '\r' ||
-            Character == ' ' || Character == '\t');
-}
-
 internal inline void
 ParseCStyleComment(rune Buffer[])
 {
@@ -54,7 +54,7 @@ ParseCStyleComment(rune Buffer[])
     // and then we can do a visualization if the str8.count of the metadata thing is bigger then 0
     // we should a visualization thing for the thing
     // if the thing is less then 0, we dont do anything?
-
+    
     // TODO(nasr): while doingn this we could also add in some editor specific anotations ?
 }
 
@@ -76,11 +76,11 @@ Lex(app_state *App, arena *Arena, token_list *List)
     b32 Initialized = 0;
     s32 Line        = 1;
     s32 Column      = 1;
-
+    
     for(s32 TextIndex = 0; TextIndex < App->TextCount; TextIndex++)
     {
         rune Character = App->Text[TextIndex];
-
+        
         if(Character == '\r' || Character == '\n')
         {
             if(Character == '\r' &&
@@ -89,21 +89,21 @@ Lex(app_state *App, arena *Arena, token_list *List)
             {
                 TextIndex++;
             }
-
+            
             ++TextIndex;
             ++Line;
-
+            
             // NOTE(nasr): reset the column to the beginning of the line
             Column = 1;
             continue;
         }
-
+        
         if(IsWhiteSpace(Character))
         {
             ++Column;
             continue;
         }
-
+        
         token_node *TokenNode = PushStructZero(Arena, token_node);
         token      *Token     = PushStructZero(Arena, token);
         TokenNode->Next       = &nil_token_node;
@@ -113,10 +113,10 @@ Lex(app_state *App, arena *Arena, token_list *List)
         Token->Column         = Column;
         Token->ByteOffset     = (u64)TextIndex;
         Token->Flags          = FlagNone;
-
+        
         s32 TokenStart = TextIndex;
         s32 TokenEnd   = TextIndex;
-
+        
         if(Character > 126)
         {
             Token->Type = TokenUnwantedChild;
@@ -130,12 +130,13 @@ Lex(app_state *App, arena *Arena, token_list *List)
                 {
                     ++TextIndex;
                 }
-
+                
                 TokenEnd = TextIndex + 1;
             }
             {
-                str8 Lexeme = S8FromTo(((str8){.Data = (u8 *)App->Text, .Size = (u64)App->TextCount}), (u64)TokenStart, (u64)TokenEnd);
-
+                // NOTE(luca): This will never work, since the App->Text is a u32 array, should it be str32 instead?
+                str8 Lexeme = S8FromTo((S8Cast{.Data = (u8 *)App->Text, .Size = (u64)App->TextCount}), (u64)TokenStart, (u64)TokenEnd);
+                
                 // TODO(nasr): handle functions
                 if(S8Match(Lexeme, S8("if"), 0))
                     Token->Type = TokenIf;
@@ -162,100 +163,100 @@ Lex(app_state *App, arena *Arena, token_list *List)
             {
                 ++TextIndex;
             }
-
+            
             TokenEnd    = TextIndex + 1;
             Token->Type = TokenNumber;
         }
-
+        
         else
         {
             rune Next = (TextIndex + 1 < App->TextCount) ? App->Text[TextIndex + 1] : 0;
-
+            
             switch(Character)
             {
                 case '=':
+                {
+                    if(Next == '=')
                     {
-                        if(Next == '=')
-                        {
-                            Token->Type = TokenDoubleEqual;
-                            TextIndex++;
-                        }
-                        else
-                        {
-                            Token->Type = (token_type)'=';
-                        }
+                        Token->Type = TokenDoubleEqual;
+                        TextIndex++;
                     }
-                    break;
-
+                    else
+                    {
+                        Token->Type = (token_type)'=';
+                    }
+                }
+                break;
+                
                 case '>':
+                {
+                    if(Next == '=')
                     {
-                        if(Next == '=')
-                        {
-                            Token->Type = TokenGreaterEqual;
-                            TextIndex++;
-                        }
-                        else if(Next == '>')
-                        {
-                            Token->Type = TokenRightShift;
-                            TextIndex++;
-                        }
-                        else
-                        {
-                            Token->Type = (token_type)'>';
-                        }
+                        Token->Type = TokenGreaterEqual;
+                        TextIndex++;
                     }
-                    break;
-
+                    else if(Next == '>')
+                    {
+                        Token->Type = TokenRightShift;
+                        TextIndex++;
+                    }
+                    else
+                    {
+                        Token->Type = (token_type)'>';
+                    }
+                }
+                break;
+                
                 case '<':
+                {
+                    if(Next == '=')
                     {
-                        if(Next == '=')
-                        {
-                            Token->Type = TokenLesserEqual;
-                            TextIndex++;
-                        }
-                        else if(Next == '<')
-                        {
-                            Token->Type = TokenLeftShift;
-                            TextIndex++;
-                        }
-                        else
-                        {
-                            Token->Type = (token_type)'<';
-                        }
+                        Token->Type = TokenLesserEqual;
+                        TextIndex++;
                     }
-                    break;
-
+                    else if(Next == '<')
+                    {
+                        Token->Type = TokenLeftShift;
+                        TextIndex++;
+                    }
+                    else
+                    {
+                        Token->Type = (token_type)'<';
+                    }
+                }
+                break;
+                
                 case '"':
+                {
+                    while(App->Text[TextIndex + 1] != '"' && App->Text[TextIndex + 1] != '\0')
                     {
-                        while(App->Text[TextIndex + 1] != '"' && App->Text[TextIndex + 1] != '\0')
-                        {
-                            ++TextIndex;
-                            if(App->Text[TextIndex + 1] == '\\')
-
-                                ++TextIndex;  
-                        }
-
-                        TokenStart += 1;
-                        Token->Type = TokenString;
+                        ++TextIndex;
+                        if(App->Text[TextIndex + 1] == '\\')
+                            
+                            ++TextIndex;  
                     }
-                    break;
-
+                    
+                    TokenStart += 1;
+                    Token->Type = TokenString;
+                }
+                break;
+                
                 default:
-                    {
-                        Token->Type = (token_type)Character;
-                    }
-                    break;
+                {
+                    Token->Type = (token_type)Character;
+                }
+                break;
             }
         }
-
+        
         TokenEnd = TextIndex + 1;
-
+        
         Token->Lexeme.Data = (u8 *)&App->Text[TokenStart];
         Token->Lexeme.Size = (u64)(TokenEnd - TokenStart);
         Column += (s32)Token->Lexeme.Size;
-
+        
         //Log("Token: \t%.lu*s\n", Token->Lexeme.Size, Token->Lexeme.Data);
-
+        
         if(!Initialized)
         {
             Initialized   = 1;
@@ -269,6 +270,6 @@ Lex(app_state *App, arena *Arena, token_list *List)
             List->Current       = TokenNode;
         }
     }
-
+    
     return List;
 }

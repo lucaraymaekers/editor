@@ -6,6 +6,7 @@
 #endif
 
 #include "base_core.h"
+#include "base_math.h"
 #include "base_strings.h"
 #include "base_arenas.h"
 #include "base_lanes.h"

@@ -40,6 +40,15 @@ LinuxTimeSpecToNS(struct timespec Counter)
 //~ Syscalls
 #define AssertErrno(Expression) do { if(!(Expression)) { TrapMsg(ERRNO_FMT, ERRNO_ARG); }; } while(0)
 
+internal b32
+OS_FileExists(char *FileName)
+{
+	b32 Result = false;
+	int AccessMode = F_OK;
+ Result = (access(FileName, AccessMode) == 0);
+	return Result;
+}
+
 internal str8 
 OS_ReadEntireFileIntoMemory(char *FileName)
 {
@@ -270,7 +279,7 @@ LinuxSetDebuggerAttached()
 }
 
 internal void 
-LinuxMainEntryPoint(int ArgsCount, char **Args)
+LinuxMainEntryPoint(int ArgsCount, char **Args, char **Env)
 {
     LinuxSetDebuggerAttached();
     
@@ -293,8 +302,8 @@ LinuxMainEntryPoint(int ArgsCount, char **Args)
     
     char ThreadName[16] = "Main";
     
-#if FORCE_THREADS_COUNT
-    s64 ThreadsCount = FORCE_THREADS_COUNT;
+#if BASE_FORCE_THREADS_COUNT
+    s64 ThreadsCount = BASE_FORCE_THREADS_COUNT;
 #else
     s64 ThreadsCount = get_nprocs();
 #endif
@@ -320,6 +329,7 @@ LinuxMainEntryPoint(int ArgsCount, char **Args)
         Params->Context.Barrier   = Barrier;
         Params->Context.SharedStorage = &SharedStorage;
         Params->Args = Args;
+        Params->Env = Env;
         Params->ArgsCount = ArgsCount;
         
         pthread_t Handle;
@@ -349,12 +359,12 @@ AndroidMainEntryPoint(int ArgsCount, char **Args)
 }
 
 #if !BASE_NO_ENTRYPOINT
-int main(int ArgsCount, char **Args)
+int main(int ArgsCount, char **Args, char **Env)
 {
 #if OS_ANDROID
     AndroidMainEntryPoint(ArgsCount, Args);
 #else
-    LinuxMainEntryPoint(ArgsCount, Args);
+    LinuxMainEntryPoint(ArgsCount, Args, Env);
 #endif
     return 0;
 }

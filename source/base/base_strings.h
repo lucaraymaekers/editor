@@ -16,7 +16,6 @@ struct str8
     u8 *Data;
     u64 Size;
 };
-raddbg_type_view(str8, no_addr(array((char *)Data, Size)));
 
 internal str8 S8SkipLastSlash(str8 String);
 internal b32  S8Match(str8 A, str8 B, b32 AIsPrefix);

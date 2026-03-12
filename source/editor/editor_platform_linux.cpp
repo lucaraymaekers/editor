@@ -629,14 +629,21 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                                     
                                     Codepoint = ConvertUTF8StringToRune(LookupBuffer);
                                     
-                                    b32 IsControlChar = (Control && BytesLookepdUp == 1 && Codepoint < ' ');
+                                    b32 IsControlChar = (Control && BytesLookepdUp == 1 && 
+                                                         (Codepoint < ' ' || Codepoint > '~'));
                                     if(IsControlChar)
                                     {
-                                        Codepoint = (rune)((u8)(Symbol - XK_a) + 'a');
+                                        Button->IsSymbol = true;
+                                        if(Codepoint != 8 &&
+                                           Codepoint != 127)
+                                        {
+                                            Button->IsSymbol = false;
+                                            Codepoint = (rune)((u8)(Symbol - XK_a) + 'a');
+                                        }
                                     }
                                     
                                     // NOTE(luca): Input methods might produce non printable characters (< ' '). 
-                                    if(Codepoint >= ' ' || Codepoint < 0)
+                                    if(!Button->IsSymbol && (Codepoint >= ' ' || Codepoint < 0))
                                     {                            
                                         Button->Codepoint = Codepoint;
                                         

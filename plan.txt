@@ -1,53 +1,55 @@
-- Metaprogramming
-  - enums
-  - shaders
+app:
+- bug when adding the same box twice.
+- panels resizing
 
-- Custom draw command for rendering text edit view.
+misc:
+- unified logs
+		- with date, system, level and stacktraces
+
+platform:
+- fix keyboard input (pressing & holding, vs text)
+  - easier query of keys & modifiers.
+- linux: investigate startup time.
+- window resizing
+- sleep when idle
+- custom borders and titlebar
+
+other:
+  - Improve text rendering
+    - Check text rendering extensively (xoff & leftsidebearing)
+    - kb_text_shape()
+
+- Cmdline hash table
 
 - UI Input
-  - ui events as a queue so you can eat them
+  - UI events as a queue so you can eat them
+- ? Use signal/comm to have all the events with flags
+  since the common case is no signal, it should be optional?
 
-- https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language
-  - all properties from here
+- Implement properties from https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language
 - inset elements
 - panels
   - rotate columns
   - selected panel so that input events only go to one panel
+  - close panel button
+  - better positioned resize border
+- tabs
+- windows
 
-- ? Use signal/comm to have all the events with flags
-  since the common case is no signal, it should be optional?
-- open windows & close windows
-  - inspecting ui window
 - tick() function?
 
 - albedo sample 
 
 - Smooth smooth animations
   - self-correcting exponential animation curves for hot_t & active_t
-- Improve text rendering
-  - Check text rendering extensively (xoff & leftsidebearing)
-  - kb_text_shape()
 
 - win32: repaint and resizing.
- 
-- 24:36
-
-- Assertion that the text fits into the rectangle
-		- otherwise clip?
+  - 24:36
 
 - Shader:
   - group draw calls with those that need the same texture and those that don't without changing draw order (because foreground&background) 
   - find a way to push a texture for a number of rectangles
   - then pop when not adding characters anymore
-
-- UI: Specify to attach to parent or sibling? AppendToParent
-
-
-# dump 
-- check out the violation calc code
-- then check out the positions calc code
-- we might want to decouple calculating positions and drawing the boxes for panels
-
 
 # Archived
 x Ryan's layout algorithm
@@ -79,3 +81,18 @@ x Add back text rendering of the input buffer
 x profile compile times on linux
   - standard libraries (linux et al): 100ms, math.h: 100ms, gl_core: 50ms
 x Fix UI layouting not working for nested elements
+x Metaprogramming:
+  x flag enums
+  x shaders
+platform:
+  x loop editing
+  x profiler: toggle key bind
+  x save/load state to disk
+  windows:
+    x editor_libs.o in .bat script
+    x rename to editor.exe
+app:
+ x ui bug when using PercentOfParent, can overflow with rounding error. (tested with .25f)
+   -> wasn't a rounding error.
+x Custom draw command for rendering text edit view.
+x replace X macros

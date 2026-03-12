@@ -1,20 +1,26 @@
 // raddbg 0.9.24 project file
 
 recent_file: path: "source/editor/editor_app.cpp"
-recent_file: path: "source/editor/editor_ui.cpp"
-recent_file: path: "source/base/base_arenas.c"
-recent_file: path: "source/base/base_strings.c"
-recent_file: path: "source/editor/editor_platform_windows.cpp"
 recent_file: path: "source/editor/editor_platform.cpp"
-recent_file: path: "source/base/base_lanes.c"
-recent_file: path: "d:/os/obj/amd64fre/minkernel/crts/ucrt/src/appcrt/string/xmt/objfre/amd64/minkernel/crts/ucrt/src/appcrt/string/strnlen.cpp"
+recent_file: path: "source/base/base_arenas.c"
+recent_file: path: "source/cling/cling.c"
 recent_file: path: "source/base/base_os_windows.c"
+recent_file: path: "source/editor/editor_ui.cpp"
+recent_file: path: "source/editor/editor_gl.h"
+recent_file: path: "source/cling/cling.h"
+recent_file: path: "source/base/base_strings.c"
+recent_file: path: "source/lib/raddbg_markup.h"
+recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_winmain.cpp"
+recent_file: path: "source/base/base_lanes.c"
+recent_file: path: "source/cling/cling.cpp"
+recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_common.inl"
+recent_file: path: "source/cling/cling_os_windows.c"
+recent_file: path: "source/editor/editor_platform_windows.cpp"
+recent_file: path: "d:/os/obj/amd64fre/minkernel/crts/ucrt/src/appcrt/string/xmt/objfre/amd64/minkernel/crts/ucrt/src/appcrt/string/strnlen.cpp"
 recent_file: path: "source/editor/editor_ui.h"
 recent_file: path: "source/editor/editor_platform.h"
-recent_file: path: "source/editor/editor_gl.h"
 recent_file: path: "source/editor/editor_font.h"
 recent_file: path: "source/editor/editor_math.h"
-recent_file: path: "source/lib/raddbg_markup.h"
 recent_file: path: "source/base/base_os.c"
 target:
 {
@@ -30,26 +36,67 @@ debug_info:
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor_app.pdb"
-  timestamp: 66208952951634
+  timestamp: 66209653916083
 }
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor.pdb"
-  timestamp: 66208952914081
+  timestamp: 66209655096927
 }
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor.rdi"
   timestamp: 66207518490596
 }
-breakpoint:
-{
-  source_location: "source/editor/editor_app.cpp:1005:1"
-  hit_count: 0
-  enabled: 0
-}
 type_view:
 {
   type: axis2
   expr: "$ == Axis2_X ? \"X\" : \"Y\""
+}
+debug_info:
+{
+  path: "C:/Users/zebra/Projects/editor/build/cling.pdb"
+  timestamp: 66209532521881
+}
+type_view:
+{
+  type: str8
+  expr: "no_addr(array((char *)$.Data, $.Size))"
+}
+debug_info:
+{
+  path: "C:/Users/zebra/cling_temp.pdb"
+  timestamp: 66209200564927
+}
+debug_info:
+{
+  path: "C:/Users/zebra/Projects/editor/cling_temp.pdb"
+  timestamp: 66209200170469
+}
+target:
+{
+  executable: "build/cling.exe"
+  working_directory: build
+  enabled: 0
+  arguments: "norebuild editor"
+}
+type_view:
+{
+  type: str8_array
+  expr: "array(Strings, Count)"
+}
+type_view:
+{
+  type: MD_String8
+  expr: "array(str, size)"
+}
+type_view:
+{
+  expr: "rows($, kind, string, first_child, next)"
+  type: MD_Node
+}
+type_view:
+{
+  type: rune
+  expr: wchar_t
 }

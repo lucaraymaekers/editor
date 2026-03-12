@@ -6,8 +6,6 @@
 #include "lib/stb_truetype.h"
 #include "lib/stb_sprintf.h"
 
-#include "editor_math.h"
-
 // TODO(luca): Better UTF8 handling instead of passing a flag in parameters.
 
 typedef struct app_font app_font;

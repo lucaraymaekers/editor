@@ -9,9 +9,11 @@ NO_STRUCT_PADDING_BEGIN
 typedef struct rect_instance rect_instance;
 struct rect_instance
 {
-    rect Dest;
-    rect TexSrc;
+    // TODO(luca): Make one type for everything and let it be rect (renamed to v4)
+    v4 Dest;
+    v4 TexSrc;
     
+    // TODO(luca): Metaprogram
     v4 Color0;
     v4 Color1;
     v4 Color2;
@@ -72,7 +74,7 @@ struct panel
     
     ui_box *Root;
     
-    rect Region;
+    v4 Region;
     
     b32 CannotClose;
 };
@@ -81,6 +83,7 @@ raddbg_type_view(panel,
                               (&First == NilPanel || &First == 0),
                               ParentPct, 
                               (Axis == Axis2_X ? "X" : "Y"))));
+
 
 #define EachPanel(Child, Parent) (panel *Child = Parent->First; !IsNilPanel(Child); Child = Child->Next)
 
@@ -126,42 +129,6 @@ global_variable rect_instance *GlobalRectsInstances;
 global_variable s32 GlobalRectsCount;
 
 global_variable arena *FrameArena = 0;
-
-// X macros
-
-#define U32ToV3Arg(Hex) \
-((f32)((Hex >> 8*2) & 0xFF)/255.0f), \
-((f32)((Hex >> 8*1) & 0xFF)/255.0f), \
-((f32)((Hex >> 8*0) & 0xFF)/255.0f)
-
-#define ColorList \
-SET(Frost0,           0xff8fbcbb) \
-SET(Frost1,           0xff88c0d0) \
-SET(Frost2,           0xff81a1c1) \
-SET(Frost3,           0xff5e81ac) \
-SET(Snow0,            0xffeceff4) \
-SET(Snow1,            0xffe5e9f0) \
-SET(Snow2,            0xffd8dee9) \
-SET(Night0,           0xff4c566a) \
-SET(Night1,           0xff434c5e) \
-SET(Night2,           0xff3b4252) \
-SET(Night3,           0xff2e3440) \
-SET(Red,              0xffbf616a) \
-SET(Orange,           0xffd08770) \
-SET(Yellow,           0xffebcb8b) \
-SET(Green,            0xffa3be8c) \
-SET(Magenta,          0xffb48ead) \
-SET(Cyan,             0xff81a1c1) \
-SET(Blue,             0xff5e81ac) \
-SET(Black,            0xff000000) \
-
-#define SET(Name, Value) u32 ColorU32_##Name = Value;
-ColorList
-#undef SET
-
-#define SET(Name, Value) v4 Color_##Name = {U32ToV3Arg(Value), 1.f};
-ColorList
-#undef SET
 
 global_variable v4 Color_Background = Color_Night3;
 global_variable v4 Color_Foreground = Color_Snow0;

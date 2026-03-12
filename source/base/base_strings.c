@@ -84,18 +84,22 @@ StringLength(char *String)
 }
 
 internal str8
-StringCat(arena *Arena, str8 Prefix, str8 Suffix)
+S8Cat(str8 Prefix, str8 Suffix)
 {
+    arena *Arena = StringsScratch;
+    
     str8 Result = PushS8(Arena, Prefix.Size + Suffix.Size);
     
+    u64 At = 0;
     for EachIndex(Idx, Prefix.Size)
     {
-        Result.Data[Idx] = Prefix.Data[Idx];
+        Result.Data[At + Idx] = Prefix.Data[Idx];
     }
     
+    At += Prefix.Size;
     for EachIndex(Idx, Suffix.Size)
     {
-        Result.Data[Idx] = Suffix.Data[Idx];
+        Result.Data[At + Idx] = Suffix.Data[Idx];
     }
     
     return Result;

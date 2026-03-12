@@ -27,11 +27,24 @@ Win32LogIfError_(char *File, s32 Line)
     { 
         Log("%s(%d): ERROR(%d): %s\n", File, Line, ErrorCode, ErrorMessage);
         LocalFree(ErrorMessage);
+        SetLastError(0);
     }
 }
 
-
 //- API 
+internal b32
+OS_FileExists(char *FileName)
+{
+    b32 Result = false;
+    
+    DWORD Attributes = GetFileAttributesA(FileName);
+    
+    Result = (Attributes != INVALID_FILE_ATTRIBUTES &&
+              !(Attributes & FILE_ATTRIBUTE_DIRECTORY));
+    
+    return Result;
+}
+
 internal str8 
 OS_ReadEntireFileIntoMemory(char *FileName)
 {
@@ -101,6 +114,8 @@ OS_WriteEntireFile(char *FileName, str8 File)
         {
             // NOTE(casey): File read successfully
             Result = (BytesWritten == File.Size);
+            // NOTE(luca): Silence the error from overwriting a file.
+            SetLastError(0);
         }
         else
         {
@@ -205,12 +220,14 @@ OS_Sleep(u32 MicroSeconds)
 internal void
 OS_ChangeDirectory(char *Path)
 {
-    SetCurrentDirectory(Path);
-	Win32LogIfError();
+    if(SetCurrentDirectory(Path) == 0)
+    {
+        Win32LogIfError();
+    }
 }
 
-DWORD 
-WINAPI ThreadInitEntryPoint(LPVOID FuncParams)
+DWORD WINAPI 
+ThreadInitEntryPoint(LPVOID FuncParams)
 {
     entry_point_params *Params = (entry_point_params *)FuncParams;
     
@@ -226,28 +243,46 @@ WINAPI ThreadInitEntryPoint(LPVOID FuncParams)
 
 //~ Entrypoint
 #if !BASE_NO_ENTRYPOINT
+
+#if BASE_CONSOLE_APPLICATION
+int
+main(int ArgsCount, char **Args, char **Env)
+#else
 int CALLBACK
 WinMain(HINSTANCE Instance,
         HINSTANCE PrevInstance,
         LPSTR CommandLine,
         int ShowCode)
+#endif
 {
-    
     GlobalDebuggerIsAttached = raddbg_is_attached();
     
-    AllocConsole();
-    FILE* stream;
-    freopen_s(&stream, "CONOUT$", "w", stdout);
-    freopen_s(&stream, "CONOUT$", "w", stderr);
+#if !BASE_CONSOLE_APPLICATION    
+    if(!GetStdHandle(STD_OUTPUT_HANDLE))
+    {
+        if(AttachConsole(ATTACH_PARENT_PROCESS))
+        {
+            freopen("CONOUT$","wb", stdout);
+            freopen("CONOUT$","wb", stderr);
+        }
+        else 
+        {
+            AllocConsole();
+            freopen("CONOUT$", "w", stdout);
+            freopen("CONOUT$", "w", stderr);
+        }
+    }
+#endif
     
     LARGE_INTEGER PerfCountFrequencyResult;
     QueryPerformanceFrequency(&PerfCountFrequencyResult);
     GlobalPerfCountFrequency = PerfCountFrequencyResult.QuadPart;
     
-#if FORCE_THREADS_COUNT
-    u64 ThreadsCount = FORCE_THREADS_COUNT;
+#if BASE_FORCE_THREADS_COUNT
+    u64 ThreadsCount = BASE_FORCE_THREADS_COUNT;
 #else
     u64 ThreadsCount = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    SetLastError(0);
 #endif
     
     arena *Arena = ArenaAlloc();
@@ -257,24 +292,37 @@ WinMain(HINSTANCE Instance,
     
     SYNCHRONIZATION_BARRIER Barrier = {0};
     
-    BOOL BarrierInitialized = InitializeSynchronizationBarrier(&Barrier, ThreadsCount, -1);
+    BOOL BarrierInitialized = InitializeSynchronizationBarrier(&Barrier, (long)ThreadsCount, -1);
+    Win32LogIfError();
+    
+#if !BASE_CONSOLE_APPLICATION    
+    // TODO(luca): Real command line parsing
+    int ArgsCount = 2;
+    char *Args[2] = {0};
+    
+    str8 ExePath = PushS8(Arena, MAX_PATH);
+    ExePath.Size = GetModuleFileNameA(0, (char *)ExePath.Data, ExePath.Size);
+    ExePath.Data[ExePath.Size] = 0;
+    
+    Args[0] = (char *)ExePath.Data;
+    Args[1] = CommandLine;
+#endif
     
     for EachIndex(Idx, ThreadsCount)
     {
         entry_point_params *Params = &Threads[Idx].Params;
         Params->Context.LaneIndex = Idx;
         Params->Context.LaneCount = ThreadsCount;
-        Params->Context.Barrier   = (barrier)&Barrier;
+        Params->Context.Barrier = (barrier)&Barrier;
         Params->Context.SharedStorage = &SharedStorage;
-        //Params->Args = Args;
-        //Params->ArgsCount = ArgsCount;
+        Params->Args = Args;
+        Params->ArgsCount = ArgsCount;
         
         Params->Context.Handle = (thread_handle)CreateThread(0, 0, ThreadInitEntryPoint, Params, 0, 0);
         
         if(!Params->Context.Handle)
         {
-            printf("Failed to create thread. Error: %lu\n", GetLastError());
-            return 1;
+            Win32LogIfError();
         }
     }
     
@@ -283,8 +331,10 @@ WinMain(HINSTANCE Instance,
         entry_point_params *Params = &Threads[Idx].Params;
         
         WaitForSingleObject((HANDLE)Params->Context.Handle, INFINITE);
+        
         CloseHandle((HANDLE)Params->Context.Handle);
     }
+    
     
     return 0;
 }

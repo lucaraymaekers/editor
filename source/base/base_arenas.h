@@ -22,7 +22,11 @@ struct arena_alloc_params
 #define ArenaAllocDefaultSize MB(64)
 
 #if COMPILER_MSVC
-# define StructCast(t) t
+# if LANG_CPP
+#  define StructCast(t) t
+# elif LANG_C
+#  define StructCast(t) (t)
+# endif
 #else
 # define StructCast(t) (t)
 #endif

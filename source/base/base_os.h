@@ -10,6 +10,7 @@ struct entry_point_params
     thread_context Context;
     int ArgsCount;
     char **Args;
+    char **Env;
 };
 
 typedef struct os_profiler os_profiler;
@@ -38,7 +39,7 @@ global_variable u8 LogBuffer[KB(64)];
 global_variable os_profiler GlobalProfiler = {}; 
 global_variable char *GlobalProfilerPrefix = ""; 
 
-#if EDITOR_PROFILE
+#if BASE_PROFILE
 global_variable b32 GlobalIsProfiling = true;
 #else
 global_variable b32 GlobalIsProfiling = false;
@@ -55,6 +56,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint);
 #endif
 
 internal str8  OS_ReadEntireFileIntoMemory(char *FileName);
+internal b32   OS_FileExists(char *FileName);
 internal void  OS_FreeFileMemory(str8 File);
 internal b32   OS_WriteEntireFile(char *FileName, str8 File);
 internal void  OS_PrintFormat(char *Format, ...) PrintfFunc(1, 2);
@@ -75,9 +77,5 @@ internal void OS_ProfileAndPrint(char *Label);
 #define Log(Format, ...)      OS_PrintFormat((char *)(Format), ##__VA_ARGS__)
 // NOTE(luca): Append '\n', because this macro might be redefined into a visual error log.
 #define ErrorLog(Format, ...) Log(ERROR_FMT Format "\n", ERROR_ARG, ##__VA_ARGS__)
-
-#if !defined(EDITOR_PROFILE)
-# define EDITOR_PROFILE 0
-#endif
 
 #endif //OS_H

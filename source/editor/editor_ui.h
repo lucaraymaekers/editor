@@ -2,8 +2,8 @@
 
 #ifndef EDITOR_UI_H
 #define EDITOR_UI_H
-//~ Types
 
+//~ Types
 enum axis2
 {
     Axis2_X,
@@ -11,24 +11,6 @@ enum axis2
     Axis2_Count
 };
 typedef enum axis2 axis2;
-
-// TODO(luca): Metaprogram
-enum ui_box_flag
-{
-    UI_BoxFlag_None                   = 0,
-    UI_BoxFlag_DrawBackground         = (1 << 0),
-    UI_BoxFlag_DrawBorders            = (1 << 1),
-    UI_BoxFlag_DrawDebugBorder        = (1 << 2),
-    UI_BoxFlag_DrawShadow             = (1 << 3),
-    UI_BoxFlag_DrawDisplayString      = (1 << 4),
-    UI_BoxFlag_CenterTextHorizontally = (1 << 5),
-    UI_BoxFlag_CenterTextVertically   = (1 << 6),
-    UI_BoxFlag_MouseClickability      = (1 << 7),
-    UI_BoxFlag_Clip                   = (1 << 8),
-    UI_BoxFlag_TextWrap               = (1 << 9),
-    UI_BoxFlag_DrawCursor             = (1 << 10),
-};
-typedef enum ui_box_flag ui_box_flag;
 
 enum ui_size_kind
 {
@@ -54,6 +36,10 @@ struct ui_key
     u64 U64[1];
 }; 
 
+
+#define UI_CUSTOM_DRAW(Name) void Name(void *CustomDrawData)
+typedef UI_CUSTOM_DRAW(ui_custom_draw);
+
 typedef struct ui_box ui_box;
 struct ui_box
 {
@@ -74,17 +60,7 @@ struct ui_box
     
     u32 Flags;
     ui_size SemanticSize[Axis2_Count];
-    
-    v2 FixedPosition;
-    v2 FixedSize;
-    
     str8 DisplayString;
-    
-    b32 Hovered;
-    b32 Clicked;
-    b32 Pressed;
-    rect Rec;
-    
     f32 BorderThickness;
     f32 Softness;
     v4 BackgroundColor;
@@ -92,6 +68,18 @@ struct ui_box
     v4 TextColor;
     v4 CornerRadii;
     axis2 LayoutAxis;
+    ui_custom_draw *CustomDraw; 
+    void *CustomDrawData;
+    
+    // Produced from layout resolving
+    v2 FixedPosition;
+    v2 FixedSize;
+    
+    // Computed per build
+    b32 Hovered;
+    b32 Clicked;
+    b32 Pressed;
+    v4 Rec;
 };
 
 #define UI_EachBox(Node, First) (ui_box *Node = First; !UI_IsNilBox(Node); Node = Node->Next)  
@@ -165,18 +153,15 @@ global_variable u64 UI_BoxTableSize = 0;
 
 global_variable ui_state *UI_State = 0;
 
-read_only global_variable ui_box _UI_NilBox =
-{
-    &_UI_NilBox, 
-    &_UI_NilBox,
-    &_UI_NilBox,
-    &_UI_NilBox,
-    &_UI_NilBox,
-    &_UI_NilBox,
-    &_UI_NilBox,
-};
+global_variable ui_box *UI_NilBox = 0;
 
-global_variable ui_box *UI_NilBox = &_UI_NilBox;
+#define DeferLoop(Begin, End) for(int _i_ = ((Begin), 0); !_i_; _i_ += 1, (End))
+
+#define UI_SizePx(Value, Strictness) UI_Size(UI_SizeKind_Pixels, Value, Strictness)
+#define UI_SizeText(Value, Strictness) UI_Size(UI_SizeKind_TextContent, Value, Strictness)
+#define UI_SizeEm(Value, Strictness) UI_Size(UI_SizeKind_Pixels, Value*HeightPx, Strictness)
+#define UI_SizeParent(Value, Strictness) UI_Size(UI_SizeKind_PercentOfParent, Value, Strictness)
+#define UI_SizeChildren(Strictness) UI_Size(UI_SizeKind_ChildrenSum, 0.f, Strictness)
 
 // TODO(luca): Freelist?
 #define StackPush(Arena, t, PushValue, Top) \

@@ -1,21 +1,27 @@
-#include "lib/md5.h"
+//~ Libraries 
+#if EDITOR_INTERNAL
+# define BASE_CONSOLE_APPLICATION 0
+#endif
 #include "base/base.h"
-#include "editor/editor_platform.h"
-
 #include "base/base.c"
 
+#include "editor/editor_platform.h"
 #if OS_LINUX
 # include "editor_platform_linux.cpp"
 #elif OS_WINDOWS
 # include "editor_platform_windows.cpp"
 #endif
 
+//- Third party 
 #if OS_WINDOWS
 # define RADDBG_MARKUP_IMPLEMENTATION
 #else
 # define RADDBG_MARKUP_STUBS
 #endif
 #include "lib/raddbg_markup.h"
+
+#include "lib/md5.h"
+//-
 
 C_LINKAGE ENTRY_POINT(EntryPoint)
 {
@@ -169,6 +175,31 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 if(CharPressed(NewInput, 'g', PlatformKeyModifier_Alt)) 
                 {
                     Logging = !Logging;
+                }
+                
+                // Save/load state
+                {                
+                    if(CharPressed(NewInput, 's', PlatformKeyModifier_Alt))
+                    {
+                        char *Path = PathFromExe(FrameArena, AppMemory.ExeDirPath, S8("save.editor_state"));
+                        
+                        str8 Buffer = {};
+                        Buffer.Data = (u8 *)AppMemory.Memory;
+                        Buffer.Size = AppMemory.MemorySize;
+                        
+                        OS_WriteEntireFile(Path, Buffer);
+                    }
+                    
+                    if(CharPressed(NewInput, 's', PlatformKeyModifier_Alt | PlatformKeyModifier_Shift))
+                    {
+                        char *Path = PathFromExe(FrameArena, AppMemory.ExeDirPath, S8("save.editor_state"));
+                        str8 Buffer = OS_ReadEntireFileIntoMemory(Path);
+                        
+                        AppMemory.MemorySize = Buffer.Size;
+                        
+                        MemoryCopy(AppMemory.Memory, Buffer.Data, Buffer.Size);
+                        OS_FreeFileMemory(Buffer);
+                    }
                 }
                 
                 // Playback

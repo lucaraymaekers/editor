@@ -3,7 +3,20 @@
 #if !defined(PLATFORM_H)
 #define PLATFORM_H
 
-#include "editor_random.h"
+#if !defined(EDITOR_INTERNAL)
+# define EDITOR_INTERNAL 0
+#endif
+#if !defined(EDITOR_PROFILE)
+# define EDITOR_PROFILE 0
+#endif
+#if !defined(EDITOR_HOT_RELOAD_SHADERS)
+# define EDITOR_HOT_RELOAD_SHADERS 0
+#endif
+#if !defined(EDITOR_FORCE_X11)
+# define EDITOR_FORCE_X11 0
+#endif
+
+#include "editor/editor_random.h"
 
 typedef struct app_offscreen_buffer app_offscreen_buffer;
 struct app_offscreen_buffer

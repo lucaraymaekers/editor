@@ -1,5 +1,5 @@
-#if !defined(BASE_MACROS_H)
-#define BASE_MACROS_H
+#if !defined(BASE_CORE_H)
+#define BASE_CORE_H
 
 // detect OS
 #if ANDROID
@@ -50,6 +50,15 @@
 #endif
 #if !defined(LANG_CPP)
 # define LANG_CPP 0
+#endif
+#if !defined(BASE_CONSOLE_APPLICATION)
+# define BASE_CONSOLE_APPLICATION 0
+#endif
+#if !defined(BASE_FORCE_THREADS_COUNT)
+# define BASE_FORCE_THREADS_COUNT 0
+#endif
+#if !defined(BASE_PROFILE)
+# define BASE_PROFILE 0
 #endif
 
 //~ OS
@@ -269,7 +278,7 @@ __asan_unpoison_memory_region((Address), (Size))
 # define AlignOf(T) __alignof(T)
 #elif COMPILER_CLANG
 # define AlignOf(T) __alignof(T)
-#elif COMPILER_GCC
+#elif COMPILER_GNU
 # define AlignOf(T) __alignof__(T)
 #else
 # error AlignOf not defined for this compiler.
@@ -344,38 +353,7 @@ typedef double f64;
 #define false 0
 #define true  1
 
-typedef struct range_s64 range_s64;
-struct range_s64
-{
-    s64 Min;
-    s64 Max;
-};
-
-typedef union v2 v2;
-union v2
-{
-    f32 e[2];
-    struct { f32 X, Y; };
-};
-#define V2Arg(Value) Value.X, Value.Y
-
-typedef union v3 v3;
-union v3
-{
-    f32 e[3];
-    struct { f32 X, Y, Z; };
-};
-#define V3Arg(Value) Value.X, Value.Y, Value.Z
-
-typedef union v4 v4;
-union v4
-{
-    f32 e[4];
-    struct { f32 X, Y, Z, W; };
-};
-#define V4Arg(Value) Value.X, Value.Y, Value.Z, Value.W
-
 //~ Globals
 global_variable b32 GlobalDebuggerIsAttached;
 
-#endif // BASE_MACROS_H
+#endif // BASE_CORE_H

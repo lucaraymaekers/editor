@@ -1,3 +1,4 @@
+
 #version 330 core
 
 #define v2 vec2
@@ -5,20 +6,6 @@
 #define v4 vec4 
 #define f32 float
 #define b32 int
-
-// TODO(luca): Metaprogram location offsets.
-layout (location = 1)  in v4  I_Dest;
-layout (location = 2)  in v4  I_TexSrc;
-
-layout (location = 3)  in v4  I_Color0;
-layout (location = 4)  in v4  I_Color1;
-layout (location = 5)  in v4  I_Color2;
-layout (location = 6)  in v4  I_Color3;
-layout (location = 7)  in v4  I_CornerRadii;
-
-layout (location = 8)  in f32 I_BorderThickness;
-layout (location = 9)  in f32 I_Softness;
-layout (location = 10) in f32 I_HasTexture;
 
 uniform v2 Viewport;
 
@@ -32,6 +19,20 @@ out f32 VS_CornerRadius;
 out f32 VS_BorderThickness;
 out f32 VS_Softness;
 flat out f32 VS_HasTexture;
+
+//- Generated code start
+layout (location =  0) in  v4 I_Dest;
+layout (location =  1) in  v4 I_TexSrc;
+layout (location =  2) in  v4 I_Color0;
+layout (location =  3) in  v4 I_Color1;
+layout (location =  4) in  v4 I_Color2;
+layout (location =  5) in  v4 I_Color3;
+layout (location =  6) in  v4 I_CornerRadii;
+layout (location =  7) in f32 I_BorderThickness;
+layout (location =  8) in f32 I_Softness;
+layout (location =  9) in f32 I_HasTexture;
+
+//- Generated code end
 
 void main()
 {

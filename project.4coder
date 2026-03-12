@@ -28,7 +28,8 @@ paths =
     { .path = "source/base",    .recursive = true,  .relative = true, },
     { .path = "source/lib",     .recursive = true,  .relative = true, },
     { .path = "source/shaders", .recursive = true,  .relative = true, },
-    { .path = "source/editor/", .recursive = false, .relative = true, },
+    { .path = "source/cling/",  .recursive = false, .relative = true, },
+    { .path = "source/editor/", .recursive = true,  .relative = true, },
 };
 
 load_paths =
@@ -40,21 +41,12 @@ load_paths =
 
 commands =
 {
-    .build_default = 
+    .build_editor = 
     {
         .out = "*compilation*", 
-        .linux = "sh ./source/build.sh",
-        .win = ".\\source\\build.bat",
+        .linux = "sh ./source/build.sh editor",
+        .win = ".\\source\\build.bat editor",
         .save_dirty_files = true,
-        .footer_panel = false,
-        .cursor_at_end = false,
-    },
-    .run_default = 
-    {
-        .out = "*compilation*", 
-        .linux = "./build/editor",
-        .win = "raddbg --ipc run",
-        .save_dirty_files = false,
         .footer_panel = false,
         .cursor_at_end = false,
     },
@@ -64,6 +56,15 @@ commands =
         .linux = "sh ./source/test.sh",
         .win = ".\\source\\build.bat",
         .save_dirty_files = true,
+        .footer_panel = false,
+        .cursor_at_end = false,
+    },
+    .run_editor = 
+    {
+        .out = "*compilation*", 
+        .linux = "./build/editor",
+        .win = "raddbg --ipc run",
+        .save_dirty_files = false,
         .footer_panel = false,
         .cursor_at_end = false,
     },
@@ -80,7 +81,7 @@ commands =
 
 fkey_command =
 {
-    .F1 = "build_default",
-    .F2 = "run_default",
+    .F1 = "build_editor",
+    .F2 = "run_editor",
     .F5 = "raddbg_kill",
 };

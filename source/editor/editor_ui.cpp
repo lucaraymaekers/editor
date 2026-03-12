@@ -8,15 +8,6 @@ UI_Size(ui_size_kind Kind, f32 Value, f32 Strictness)
     return Size;
 }
 
-#define DeferLoop(Begin, End) for(int _i_ = ((Begin), 0); !_i_; _i_ += 1, (End))
-
-
-#define UI_SizePx(Value, Strictness) UI_Size(UI_SizeKind_Pixels, Value, Strictness)
-#define UI_SizeText(Value, Strictness) UI_Size(UI_SizeKind_TextContent, Value, Strictness)
-#define UI_SizeEm(Value, Strictness) UI_Size(UI_SizeKind_Pixels, Value*HeightPx, Strictness)
-#define UI_SizeParent(Value, Strictness) UI_Size(UI_SizeKind_PercentOfParent, Value, Strictness)
-#define UI_SizeChildren(Strictness) UI_Size(UI_SizeKind_ChildrenSum, 0.f, Strictness)
-
 internal ui_box *
 UI_BoxAlloc(arena *Arena)
 {
@@ -163,6 +154,8 @@ UI_AddBox(str8 String, u32 Flags)
     Box->LayoutAxis = UI_State->LayoutAxisTop->Value;
     Box->SemanticSize[Axis2_X] = UI_State->SemanticWidthTop->Value;
     Box->SemanticSize[Axis2_Y] = UI_State->SemanticHeightTop->Value;
+    Box->CustomDraw = 0;
+    Box->CustomDrawData = 0;
     
     if(!FirstTime)
     {
@@ -422,7 +415,7 @@ UI_DrawBoxes(ui_box *Box)
 {
     ui_box *Parent = Box->Parent;
     
-    rect Dest = Box->Rec;
+    v4 Dest = Box->Rec;
     
     if(Box->Flags & UI_BoxFlag_Clip)
     {
@@ -435,8 +428,8 @@ UI_DrawBoxes(ui_box *Box)
         if(Box->Flags & UI_BoxFlag_DrawShadow)
         {
             f32 ShadowSize = 4.f;
-            rect ShadowDest = RectV2(V2AddF32(Dest.Min, ShadowSize), 
-                                     V2AddF32(Dest.Max, ShadowSize)); 
+            v4 ShadowDest = RectV2(V2AddF32(Dest.Min, ShadowSize), 
+                                   V2AddF32(Dest.Max, ShadowSize)); 
             rect_instance *Inst = DrawRect(ShadowDest, Color_Black, 0.f, ShadowSize, .5f*ShadowSize);
             Inst->CornerRadii = Box->CornerRadii;
         }
@@ -486,7 +479,7 @@ UI_DrawBoxes(ui_box *Box)
             
             v2 MarkPos = {};
             
-            b32 DrawCursor = (Box->Flags & UI_BoxFlag_DrawCursor) ;
+            b32 DrawCursor = (Box->Flags & UI_BoxFlag_DrawTextCursor) ;
             
             for EachIndex(Idx, Box->DisplayString.Size)
             {
@@ -494,53 +487,13 @@ UI_DrawBoxes(ui_box *Box)
                 f32 CharWidth = (UI_State->Atlas->PackedChars[Char].xadvance);
                 f32 CharHeight = (UI_State->Atlas->HeightPx);
                 
-                // TODO(luca): Proper wrapping on whitespace
-                // TODO(luca): Account for padding
-                if(Box->Flags & UI_BoxFlag_TextWrap)
-                {                    
-                    if(Cur.X + CharWidth > Box->FixedPosition.X + Box->FixedSize.X)
-                    {
-                        Cur.X = TextPos.X;
-                        Cur.Y += CharHeight;
-                    }
-                }
-                
-                if(Char == '\n')
+                v2 CurMax = V2AddV2(Cur, V2(CharWidth, CharHeight));
+                if(IsInsideRectV2(Cur, Dest) &&
+                   IsInsideRectV2(CurMax, Dest))
                 {
-                    Cur.X = TextPos.X;
-                    Cur.Y += CharHeight;
-                }
-                else
-                {                    
-                    v2 CurMax = V2AddV2(Cur, V2(CharWidth, CharHeight));
-                    if(IsInsideRectV2(Cur, Dest) &&
-                       IsInsideRectV2(CurMax, Dest))
-                    {
-                        DrawRectChar(UI_State->Atlas, Cur, Char, Box->TextColor);
-                        
-                        Cur.X += CharWidth;
-                    }
-                }
-                
-                if(DrawCursor && (Idx + 1) == GlobalTextCursor)
-                {
-                    MarkPos = Cur;
-                }
-                
-            }
-            
-            if(DrawCursor)
-            {
-                if(GlobalTextCursor == 0)
-                {
-                    MarkPos = TextPos;
-                }
-                rect MarkRec = RectFromSize(MarkPos, V2(1.f, UI_State->Atlas->HeightPx));
-                
-                MarkRec = RectIntersect(MarkRec, Parent->Rec);
-                if(RectValid(MarkRec)) 
-                {
-                    DrawRect(MarkRec, Box->TextColor, 0.f, 0.f, 0.f);
+                    DrawRectChar(UI_State->Atlas, Cur, Char, Box->TextColor);
+                    
+                    Cur.X += CharWidth;
                 }
             }
         }
@@ -553,6 +506,12 @@ UI_DrawBoxes(ui_box *Box)
             }
             rect_instance *Inst = DrawRect(Dest, Box->BorderColor, 0.f, Box->BorderThickness, Box->Softness);
             V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
+        }
+        
+        
+        if(Box->CustomDraw)
+        {
+            Box->CustomDraw(Box->CustomDrawData);
         }
     }
     
