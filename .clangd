@@ -1,8 +1,0 @@
-CompileFlags:
-  CompilationDatabase: .
-
-  Add:
-    - -g
-    - -O0
-    - -I/home/nasr/c/editor
-    - -I/home/nasr/c/editor/source
