@@ -1,366 +1,274 @@
-#include "base/base_core.h"
-#include "base/base_os.h"
-#include "base/base_strings.h"
-#include "base/base_arenas.h"
-#define BASE_NO_ENTRYPOINT 1
-#include "editor_lexer.h"
-
-/**
- * NOTE(nasr): what are the steps we have to follow?
- * we take in the complete file buffer?
- * but should it be the the complete file?
- * what if we have multiple files?
- *
- * what we could do is have a initial complete lexical analysis of
- * all source files, and build a concrete syntax tree, not an ast, but a concrete syntax tree
- *
- * and on a file save or change try to update the concrete syntax tree
- *  but it would be nice if the concrete syntax tree could change without needing to have to
- *  save the file after each edit or change
- *
- *  but doing that would mean that we need to have a LSP server that does a continous analysis
- *
- **/
-
-/**
- * NOTE(nasr): what im trying to do here is do a regular parsing scan over the
- * complete buffer, seperate words on spaces and other general delimters
- * and get a list of tokens out of this so i can run the tokenizer of a list
- * */
-
-/**
- * NOTE(nasr): new idea, make a parse -> lexing pipeline
- * we make continous parsing for the continous input
- * and then we do a search on the nodes of the cst
- **/
-
-internal Token *ParseBuffer(app_state *app, arena *Arena)
+internal inline b32
+IsAlpha(rune Character)
 {
-    
-    /*
-     * Lets say we have a line \\ int main() { return 0; }
-     * this line shows that a function has a return type, a name, braces
-     * and the scope of the function starts end ends with braces { }
-     * so the tree should shows
-     * [function(main(return type)(name)(parameters))[scope[and here have more stuff]]]
-     * now the tricky part about c is that most things are seperated by spaces but not all
-     * T value = {0}; \\ this for example is allowed.
-     **/
-    
-    /*
-     * TODO(nasr): think about the new lines,
-     * a new line doesnt define a new branch or scope of syntax
-     * but it is often used?
-     *
-     * do we handle it or not?
-     * */
-    /**
-     * I think i misunderstood the difference between a parser and a lexer
-     **/
-    
-    Token *FirstToken = 0;
-    Token *LastToken = 0;
-    
-    s32 TextIndex = 0;
-    s32 Line = 1;
-    s32 Column = 1;
-    
-    while(TextIndex < app->TextCount)
+    return ((Character >= 'a' && Character <= 'z') ||
+            (Character >= 'A' && Character <= 'Z') ||
+            (Character == '_'));
+}
+
+internal inline b32
+IsDigit(rune Character)
+{
+    return (Character >= '0' && Character <= '9');
+}
+
+internal b32
+IsDelimiter(rune Character)
+{
+    for(s32 Index = 0; Index < ArrayCount(Delimiters); ++Index)
     {
-        rune CurrentChar = app->Text[TextIndex];
-        
-        // NOTE(nasr): skip whitespace but track position
-#if !defined(OS_WINDOWS)
-        while(TextIndex < app->TextCount &&
-              (CurrentChar == ' ' || CurrentChar == '\t' || CurrentChar == '\n' || CurrentChar == '\r' /*windows support*/))
-#endif
-#if defined(__linux__)
-        while(TextIndex < app->TextCount &&
-              (CurrentChar == ' ' || CurrentChar == '\t' || CurrentChar == '\n'))
-#endif
+        if(Delimiters[Index] == Character)
         {
-            if(CurrentChar == '\n')
-            {
-                ++Line;
-                Column = 1;
-            }
-            else
-            {
-                ++Column;
-            }
-            TextIndex += 1;
-            if(TextIndex < app->TextCount) { CurrentChar = app->Text[TextIndex]; }
+            return 1;
         }
-        
-        if(TextIndex >= app->TextCount)
+    }
+    return 0;
+}
+
+internal inline b32
+IsNilTokenNode(token_node *TokenNode)
+{
+    return TokenNode == &nil_token_node || TokenNode == NULL;
+}
+
+internal inline b32
+IsNilToken(token *Token)
+{
+    return Token == &nil_token || Token == NULL;
+}
+
+internal inline b32
+IsWhiteSpace(rune Character)
+{
+    return (Character == '\n' || Character == '\r' ||
+            Character == ' ' || Character == '\t');
+}
+
+internal inline void
+ParseCStyleComment(rune Buffer[])
+{
+    // TODO(nasr): handle c style comments
+    // couuld be usefull for function information visualiszation
+    // so think of a way to link themn to functions and variables?
+    // some sort of meta data per thing?
+    // and then we can do a visualization if the str8.count of the metadata thing is bigger then 0
+    // we should a visualization thing for the thing
+    // if the thing is less then 0, we dont do anything?
+
+    // TODO(nasr): while doingn this we could also add in some editor specific anotations ?
+}
+
+internal inline void
+ParseCPPStyleComment(rune Buffer[])
+{
+    // TODO(nasr):
+}
+
+internal inline b32
+Is_TokenBreak(rune Character)
+{
+    return (IsWhiteSpace(Character) || IsDelimiter(Character));
+}
+
+internal token_list *
+Lex(app_state *App, arena *Arena, token_list *List)
+{
+    b32 Initialized = 0;
+    s32 Line        = 1;
+    s32 Column      = 1;
+
+    for(s32 TextIndex = 0; TextIndex < App->TextCount; TextIndex++)
+    {
+        rune Character = App->Text[TextIndex];
+
+        if(Character == '\r' || Character == '\n')
         {
-            break;
+            if(Character == '\r' &&
+               (TextIndex + 1 < App->TextCount) &&
+               App->Text[TextIndex + 1] == '\n')
+            {
+                TextIndex++;
+            }
+
+            ++TextIndex;
+            ++Line;
+
+            // NOTE(nasr): reset the column to the beginning of the line
+            Column = 1;
+            continue;
         }
-        
+
+        if(IsWhiteSpace(Character))
+        {
+            ++Column;
+            continue;
+        }
+
+        token_node *TokenNode = PushStructZero(Arena, token_node);
+        token      *Token     = PushStructZero(Arena, token);
+        TokenNode->Next       = &nil_token_node;
+        TokenNode->Previous   = &nil_token_node;
+        TokenNode->Token      = Token;
+        Token->Line           = Line;
+        Token->Column         = Column;
+        Token->ByteOffset     = (u64)TextIndex;
+        Token->Flags          = FlagNone;
+
         s32 TokenStart = TextIndex;
-        s32 TokenStartColumn = Column;
-        b32 IsDelimiter = false;
-        
-        // NOTE(nasr): check if current char is a delimiter
-        for(s32 DelimiterIndex = 0; DelimiterIndex < ArrayCount(Delimiters); ++DelimiterIndex)
+        s32 TokenEnd   = TextIndex;
+
+        if(Character > 126)
         {
-            if(Delimiters[DelimiterIndex] == (char)CurrentChar)
+            Token->Type = TokenUnwantedChild;
+            TokenEnd    = TextIndex + 1;
+        }
+        else if(IsAlpha(Character))
+        {
             {
-                IsDelimiter = true;
+                while((TextIndex + 1 < App->TextCount) &&
+                      (IsAlpha(App->Text[TextIndex + 1]) || IsDigit(App->Text[TextIndex + 1])))
+                {
+                    ++TextIndex;
+                }
+
+                TokenEnd = TextIndex + 1;
+            }
+            {
+                str8 Lexeme = S8FromTo(((str8){.Data = (u8 *)App->Text, .Size = (u64)App->TextCount}), (u64)TokenStart, (u64)TokenEnd);
+
+                // TODO(nasr): handle functions
+                if(S8Match(Lexeme, S8("if"), 0))
+                    Token->Type = TokenIf;
+                else if(S8Match(Lexeme, S8("else"), 0))
+                    Token->Type = TokenElse;
+                else if(S8Match(Lexeme, S8("return"), 0))
+                    Token->Type = TokenReturn;
+                else if(S8Match(Lexeme, S8("while"), 0))
+                    Token->Type = TokenWhile;
+                else if(S8Match(Lexeme, S8("for"), 0))
+                    Token->Type = TokenFor;
+                else if(S8Match(Lexeme, S8("break"), 0))
+                    Token->Type = TokenBreak;
+                else if(S8Match(Lexeme, S8("continue"), 0))
+                    Token->Type = TokenContinue;
+                else
+                    Token->Type = TokenIdentifier;
+            }
+        }
+        else if(IsDigit(Character))
+        {
+            while((TextIndex + 1 < App->TextCount) &&
+                  IsDigit(App->Text[TextIndex + 1]))
+            {
+                ++TextIndex;
+            }
+
+            TokenEnd    = TextIndex + 1;
+            Token->Type = TokenNumber;
+        }
+
+        else
+        {
+            rune Next = (TextIndex + 1 < App->TextCount) ? App->Text[TextIndex + 1] : 0;
+
+            switch(Character)
+            {
+                case '=':
+                {
+                    if(Next == '=')
+                    {
+                        Token->Type = TokenDoubleEqual;
+                        TextIndex++;
+                    }
+                    else
+                    {
+                        Token->Type = (token_type)'=';
+                    }
+                }
+                break;
+
+                case '>':
+                {
+                    if(Next == '=')
+                    {
+                        Token->Type = TokenGreaterEqual;
+                        TextIndex++;
+                    }
+                    else if(Next == '>')
+                    {
+                        Token->Type = TokenRightShift;
+                        TextIndex++;
+                    }
+                    else
+                    {
+                        Token->Type = (token_type)'>';
+                    }
+                }
+                break;
+
+                case '<':
+                {
+                    if(Next == '=')
+                    {
+                        Token->Type = TokenLesserEqual;
+                        TextIndex++;
+                    }
+                    else if(Next == '<')
+                    {
+                        Token->Type = TokenLeftShift;
+                        TextIndex++;
+                    }
+                    else
+                    {
+                        Token->Type = (token_type)'<';
+                    }
+                }
+                break;
+
+                case '"':
+                {
+                    while(App->Text[TextIndex + 1] != '"' && App->Text[TextIndex + 1] != '\0')
+                    {
+                        ++TextIndex;
+                        if(App->Text[TextIndex + 1] == '\\')
+
+                            ++TextIndex;
+                    }
+
+                    TokenStart += 1;
+                    Token->Type = TokenString;
+                }
+                break;
+
+                default:
+                {
+                    Token->Type = (token_type)Character;
+                }
                 break;
             }
         }
-        
-        s32 TokenEnd = TextIndex;
-        
-        if(IsDelimiter)
+
+        TokenEnd = TextIndex + 1;
+
+        Token->Lexeme.Data = (u8 *)&App->Text[TokenStart];
+        Token->Lexeme.Size = (u64)(TokenEnd - TokenStart);
+        Column += (s32)Token->Lexeme.Size;
+
+        //Log("Token: \t%.lu*s\n", Token->Lexeme.Size, Token->Lexeme.Data);
+
+        if(!Initialized)
         {
-            TokenEnd = TextIndex + 1;
-            Column += 1;
+            Initialized   = 1;
+            List->Root    = TokenNode;
+            List->Current = TokenNode;
         }
         else
         {
-            // NOTE(nasr): scan until we hit whitespace or delimiter
-            while(TextIndex < app->TextCount)
-            {
-                CurrentChar = app->Text[TextIndex];
-                
-                if(CurrentChar == ' ' || CurrentChar == '\t' || CurrentChar == '\n' || CurrentChar == '\r')
-                {
-                    break;
-                }
-                
-                b32 IsDelimiter = false;
-                for(s32 DelimiterIndex = 0; DelimiterIndex < ArrayCount(Delimiters); ++DelimiterIndex)
-                {
-                    if(Delimiters[DelimiterIndex] == (char)CurrentChar)
-                    {
-                        IsDelimiter = true;
-                        break;
-                    }
-                }
-                
-                if(IsDelimiter)
-                {
-                    break;
-                }
-                
-                TextIndex += 1;
-                Column += 1;
-            }
-            
-            TokenEnd = TextIndex;
+            TokenNode->Previous = List->Current;
+            List->Current->Next = TokenNode;
+            List->Current       = TokenNode;
         }
-        
-        s32 TokenSize = TokenEnd - TokenStart;
-        if(TokenSize > 0)
-        {
-            Token *NewToken = PushStruct(Arena, Token);
-            
-            u8 *TokenStr = PushArray(Arena, u8, TokenSize + 1);
-            for(s32 i = 0; i < TokenSize; ++i)
-            {
-                TokenStr[i] = (u8)app->Text[TokenStart + i];
-            }
-            TokenStr[TokenSize] = 0;
-            
-            NewToken->Lexeme.Data = TokenStr;
-            NewToken->Lexeme.Size = TokenSize;
-            NewToken->Line = Line;
-            NewToken->Column = TokenStartColumn;
-            NewToken->Type = TokenInvalid;
-            NewToken->Next = 0;
-            
-            if(LastToken)
-            {
-                LastToken->Next = NewToken;
-                LastToken = NewToken;
-            }
-            else
-            {
-                FirstToken = NewToken;
-                LastToken = NewToken;
-            }
-        }
-        
-        TextIndex = TokenEnd;
     }
-    
-    return FirstToken;
-}
 
-/**
- * NOTE(nasr): The tokenize function takes the parsed buffer and tokenizes
- * every element in the list
- * We try to identify the leximes, that were previously split up;
- * */
-
-internal Token *Tokenize(str8 ParsedWord, arena *Arena)
-{
-    
-    /* NOTE(nasr):
-     * maybe put the tokenizing in a seperate function
-     * no need for doing that at the moment */
-    
-    Token *TokenOut = PushStruct(Arena, Token);
-    
-    TokenOut->Type   = TokenInvalid;
-    TokenOut->Lexeme = ParsedWord;
-    TokenOut->Line   = 0;
-    TokenOut->Column = 0;
-    TokenOut->Next   = 0;
-    
-    // NOTE(nasr): check for keywords
-    for(u64  KeywordIndex = 0; KeywordIndex < ArrayCount(Keywords); ++KeywordIndex)
-    {
-        if(S8Match(ParsedWord, Keywords[KeywordIndex], false))
-        {
-            TokenOut->Type = TokenKeyword;
-            return TokenOut;
-        }
-    }
-    
-    // NOTE(nasr): check for single-character tokens
-    if(ParsedWord.Size == 1)
-    {
-        char c = (char)ParsedWord.Data[0];
-        
-        /*
-         * TODO(nasr): how do we handle unary expressions?
-         * */
-        if(c == '+' || c == '-' || c == '*' || c == '/')
-        {
-            TokenOut->Type = TokenOperator;
-            return TokenOut;
-        }
-        
-        /*
-         * for preprocessor stuff
-         * #include #endif
-         * */
-        if(c == '#')
-        {
-            TokenOut->Type = TokenDirective;
-            return TokenOut;
-        }
-        
-        if(c == ';')
-        {
-            TokenOut->Type = TokenSemicolon;
-            return TokenOut;
-        }
-        
-        if(c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']')
-        {
-            TokenOut->Type = TokenDelimiter;
-            return TokenOut;
-        }
-        
-        if(c == ',' || c == '.')
-        {
-            TokenOut->Type = TokenPunctuation;
-            return TokenOut;
-        }
-    }
-    
-    // NOTE(nasr): check if it's a number literal
-    if(ParsedWord.Size > 0)
-    {
-        char FirstChar = (char)ParsedWord.Data[0];
-        if(FirstChar >= '0' && FirstChar <= '9')
-        {
-            TokenOut->Type = TokenNumber;
-            return TokenOut;
-        }
-    }
-    
-    // NOTE(nasr): check if it's a string literal
-    if(ParsedWord.Size >= 2)
-    {
-        char FirstChar = (char)ParsedWord.Data[0];
-        char LastChar = (char)ParsedWord.Data[ParsedWord.Size - 1];
-        if((FirstChar == '"' && LastChar == '"') || (FirstChar == '\'' && LastChar == '\''))
-        {
-            TokenOut->Type = TokenString;
-            return TokenOut;
-        }
-    }
-    
-    // NOTE(nasr): if nothing else, it's probably an identifier
-    if(ParsedWord.Size > 0)
-    {
-        /* TODO(nasr): what are the possible identifier starters? */
-        char FirstChar = (char)ParsedWord.Data[0];
-        if((FirstChar >= 'a' && FirstChar <= 'z') ||
-           (FirstChar >= 'A' && FirstChar <= 'Z'))
-        {
-            TokenOut->Type = TokenIdentifier;
-            return TokenOut;
-        }
-    }
-    
-    return TokenOut;
-}
-
-
-/*
- * NOTE(nasr):
- * lets say we have a set of tokens
- * [[int][main][(][int][argc]][)][{][}]]
- * how do we build a tree out of this?
- * */
-internal void AddToCST(ConcreteSyntaxTree *tree, SyntaxNode *node)
-{
-    
-    /* NOTE(nasr): building the concretee syntax tree */
-    
-    /**
-     * What defines the root of a concrete syntax tree
-     * when do branches get created?
-     * not at the start of a line because this is possible ->
-     * \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-     * internal int
-     * main(int argc, char **argv)
-     * { retur 0; }
-     * \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-     **/
-    
-    /* NOTE(nasr): we know that a semicolon defines the end of of a branch */
-    
-    /**
-     * check if a token is a sort of token
-     * does that token take children or something else
-     **/
-    if(tree->root == 0)
-    {
-        tree->root = node;
-        tree->current = node;
-    }
-    
-    else
-    {
-        if(tree->current->child_count < tree->current->child_capacity)
-        {
-            tree->current->children[tree->current->child_count] = node;
-            tree->current->child_count += 1;
-            node->parent = tree->current;
-        }
-        else
-        {
-            Log("max tree");
-            
-            /* TODO(nasr): expand tree or something */
-        }
-    }
-}
-
-
-internal void RemoveFromCST(ConcreteSyntaxTree *tree, SyntaxNode node)
-{
-    /**
-     * TODO(nasr):
-     * 1. find the node
-     * 2. remove the node
-     * 3. restructure the thing
-     * **/
+    return List;
 }
