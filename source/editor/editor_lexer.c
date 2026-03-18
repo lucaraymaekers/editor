@@ -174,77 +174,77 @@ Lex(app_state *App, arena *Arena, token_list *List)
             switch(Character)
             {
                 case '=':
-                {
-                    if(Next == '=')
                     {
-                        Token->Type = TokenDoubleEqual;
-                        TextIndex++;
+                        if(Next == '=')
+                        {
+                            Token->Type = TokenDoubleEqual;
+                            TextIndex++;
+                        }
+                        else
+                        {
+                            Token->Type = (token_type)'=';
+                        }
                     }
-                    else
-                    {
-                        Token->Type = (token_type)'=';
-                    }
-                }
-                break;
+                    break;
 
                 case '>':
-                {
-                    if(Next == '=')
                     {
-                        Token->Type = TokenGreaterEqual;
-                        TextIndex++;
+                        if(Next == '=')
+                        {
+                            Token->Type = TokenGreaterEqual;
+                            TextIndex++;
+                        }
+                        else if(Next == '>')
+                        {
+                            Token->Type = TokenRightShift;
+                            TextIndex++;
+                        }
+                        else
+                        {
+                            Token->Type = (token_type)'>';
+                        }
                     }
-                    else if(Next == '>')
-                    {
-                        Token->Type = TokenRightShift;
-                        TextIndex++;
-                    }
-                    else
-                    {
-                        Token->Type = (token_type)'>';
-                    }
-                }
-                break;
+                    break;
 
                 case '<':
-                {
-                    if(Next == '=')
                     {
-                        Token->Type = TokenLesserEqual;
-                        TextIndex++;
+                        if(Next == '=')
+                        {
+                            Token->Type = TokenLesserEqual;
+                            TextIndex++;
+                        }
+                        else if(Next == '<')
+                        {
+                            Token->Type = TokenLeftShift;
+                            TextIndex++;
+                        }
+                        else
+                        {
+                            Token->Type = (token_type)'<';
+                        }
                     }
-                    else if(Next == '<')
-                    {
-                        Token->Type = TokenLeftShift;
-                        TextIndex++;
-                    }
-                    else
-                    {
-                        Token->Type = (token_type)'<';
-                    }
-                }
-                break;
+                    break;
 
                 case '"':
-                {
-                    while(App->Text[TextIndex + 1] != '"' && App->Text[TextIndex + 1] != '\0')
                     {
-                        ++TextIndex;
-                        if(App->Text[TextIndex + 1] == '\\')
-
+                        while(App->Text[TextIndex + 1] != '"' && App->Text[TextIndex + 1] != '\0')
+                        {
                             ++TextIndex;
-                    }
+                            if(App->Text[TextIndex + 1] == '\\')
 
-                    TokenStart += 1;
-                    Token->Type = TokenString;
-                }
-                break;
+                                ++TextIndex;  
+                        }
+
+                        TokenStart += 1;
+                        Token->Type = TokenString;
+                    }
+                    break;
 
                 default:
-                {
-                    Token->Type = (token_type)Character;
-                }
-                break;
+                    {
+                        Token->Type = (token_type)Character;
+                    }
+                    break;
             }
         }
 

@@ -11,12 +11,16 @@
 #include "editor_ui.h"
 #include "editor_app.h"
 
-internal inline b32
-IsWhiteSpace(rune Character)
-{
-    return (Character == '\n' || Character == '\r' ||
-            Character == ' ' || Character == '\t');
-}
+// language stuff
+//
+
+
+#include "editor_lexer.h"
+#include "editor_parser.h"
+
+#include "editor_lexer.c"
+#include "editor_parser.c"
+
 
 //- Globals
 read_only global_variable panel _NilPanel =

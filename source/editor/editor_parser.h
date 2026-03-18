@@ -9,7 +9,8 @@ enum syntax_node_type
 
     SyntaxNodeAssignment,
     SyntaxNodeReturn,
-    SyntaxNodeFunction
+    SyntaxNodeFunction,
+    SyntaxNodeUnwanted,
 };
 
 typedef struct syntax_node syntax_node;
