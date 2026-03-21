@@ -153,7 +153,7 @@ ENTRY_POINT(EntryPoint)
 #endif
         
         //- Targets 
-        b32 Asan = true;
+        b32 Asan = false;
         b32 Debug = true;
         b32 Release = false;
         b32 Personal = false;

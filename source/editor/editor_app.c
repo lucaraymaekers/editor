@@ -887,6 +887,7 @@ UI_CUSTOM_DRAW(CustomTextDraw)
                             if(WasPressed(*LeftButton) && !Shift)
                             {
                                 PanelApp->TextTrail = PanelApp->TextCursor;
+                                PanelApp->TextCursorAnimTime = 0.f;
                             }
                             
                         }
@@ -1193,13 +1194,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         {
                             App->TextTrail = 0;
                             App->TextCursor = App->TextCount;
-                        } break;
-                        case 'h': if(Control) DeleteChar(App); break;
-                        case 'w': if(Control) DeleteWordLeft(App); break;
-                        case 'u': if(Control) 
-                        {
-                            while(App->TextCursor > 0) DeleteChar(App); 
-                            App->TextTrail = App->TextCursor;
                         } break; 
                     }
                 }
@@ -1352,6 +1346,32 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         }
                         
                         App->TextCursorAnimTime = 0.f;
+                    } break;
+                    
+                    case PlatformKey_Home:
+                    {
+                        u64 Cursor = App->TextCursor;
+                        while(Cursor > 0 && App->Text[Cursor - 1] != '\n') Cursor -= 1;
+                        App->TextCursor = Cursor;
+                        
+                        if(!Shift)
+                        {
+                            App->TextTrail = App->TextCursor;
+                            App->TextCursorAnimTime = 0.f;
+                        }
+                    } break;
+                    
+                    case PlatformKey_End:
+                    {
+                        u64 Cursor = App->TextCursor;
+                        while(Cursor < App->TextCount && App->Text[Cursor] != '\n') Cursor += 1;
+                        App->TextCursor = Cursor;
+                        
+                        if(!Shift)
+                        {
+                            App->TextTrail = App->TextCursor;
+                            App->TextCursorAnimTime = 0.f;
+                        }
                     } break;
                     
                     case PlatformKey_BackSpace: 
@@ -1528,6 +1548,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 if(UI_AddBox(S8("Clear"), ButtonFlags)->Clicked)
                 {
                     App->TextCount = 0;
+                    App->TextCursor = 0;
+                    App->TextTrail = 0;
                 }
                 
                 if(UI_AddBox(S8("Save"), ButtonFlags)->Clicked)
