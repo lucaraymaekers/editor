@@ -7,9 +7,9 @@
 
 #include "editor/editor_platform.h"
 #if OS_LINUX
-# include "editor_platform_linux.cpp"
+# include "editor_platform_linux.c"
 #elif OS_WINDOWS
-# include "editor_platform_windows.cpp"
+# include "editor_platform_windows.c"
 #endif
 
 //- Third party 
@@ -37,7 +37,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         b32 *Running = PushStruct(PermanentArena, b32);
         *Running = true;
         
-        app_offscreen_buffer Buffer = {};
+        app_offscreen_buffer Buffer = {0};
         Buffer.Width = 1920/2;
         Buffer.Height = 1080/2;
         Buffer.BytesPerPixel = 4;
@@ -50,7 +50,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
             ErrorLog("Could not initialize graphical context, running in headless mode.");
         }
         
-        str8 ExeDirPath = {};
+        str8 ExeDirPath = {0};
         {        
             u32 OnePastLastSlash = 0;
 #if OS_LINUX || OS_ANDROID
@@ -75,7 +75,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
             ExeDirPath.Size = OnePastLastSlash;
         }
         
-        app_memory AppMemory = {};
+        app_memory AppMemory = {0};
         AppMemory.MemorySize = AppMemorySize;
         AppMemory.Memory = PushArray(PermanentArena, u8, AppMemory.MemorySize);
         AppMemory.ThreadCtx = ThreadContext;
@@ -87,7 +87,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         AppMemory.PerfCountFrequency = GlobalPerfCountFrequency;
 #endif
         
-        app_input _Input[2] = {};
+        app_input _Input[2] = {0};
         app_input *NewInput = &_Input[0];
         app_input *OldInput = &_Input[1];
         
@@ -185,7 +185,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     {
                         char *Path = PathFromExe(FrameArena, AppMemory.ExeDirPath, S8("save.editor_state"));
                         
-                        str8 Buffer = {};
+                        str8 Buffer = {0};
                         Buffer.Data = (u8 *)AppMemory.Memory;
                         Buffer.Size = AppMemory.MemorySize;
                         

@@ -1,5 +1,10 @@
 // raddbg 0.9.24 project file
 
+recent_file: path: "source/editor/editor_platform.c"
+recent_file: path: "source/editor/editor_platform_windows.c"
+recent_file: path: "source/editor/editor_platform.h"
+recent_file: path: "source/editor/editor_platform_windows.cpp"
+recent_file: path: "source/editor/editor_app.c"
 recent_file: path: "source/editor/editor_app.cpp"
 recent_file: path: "source/editor/editor_platform.cpp"
 recent_file: path: "source/base/base_arenas.c"
@@ -15,10 +20,8 @@ recent_file: path: "source/base/base_lanes.c"
 recent_file: path: "source/cling/cling.cpp"
 recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_common.inl"
 recent_file: path: "source/cling/cling_os_windows.c"
-recent_file: path: "source/editor/editor_platform_windows.cpp"
 recent_file: path: "d:/os/obj/amd64fre/minkernel/crts/ucrt/src/appcrt/string/xmt/objfre/amd64/minkernel/crts/ucrt/src/appcrt/string/strnlen.cpp"
 recent_file: path: "source/editor/editor_ui.h"
-recent_file: path: "source/editor/editor_platform.h"
 recent_file: path: "source/editor/editor_font.h"
 recent_file: path: "source/editor/editor_math.h"
 recent_file: path: "source/base/base_os.c"
@@ -36,12 +39,12 @@ debug_info:
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor_app.pdb"
-  timestamp: 66209653916083
+  timestamp: 66209844152756
 }
 debug_info:
 {
   path: "C:/Users/zebra/Projects/editor/build/editor.pdb"
-  timestamp: 66209655096927
+  timestamp: 66209844153269
 }
 debug_info:
 {
@@ -99,4 +102,9 @@ type_view:
 {
   type: rune
   expr: wchar_t
+}
+breakpoint:
+{
+  source_location: "source/editor/editor_platform.c:30:1"
+  hit_count: 1
 }

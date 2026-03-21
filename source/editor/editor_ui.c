@@ -1,7 +1,7 @@
 internal ui_size
 UI_Size(ui_size_kind Kind, f32 Value, f32 Strictness)
 {
-    ui_size Size = {};
+    ui_size Size = {0};
     Size.Kind = Kind;
     Size.Value = Value;
     Size.Strictness = Strictness;
@@ -43,7 +43,7 @@ UI_PopBox(void)
 internal ui_key
 UI_KeyNull(void)
 {
-    ui_key Result = {};
+    ui_key Result = {0};
     return Result;
 }
 
@@ -83,7 +83,7 @@ UI_AddBox(str8 String, u32 Flags)
         
         // TODO(luca): Seed with sibling's hash as well?
         u64 AncestorKey = UI_State->Current->Parent->Key.U64[0];
-        Key = {U64HashFromSeedStr8(AncestorKey, String)};
+        Key.U64[0] = U64HashFromSeedStr8(AncestorKey, String);
         
         // Get the box based on key
         {    
@@ -478,7 +478,7 @@ UI_DrawBoxes(ui_box *Box)
                 Cur.Y += .5f*((Box->FixedSize.Y - 2.f*Box->BorderThickness) - TextHeight);
             }
             
-            v2 MarkPos = {};
+            v2 MarkPos = {0};
             
             b32 DrawCursor = (Box->Flags & UI_BoxFlag_DrawTextCursor) ;
             

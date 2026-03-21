@@ -5,20 +5,6 @@ IsWhiteSpace(rune Character)
             Character == ' ' || Character == '\t');
 }
 
-internal inline b32
-IsAlpha(rune Character)
-{
-    return ((Character >= 'a' && Character <= 'z') ||
-            (Character >= 'A' && Character <= 'Z') ||
-            (Character == '_'));
-}
-
-internal inline b32
-IsDigit(rune Character)
-{
-    return (Character >= '0' && Character <= '9');
-}
-
 internal b32
 IsDelimiter(rune Character)
 {
@@ -122,11 +108,11 @@ Lex(app_state *App, arena *Arena, token_list *List)
             Token->Type = TokenUnwantedChild;
             TokenEnd    = TextIndex + 1;
         }
-        else if(IsAlpha(Character))
+        else if(IsRuneAlpha(Character))
         {
             {
                 while((TextIndex + 1 < App->TextCount) &&
-                      (IsAlpha(App->Text[TextIndex + 1]) || IsDigit(App->Text[TextIndex + 1])))
+                      (IsRuneAlpha(App->Text[TextIndex + 1]) || IsRuneDigit(App->Text[TextIndex + 1])))
                 {
                     ++TextIndex;
                 }
@@ -156,10 +142,10 @@ Lex(app_state *App, arena *Arena, token_list *List)
                     Token->Type = TokenIdentifier;
             }
         }
-        else if(IsDigit(Character))
+        else if(IsRuneDigit(Character))
         {
             while((TextIndex + 1 < App->TextCount) &&
-                  IsDigit(App->Text[TextIndex + 1]))
+                  IsRuneDigit(App->Text[TextIndex + 1]))
             {
                 ++TextIndex;
             }

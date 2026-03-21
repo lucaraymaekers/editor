@@ -76,6 +76,18 @@
 # include <sys/types.h>
 #endif
 
+#if defined(COMPILER_MSVC)
+#  if defined(__cplusplus)
+#    define TypeOf(x) decltype(x)
+#  else
+#    define TypeOf(x) __typeof__(x)
+#  endif
+#elif defined(COMPILER_GNU) || defined(COMPILER_CLANG)
+#  define TypeOf(x) typeof(x)
+#else
+#  error "Unsupported compiler"
+#endif
+
 //~ Macros
 #define ERROR_FMT "%s(%d): ERROR: "
 #define ERROR_ARG __FILE__, __LINE__
@@ -99,7 +111,7 @@
 #define Clamp(A, X, B) (((X) < (A)) ? (A) : ((X) > (B)) ? (B) : (X))
 
 #if LANG_C
-# define Swap(A, B) do { typeof((A)) (temp) = (typeof((A)))(A); (A) = (B); (B) = (temp); } while(0)
+# define Swap(A, B) do { TypeOf((A)) (temp) = (TypeOf((A)))(A); (A) = (B); (B) = (temp); } while(0)
 #else
 template <typename t> inline void
 Swap(t& A, t& B) { t T = A; A = B; B = T; }
@@ -111,7 +123,7 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 #if LANG_C
 # define ZeroStruct {0}
 #elif LANG_CPP
-# define ZeroStruct {}
+# define ZeroStruct {0}
 #endif
 
 #if OS_LINUX || OS_ANDROID
@@ -157,8 +169,9 @@ do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 #define StaticAssert(C, ID) global_variable u8 Glue(ID, __LINE__)[(C)?1:-1]
 
 //-
+
 #define EachIndexType(t, Index, Count) (t Index = 0; Index < (Count); Index += 1)
-#define EachIndex(Index, Count)           EachIndexType(typeof((Count)), Index, Count)
+#define EachIndex(Index, Count)           EachIndexType(TypeOf((Count)), Index, Count)
 #define EachElement(Index, Array)         EachIndexType(umm, Index, ArrayCount(Array))
 #define EachInRange(Index, Range)         (u64 Index = (Range).Min; Index < (Range).Max; Index += 1)
 #define EachNode(Index, t, First)      (t *Index = First; Index != 0; Index = Index->Next)

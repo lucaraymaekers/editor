@@ -120,7 +120,7 @@ Win32MainWindowCallback(HWND Window,
 internal P_context 
 P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
 {
-    P_context Result = {};
+    P_context Result = {0};
     
     win32_context *Context = PushStruct(Arena, win32_context);
     
@@ -129,7 +129,7 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
     
     HINSTANCE Instance = GetModuleHandle(0);
     
-    WNDCLASSA WindowClass = {};
+    WNDCLASSA WindowClass = {0};
     WindowClass.style = CS_HREDRAW|CS_VREDRAW;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
     WindowClass.hInstance = Instance;
@@ -167,7 +167,7 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
             
             int Win32RefreshRate = GetDeviceCaps(OwnDC, VREFRESH);
             
-            PIXELFORMATDESCRIPTOR PixelFormat = {};
+            PIXELFORMATDESCRIPTOR PixelFormat = {0};
             PixelFormat.nSize = sizeof(PixelFormat);
             PixelFormat.nVersion = 1;
             PixelFormat.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
@@ -281,7 +281,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                         }
                         
                         app_text_button *Button = &Input->Text.Buffer[Input->Text.Count];
-                        *Button = {};
+                        *Button = (app_text_button){0};
                         Input->Text.Count += 1;
                         
                         if(Alt)   Button->Modifiers |= PlatformKeyModifier_Alt;
@@ -353,7 +353,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                             }
                             else
                             {
-                                char KeyName[64] = {};
+                                char KeyName[64] = {0};
                                 GetKeyNameTextA(Message.lParam, KeyName, sizeof(KeyName));
                                 Log("Unhandled key(%d): %s\n", VKCode, KeyName);
                                 Input->Text.Count -= 1;

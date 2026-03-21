@@ -14,7 +14,7 @@ GL_ErrorStatus(gl_handle Handle, b32 IsShader)
 {
     b32 Success = true;
     
-    char InfoLog[KB(2)] = {};
+    char InfoLog[KB(2)] = {0};
     if(IsShader)
     {
         glGetShaderiv(Handle, GL_COMPILE_STATUS, &Success);

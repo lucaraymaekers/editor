@@ -52,7 +52,7 @@ OS_FileExists(char *FileName)
 internal str8 
 OS_ReadEntireFileIntoMemory(char *FileName)
 {
-    str8 Result = {};
+    str8 Result = {0};
     
     if(FileName)
     {
@@ -60,7 +60,7 @@ OS_ReadEntireFileIntoMemory(char *FileName)
         
         if(File != -1)
         {
-            struct stat StatBuffer = {};
+            struct stat StatBuffer = {0};
             int Error = fstat(File, &StatBuffer);
             AssertErrno(Error != -1);
             

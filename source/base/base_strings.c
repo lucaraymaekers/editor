@@ -13,6 +13,21 @@ IsPrintable(u8 Char)
 }
 
 internal b32
+IsRuneDigit(rune Char)
+{
+    b32 Result = (Char >= '0' && Char <= '9');
+    return Result;
+}
+
+internal b32
+IsRuneAlpha(rune Char)
+{
+    b32 Result = ((Char >= 'A' && Char <= 'Z') ||
+                  (Char >= 'a' && Char <= 'z'));
+    return Result;
+}
+
+internal b32
 IsDigit(u8 Char)
 {
     b32 Result = (Char >= '0' && Char <= '9');
@@ -31,11 +46,11 @@ internal str8
 S8SkipLastSlash(str8 String)
 {
 	u64 LastSlash = 0;
-	for EachIndex(i, String.Size)
+	for EachIndex(Idx, String.Size)
 	{
-		if(String.Data[i] == '/')
+		if(String.Data[Idx] == '/')
 		{
-			LastSlash = i;
+			LastSlash = Idx;
 		}
 	}
 	LastSlash += 1;

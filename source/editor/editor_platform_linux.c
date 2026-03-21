@@ -135,7 +135,7 @@ LinuxSetSizeHint(Display *DisplayHandle, Window WindowHandle,
                  int MinWidth, int MinHeight,
                  int MaxWidth, int MaxHeight)
 {
-    XSizeHints Hints = {};
+    XSizeHints Hints = {0};
     if(MinWidth > 0 && MinHeight > 0) Hints.flags |= PMinSize;
     if(MaxWidth > 0 && MaxHeight > 0) Hints.flags |= PMaxSize;
     
@@ -159,8 +159,8 @@ LinuxShowCursor(linux_x11_context *Linux, b32 Entered)
 {                
     if(Entered)
     {                            
-        XColor black = {};
-        char NoData[8] = {};
+        XColor black = {0};
+        char NoData[8] = {0};
         
         Pixmap BitmapNoData = XCreateBitmapFromData(Linux->DisplayHandle, Linux->WindowHandle, NoData, 8, 8);
         Cursor InvisibleCursor = XCreatePixmapCursor(Linux->DisplayHandle, BitmapNoData, BitmapNoData, 
@@ -203,8 +203,8 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
         s32 ScreenHandle = XDefaultScreen(DisplayHandle);
         
         b32 Found = false;
-        XVisualInfo WindowVisualInfo = {};
-        GLXFBConfig FBConfig = {};
+        XVisualInfo WindowVisualInfo = {0};
+        GLXFBConfig FBConfig = {0};
         
         if(!OpenGLMode)
         {
@@ -297,7 +297,7 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
         if(Found)
         {
             
-            XSetWindowAttributes WindowAttributes = {};
+            XSetWindowAttributes WindowAttributes = {0};
             WindowAttributes.bit_gravity = StaticGravity;
 #if EDITOR_INTERNAL            
             WindowAttributes.background_pixel = 0xFF00FF;
@@ -361,7 +361,7 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
                     // NOTE(luca): Tiling window managers should treat windows with the WM_TRANSIENT_FOR property as pop-up windows.  This way we ensure that we will be a floating window.  This works on my setup (dwm). 
                     XRet = XSetTransientForHint(DisplayHandle, WindowHandle, RootWindow);
                     
-                    XClassHint ClassHint = {};
+                    XClassHint ClassHint = {0};
                     ClassHint.res_name = WindowName;
                     ClassHint.res_class = WindowName;
                     XSetClassHint(DisplayHandle, WindowHandle, &ClassHint);
@@ -506,8 +506,8 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                 } break;
                 case PlatformCursorShape_None:
                 {
-                    XColor black = {};
-                    char NoData[8] = {};
+                    XColor black = {0};
+                    char NoData[8] = {0};
                     
                     Pixmap BitmapNoData = XCreateBitmapFromData(Linux->DisplayHandle, Linux->WindowHandle, NoData, 8, 8);
                     Cursor InvisibleCursor = XCreatePixmapCursor(Linux->DisplayHandle, BitmapNoData, BitmapNoData, 
@@ -531,7 +531,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
         }
         
         
-        XEvent WindowEvent = {};
+        XEvent WindowEvent = {0};
         while(XPending(Linux->DisplayHandle) > 0)
         {
             XNextEvent(Linux->DisplayHandle, &WindowEvent);
@@ -600,8 +600,8 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                         {
                             // TODO(luca): Choose a better error value.
                             rune Codepoint = L'\b';
-                            u8 LookupBuffer[4] = {};
-                            Status LookupStatus = {};
+                            u8 LookupBuffer[4] = {0};
+                            Status LookupStatus = {0};
                             
                             app_text_button *Button = &Input->Text.Buffer[Input->Text.Count];
                             MemoryZero(Button);
@@ -777,7 +777,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     b32 Shift  = (WindowEvent.xbutton.state & ShiftMask);
                     b32 Control = (WindowEvent.xbutton.state & ControlMask);
                     
-                    platform_mouse_button_type ButtonType = {};
+                    platform_mouse_button_type ButtonType = {0};
                     if(0) {}
                     else if(ButtonValue == Button1) ButtonType = PlatformMouseButton_Left;
                     else if(ButtonValue == Button2) ButtonType = PlatformMouseButton_Middle;
@@ -919,7 +919,7 @@ internal void
 P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
 {
 	void *Library = (void *)(Code->LibraryHandle);
-    struct stat Stats = {};
+    struct stat Stats = {0};
     stat(Code->LibraryPath, &Stats);
     u64 Size = Stats.st_size;
     s64 CurrentWriteTime = LinuxTimeSpecToNS(Stats.st_mtim);

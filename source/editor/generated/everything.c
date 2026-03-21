@@ -18,52 +18,52 @@ u32 ColorU32_Magenta = 0xffb48ead;
 u32 ColorU32_Cyan = 0xff81a1c1;
 u32 ColorU32_Blue = 0xff5e81ac;
 u32 ColorU32_Black = 0xff000000;
-v4 Color_Frost0 = V4(U32ToV4Arg(ColorU32_Frost0));
-v4 Color_Frost1 = V4(U32ToV4Arg(ColorU32_Frost1));
-v4 Color_Frost2 = V4(U32ToV4Arg(ColorU32_Frost2));
-v4 Color_Frost3 = V4(U32ToV4Arg(ColorU32_Frost3));
-v4 Color_Snow0 = V4(U32ToV4Arg(ColorU32_Snow0));
-v4 Color_Snow1 = V4(U32ToV4Arg(ColorU32_Snow1));
-v4 Color_Snow2 = V4(U32ToV4Arg(ColorU32_Snow2));
-v4 Color_Night0 = V4(U32ToV4Arg(ColorU32_Night0));
-v4 Color_Night1 = V4(U32ToV4Arg(ColorU32_Night1));
-v4 Color_Night2 = V4(U32ToV4Arg(ColorU32_Night2));
-v4 Color_Night3 = V4(U32ToV4Arg(ColorU32_Night3));
-v4 Color_Red = V4(U32ToV4Arg(ColorU32_Red));
-v4 Color_Orange = V4(U32ToV4Arg(ColorU32_Orange));
-v4 Color_Yellow = V4(U32ToV4Arg(ColorU32_Yellow));
-v4 Color_Green = V4(U32ToV4Arg(ColorU32_Green));
-v4 Color_Magenta = V4(U32ToV4Arg(ColorU32_Magenta));
-v4 Color_Cyan = V4(U32ToV4Arg(ColorU32_Cyan));
-v4 Color_Blue = V4(U32ToV4Arg(ColorU32_Blue));
-v4 Color_Black = V4(U32ToV4Arg(ColorU32_Black));
+v4 Color_Frost0 = {U32ToV4Arg(0xff8fbcbb)};
+v4 Color_Frost1 = {U32ToV4Arg(0xff88c0d0)};
+v4 Color_Frost2 = {U32ToV4Arg(0xff81a1c1)};
+v4 Color_Frost3 = {U32ToV4Arg(0xff5e81ac)};
+v4 Color_Snow0 = {U32ToV4Arg(0xffeceff4)};
+v4 Color_Snow1 = {U32ToV4Arg(0xffe5e9f0)};
+v4 Color_Snow2 = {U32ToV4Arg(0xffd8dee9)};
+v4 Color_Night0 = {U32ToV4Arg(0xff4c566a)};
+v4 Color_Night1 = {U32ToV4Arg(0xff434c5e)};
+v4 Color_Night2 = {U32ToV4Arg(0xff3b4252)};
+v4 Color_Night3 = {U32ToV4Arg(0xff2e3440)};
+v4 Color_Red = {U32ToV4Arg(0xffbf616a)};
+v4 Color_Orange = {U32ToV4Arg(0xffd08770)};
+v4 Color_Yellow = {U32ToV4Arg(0xffebcb8b)};
+v4 Color_Green = {U32ToV4Arg(0xffa3be8c)};
+v4 Color_Magenta = {U32ToV4Arg(0xffb48ead)};
+v4 Color_Cyan = {U32ToV4Arg(0xff81a1c1)};
+v4 Color_Blue = {U32ToV4Arg(0xff5e81ac)};
+v4 Color_Black = {U32ToV4Arg(0xff000000)};
 //- Colors end
 s32 RectVSAttribOffsets[] =
 {
-4,
-4,
-4,
-4,
-4,
-4,
-4,
-1,
-1,
-1,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    1,
+    1,
+    1,
 };
 enum ui_box_flag
 {
-UI_BoxFlag_None                   = (0 << 0),
-UI_BoxFlag_DrawBackground         = (1 << 1),
-UI_BoxFlag_DrawBorders            = (1 << 2),
-UI_BoxFlag_DrawDebugBorder        = (1 << 3),
-UI_BoxFlag_DrawShadow             = (1 << 4),
-UI_BoxFlag_DrawDisplayString      = (1 << 5),
-UI_BoxFlag_CenterTextHorizontally = (1 << 6),
-UI_BoxFlag_CenterTextVertically   = (1 << 7),
-UI_BoxFlag_MouseClickability      = (1 << 8),
-UI_BoxFlag_TextWrap               = (1 << 9),
-UI_BoxFlag_DrawTextCursor         = (1 << 10),
-UI_BoxFlag_Clip                   = (1 << 11),
+    UI_BoxFlag_None                   = (0 << 0),
+    UI_BoxFlag_DrawBackground         = (1 << 1),
+    UI_BoxFlag_DrawBorders            = (1 << 2),
+    UI_BoxFlag_DrawDebugBorder        = (1 << 3),
+    UI_BoxFlag_DrawShadow             = (1 << 4),
+    UI_BoxFlag_DrawDisplayString      = (1 << 5),
+    UI_BoxFlag_CenterTextHorizontally = (1 << 6),
+    UI_BoxFlag_CenterTextVertically   = (1 << 7),
+    UI_BoxFlag_MouseClickability      = (1 << 8),
+    UI_BoxFlag_TextWrap               = (1 << 9),
+    UI_BoxFlag_DrawTextCursor         = (1 << 10),
+    UI_BoxFlag_Clip                   = (1 << 11),
 };
 typedef enum ui_box_flag ui_box_flag;

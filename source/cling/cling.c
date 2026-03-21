@@ -58,8 +58,8 @@ WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags)
     
     Str8ArrayAppend(S8("cl"));
     Str8ArrayAppend(S8("-MTd -Gm- -nologo -GR- -EHa- -Oi -FC -Z7"));
-    Str8ArrayAppend(S8("-std:c++20 -Zc:strictStrings-"));
-    Str8ArrayAppend(S8("-WX -W4 -wd4459 -wd4456 -wd4201 -wd4100 -wd4101 -wd4189 -wd4505 -wd4996 -wd4389 -wd4244 -wd5287 -wd4063"));
+    Str8ArrayAppend(S8("-Zc:strictStrings-"));
+    Str8ArrayAppend(S8("-WX -W4 -wd4459 -wd4456 -wd4201 -wd4100 -wd4101 -wd4189 -wd4505 -wd4996 -wd4389 -wd4244 -wd5287 -wd4063 -wd4066"));
     
     Str8ArrayAppend(Str8ArrayJoinFrom(ExtraCompilerFlags, ' '));
     Str8ArrayAppend(Source);
@@ -81,22 +81,22 @@ LinuxMakeBuildCommand(str8 Source,
     SetSelectedArray(Command);
     
     // NOTE(luca): These are almost all c++ flags.
-    str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -fsanitize-trap -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
+    str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
     // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
     str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wdouble-promotion -Wno-sign-conversion -Wno-sign-compare -Wno-double-promotion -Wno-unused-but-set-variable -Wno-unused-variable -Wno-write-strings -Wno-missing-field-initializers -Wno-pointer-arith -Wno-unused-parameter -Wno-unused-function -Wno-switch");
-    str8 LinkerFlags = S8("-lm");
     
-    str8 Compiler = {};
+    str8 LinkerFlags = S8("-lm");
+    str8 Compiler = {0};
     if(0) {}
     else if(Clang) Compiler = S8("clang");
     else if(GCC) Compiler = S8("gcc");
     
-    str8 DebugFlags = S8("-g -ggdb -g3");
+    str8 DebugFlags = S8("-g -ggdb -g3 -fno-omit-frame-pointer");
     str8 ReleaseFlags = S8("-O3");
     
-    str8 ClangCompilerFlags = S8("-fno-omit-frame-pointer -fdiagnostics-absolute-paths -ftime-trace -fsanitize-undefined-trap-on-error");
+    str8 ClangCompilerFlags = S8("-fdiagnostics-absolute-paths -ftime-trace");
     str8 ClangWarningFlags = S8("-Wno-null-dereference -Wno-missing-braces -Wno-vla-cxx-extension -Wno-writable-strings -Wno-missing-designated-field-initializers -Wno-address-of-temporary -Wno-int-to-void-pointer-cast");
-    str8 AsanFlags = S8("-fsanitize-trap -fsanitize=address");
+    str8 AsanFlags = S8("-fsanitize=undefined,address");
     
     str8 GCCWarningFlags = S8("-Wno-cast-function-type -Wno-missing-field-initializers -Wno-int-to-pointer-cast");
     
@@ -141,7 +141,7 @@ ENTRY_POINT(EntryPoint)
         // Targets
         b32 Editor = false;
         b32 EditorBuild = true;
-        b32 EditorMetaprogram = true;
+        b32 EditorMetaprogram = false;
         
         b32 Windows = false;
         b32 Linux = false;
@@ -152,14 +152,15 @@ ENTRY_POINT(EntryPoint)
         Linux = true;
 #endif
         
-        //- TODO(luca): 
-        b32 Asan = false;
-        b32 Clean = false;
+        //- Targets 
+        b32 Asan = true;
         b32 Debug = true;
         b32 Release = false;
+        b32 Personal = false;
+        //- TODO(luca): 
+        b32 Clean = false;
         b32 Clang = true;
         b32 GCC = false;
-        b32 Personal = false;
         b32 Slow = false;
         b32 Wine = false;
         //-
@@ -340,7 +341,7 @@ ENTRY_POINT(EntryPoint)
                     {                    
                         Str8ArrayAppendTo(EditorFlags, S8("-fPIC --shared "
                                                           "-DEDITOR_SLOW_COMPILE=0"));
-                        LinuxMakeBuildCommand(S8("../source/editor/editor_app.cpp"), 
+                        LinuxMakeBuildCommand(S8("../source/editor/editor_app.c"), 
                                               S8("editor_app.so"),
                                               GCC, Clang, Asan,
                                               EditorFlags,
@@ -352,7 +353,7 @@ ENTRY_POINT(EntryPoint)
                     Str8ArrayPushCount(EditorFlags)
                     {
                         Str8ArrayAppendTo(EditorFlags, S8("-lX11 -lGL -lGLX"));
-                        LinuxMakeBuildCommand(S8("../source/editor/editor_platform.cpp"),
+                        LinuxMakeBuildCommand(S8("../source/editor/editor_platform.c"),
                                               S8("editor"),
                                               GCC, Clang, Asan,
                                               EditorFlags,
@@ -386,9 +387,9 @@ ENTRY_POINT(EntryPoint)
                             Str8ArrayAppendMultipleTo(EditorFlags,
                                                       S8("-DEDITOR_SLOW_COMPILE=0 -Fmeditor_app.map"),
                                                       S8FromCString(LibsFileName));
-                            WindowsBuild(S8("../source/editor/editor_app.cpp"),
+                            WindowsBuild(S8("../source/editor/editor_app.c"),
                                          EditorFlags, 
-                                         S8("-LD /link /DLL /EXPORT:UpdateAndRender"));
+                                         S8("-LD /link /DLL /EXPORT:UpdateAndRender /OUT:editor_app.dll"));
                         }
                         //OS_DeleteFile("lock.tmp", Byte);
                     }
@@ -398,7 +399,7 @@ ENTRY_POINT(EntryPoint)
                         Str8ArrayPushCount(EditorFlags)
                         {                        
                             Str8ArrayAppendTo(EditorFlags, S8("-Feeditor.exe"));
-                            WindowsBuild(S8("../source/editor/editor_platform.cpp"),
+                            WindowsBuild(S8("../source/editor/editor_platform.c"),
                                          EditorFlags,
                                          S8("/link -opt:ref -incremental:no user32.lib Gdi32.lib winmm.lib Opengl32.lib"));
                         }

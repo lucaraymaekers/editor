@@ -34,37 +34,11 @@ global_variable app_input *PanelInput = 0;
 
 global_variable u32 PanelDebugIndentation = 0;
 global_variable u32 PanelDebugLevel = 0;
-global_variable v4 PanelDebugColors[] = {Color_Red, Color_Green, Color_Orange, Color_Magenta, Color_Yellow, Color_Blue};
 
 global_variable axis2_stack_node *PanelAxisTop = 0; 
 
 global_variable u64 GlobalTextCursor = 0;
 //- 
-
-internal app_offscreen_buffer
-LoadImage(arena *Arena, str8 ExeDirPath, str8 Path)
-{
-    app_offscreen_buffer Result = {};
-    
-    char *FilePath = PathFromExe(Arena, ExeDirPath, Path);
-    str8 File = OS_ReadEntireFileIntoMemory(FilePath);
-    if(File.Size)
-    {
-        s32 Width, Height, Components;
-        s32 BytesPerPixel = 4;
-        u8 *Image = stbi_load_from_memory(File.Data, (int)File.Size, &Width, &Height, &Components, BytesPerPixel);
-        Assert(Components == BytesPerPixel);
-        
-        Result.Width = Width;
-        Result.Height = Height;
-        Result.BytesPerPixel = BytesPerPixel;
-        Result.Pitch = Result.BytesPerPixel*Width;
-        Result.Pixels = Image;
-    }
-    
-    return Result;
-}
-
 internal inline b32
 InRange(f32 P, f32 Min, f32 Max, f32 Size)
 {
@@ -72,13 +46,6 @@ InRange(f32 P, f32 Min, f32 Max, f32 Size)
                   (P >= Max - Size && P < Max));
     
     return Result;
-}
-
-internal inline u32 *
-GetPixel(app_offscreen_buffer *Buffer, s32 X, s32 Y)
-{
-    u32 *Pixel = (u32 *)(Buffer->Pixels + Buffer->BytesPerPixel*(Y*Buffer->Width + X));
-    return Pixel;
 }
 
 //- Text editing 
@@ -111,15 +78,19 @@ DeleteSelection(app_state *App)
     
     App->TextCursor = Begin;
     App->TextCount -= DeleteCount;
+    App->TextCursorAnimTime = 0.f;
 }
 
 internal void
 
 AppendChar(app_state *App, rune Codepoint)
 {
-    MemoryCopy(App->Text + (App->TextCursor),
-               App->Text + (App->TextCursor - 1),
-               sizeof(rune)*((App->TextCount - App->TextCursor) + 1));
+    if(App->TextCursor > 0)
+    {
+        MemoryCopy(App->Text + (App->TextCursor),
+                   App->Text + (App->TextCursor - 1),
+                   sizeof(rune)*((App->TextCount - App->TextCursor) + 1));
+    }
     
     App->Text[App->TextCursor] = Codepoint;
     
@@ -250,7 +221,7 @@ struct u64_array
 internal u64_array
 GetWrapPositions(arena *Arena, str8 Text, font_atlas *Atlas, f32 MaxWidth)
 {
-    u64_array Result = {};
+    u64_array Result = {0};
     
     // 1px per char
     u64 MaxChars = (u64)MaxWidth;
@@ -283,7 +254,7 @@ internal rect_instance *
 DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
 {
     rect_instance *Result = 0;
-    v4 Dest = {};
+    v4 Dest = {0};
     
     // NOTE(luca): Evereything happens in pixel coordinates in here.
     
@@ -317,7 +288,7 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
     return Result;
 }
 
-#include "editor_ui.cpp"
+#include "editor_ui.c"
 
 internal void
 gl_InitState(gl_render_state *Render)
@@ -340,14 +311,20 @@ gl_CleanupState(gl_render_state *Render)
 }
 
 //- Panels 
-#define PanelAdd(ParentPct) PanelAdd_(PanelArena, PanelAxisTop->Value, PanelCurrent, PanelAppendToParent, ParentPct)
-
 internal panel *
 PanelAlloc(arena *Arena)
 {
     panel *New = PushStructZero(Arena, panel);
     New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
     return New;
+}
+
+internal void PanelPush() { PanelAppendToParent = true; }
+internal void PanelPop(void) { PanelCurrent = PanelCurrent->Parent; }
+internal void PanelPushAxis(axis2 Axis) { StackPush(PanelArena, axis2_stack_node, Axis, PanelAxisTop); }
+internal void PanelPopAxis() 
+{
+    if(PanelAxisTop) PanelAxisTop = PanelAxisTop->Prev;
 }
 
 internal panel *
@@ -382,6 +359,10 @@ PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 Pare
     
     return New;
 }
+
+#define PanelGroup() DeferLoop(PanelPush(), PanelPop())
+#define PanelAxis(Axis) DeferLoop(PanelPushAxis(Axis), PanelPopAxis())
+#define PanelAdd(ParentPct) PanelAdd_(PanelArena, PanelAxisTop->Value, PanelCurrent, PanelAppendToParent, ParentPct)
 
 internal panel *
 SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
@@ -504,26 +485,6 @@ SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
     
     return Result;
 }
-
-internal void
-PanelPush()
-{
-    PanelAppendToParent = true;
-}
-
-internal void
-PanelPop(void)
-{
-    PanelCurrent = PanelCurrent->Parent;
-}
-
-internal void PanelPushAxis(axis2 Axis) { StackPush(FrameArena, axis2_stack_node, Axis, PanelAxisTop); }
-internal void PanelPopAxis() { StackPop(PanelAxisTop); }
-
-
-
-#define PanelGroup() DeferLoop(PanelPush(), PanelPop())
-#define PanelAxis(Axis) DeferLoop(PanelPushAxis(Axis), PanelPopAxis())
 
 internal void
 PanelDebugPrint(panel *Panel)
@@ -674,7 +635,7 @@ PanelGetRegion(panel *Panel, v4 FreeRegion)
     f32 PanelBorderSize = 2.f;
     
     v2 Pos = FreeRegion.Min;
-    v2 Size = {};
+    v2 Size = {0};
     
     f32 ParentSize = (Parent->Region.Max.e[Axis] - Parent->Region.Min.e[Axis]);
     f32 OtherSize = (FreeRegion.Max.e[OtherAxis] - FreeRegion.Min.e[OtherAxis]);
@@ -688,9 +649,7 @@ PanelGetRegion(panel *Panel, v4 FreeRegion)
     
     if(!IsNilPanel(Panel->First))
     {
-        PanelDebugLevel += 1;
         PanelGetRegion(Panel->First, Panel->Region);
-        PanelDebugLevel -= 1;
     }
     
     if(!IsNilPanel(Panel->Next))
@@ -715,7 +674,7 @@ PanelGetRegion(panel *Panel, v4 FreeRegion)
         
         // TODO(luca): Only one border should be dragged at a time, this should be taken care of by an input queue
         local_persist b32 IsDragging = false;
-        local_persist v2 OldMouseP = {};
+        local_persist v2 OldMouseP = {0};
         local_persist panel *DraggingPanel = 0;
         
         if(!MouseIsDown)
@@ -834,18 +793,7 @@ PanelGetRegion(panel *Panel, v4 FreeRegion)
     }
 }
 
-internal app_input *
-GetInput(app_input *Input)
-{
-    app_input *Result = 0;
-    
-    if(Input && !Input->Consumed)
-    {
-        Result = Input;
-    }
-    
-    return Input;
-}
+//- 
 
 typedef struct custom_text_draw_params custom_text_draw_params;
 struct custom_text_draw_params
@@ -877,7 +825,7 @@ UI_CUSTOM_DRAW(CustomTextDraw)
     
     v2 Pen = TextDim.Min;
     
-    v2 CursorPos = {};
+    v2 CursorPos = {0};
     
     f32 CharHeight = (UI_State->Atlas->HeightPx);
     
@@ -918,7 +866,7 @@ UI_CUSTOM_DRAW(CustomTextDraw)
                 if(IsInSelection)
                 {
                     v4 SelectionColor = Color_Blue;
-                    Color_Blue.A = .5f;
+                    SelectionColor.A = .5f;
                     DrawRect(CharRect, SelectionColor, 0.f, 0.f, 0.f);
                 }
                 
@@ -954,9 +902,10 @@ UI_CUSTOM_DRAW(CustomTextDraw)
                 
                 if(IsWhiteSpace(Char) && VisualizeWhitespace)
                 {
-                    if(Char == ' ') DrawChar = L'·';
-                    if(Char == '\t') DrawChar = L'→';
-                    if(Char == '\n') DrawChar = L'$';
+                    if(Char == L' ') DrawChar = L'·';
+                    
+                    if(Char == L'\t') DrawChar = L'→';
+                    if(Char == L'\n') DrawChar = L'$';
                     CharColor.A *= 0.2f;
                 }
                 
@@ -1040,7 +989,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     arena *PermanentArena;
     app_state *App;
-    {    
+    {
+        // NOTE(luca): Pushes on the permanentarena may not zero the memory since that would clear the memory that was there before..
+        
         PermanentArena = (arena *)Memory->Memory;
         PermanentArena->Size = Memory->MemorySize - sizeof(arena);
         PermanentArena->Base = (u8 *)Memory->Memory + sizeof(arena);
@@ -1050,6 +1001,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
         FrameArena = PushArena(PermanentArena, Memory->MemorySize/2);
         
         App = PushStruct(PermanentArena, app_state);
+        
+        App->Text = PushArray(PermanentArena, rune, KB(1));
+        App->FontAtlasArena = PushArena(PermanentArena, MB(100));
+        App->UIBoxTableSize = 4096;
+        App->UIBoxTable = PushArray(PermanentArena, ui_box, App->UIBoxTableSize);
+        App->UIBoxArena = PushArena(PermanentArena, 256*sizeof(ui_box));
+        
+        PanelArena = App->PanelArena = PushArena(PermanentArena, ArenaAllocDefaultSize);
     }
     
     font_atlas *Atlas = &App->FontAtlas;
@@ -1072,30 +1031,24 @@ UPDATE_AND_RENDER(UpdateAndRender)
     {
         char *FontPath = PathFromExe(FrameArena, Memory->ExeDirPath, S8("../data/font_regular.ttf"));
         InitFont(&App->Font, FontPath);
-        App->FontAtlasArena = PushArena(PermanentArena, MB(100));
         App->PreviousHeightPx = DefaultHeightPx + 1.0f;
         App->HeightPx = DefaultHeightPx;
         
         App->TextCount = 0;
         App->TextCursor = 0;
-        App->Text = PushArray(PermanentArena, rune, KB(1));
-        
-        App->UIBoxTableSize = 4096;
-        App->UIBoxTable = PushArray(PermanentArena, ui_box, App->UIBoxTableSize);
-        App->UIBoxArena = PushArena(PermanentArena, 256*sizeof(ui_box));
         
         // Nil read only structs 
         {        
             arena *Arena = ArenaAlloc(.Size = MB(1), .Offset = TB(3));
             
             panel *Panel = PushStruct(Arena, panel);
-            *Panel = {Panel, Panel, Panel, Panel, Panel};
+            *Panel = (panel){Panel, Panel, Panel, Panel, Panel};
             
             ui_box *Box = PushStruct(Arena, ui_box);
-            *Box = {Box, Box, Box, Box, Box, Box, Box};
+            *Box = (ui_box){Box, Box, Box, Box, Box, Box, Box};
             
 #if OS_WINDOWS
-            DWORD OldProtection = {};
+            DWORD OldProtection = {0};
             if(VirtualProtect(Arena->Base, Arena->Size, PAGE_READONLY, &OldProtection) == 0)
             {
                 Win32LogIfError();
@@ -1117,7 +1070,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             
             f32 TopSplitPct = (App->HeightPx + TextPadding*2.f)/(BufferDim.Y - 2.f*WindowBorderSize);
             
-            PanelArena = App->PanelArena = PushArena(PermanentArena, ArenaAllocDefaultSize);
             PanelAxis(Axis2_Y) PanelGroup()
             {
                 panel *RootPanel = PanelAdd(1.f);
@@ -1147,7 +1099,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             panel *DebugPanel = PanelAdd(.6f);
                             App->DebugPanel = DebugPanel;
                             App->DebugPanel->CannotClose = true;
-                            App->DebugPanel->Root = UI_BoxAlloc(PermanentArena);
+                            App->DebugPanel->Root = UI_BoxAlloc(App->PanelArena);
                             App->SelectedPanel = App->DebugPanel;
                             panel *BottomRightPanel = PanelAdd(.4f);
                         }
@@ -1366,6 +1318,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             App->TextTrail = App->TextCursor;
                         }
                         
+                        App->TextCursorAnimTime = 0.f;
                     } break;
                     
                     // Move down by line
@@ -1398,6 +1351,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             App->TextTrail = App->TextCursor;
                         }
                         
+                        App->TextCursorAnimTime = 0.f;
                     } break;
                     
                     case PlatformKey_BackSpace: 
@@ -1627,7 +1581,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     UI_SemanticWidth(UI_SizeParent(1.f, 1.f)) 
                     UI_SemanticHeight(UI_SizeText(2.f, 1.f))
                 {
-                    local_persist f64 StartTime = OS_GetWallClock();
+                    
+                    local_persist f64 StartTime;
+                    DoOnce StartTime = OS_GetWallClock();
                     
                     // TODO(luca): This does not work.
                     UI_LayoutAxis(Axis2_X) UI_SemanticHeight(UI_SizeChildren(1.f)) 
@@ -1645,15 +1601,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             UI_TextColor(Color_Snow0)
                         {
                             ui_box *TextBox = UI_AddBox(S8("app text"), UI_BoxFlag_DrawBackground | UI_BoxFlag_DrawBorders | UI_BoxFlag_Clip);
-                            custom_text_draw_params Params = {};
-                            Params.Box = TextBox;
-                            Params.Cursor = App->TextCursor;
-                            Params.Count = App->TextCount;
-                            Params.Trail = App->TextTrail;
-                            Params.AnimTime = App->TextCursorAnimTime;
-                            Params.Text = App->Text;
+                            custom_text_draw_params *Params = PushStructZero(FrameArena, custom_text_draw_params);
+                            Params->Box = TextBox;
+                            Params->Cursor = App->TextCursor;
+                            Params->Count = App->TextCount;
+                            Params->Trail = App->TextTrail;
+                            Params->AnimTime = App->TextCursorAnimTime;
+                            Params->Text = App->Text;
                             TextBox->CustomDraw = CustomTextDraw;
-                            TextBox->CustomDrawData = &Params;
+                            TextBox->CustomDrawData = Params;
                             
                             App->TextCursorAnimTime += Input->dtForFrame;
                         }

@@ -14,6 +14,5 @@ Command=
 [ "$cling"  = 1 ] && Command="cling"
 
 cat <<EOF | wine cmd.exe 2>/dev/null
-call C:\\BuildTools\\devcmd.bat
 call build.bat $Command
 EOF

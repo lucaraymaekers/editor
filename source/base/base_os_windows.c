@@ -48,7 +48,7 @@ OS_FileExists(char *FileName)
 internal str8 
 OS_ReadEntireFileIntoMemory(char *FileName)
 {
-    str8 Result = {};
+    str8 Result = {0};
     
     HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
     if(FileHandle != INVALID_HANDLE_VALUE)

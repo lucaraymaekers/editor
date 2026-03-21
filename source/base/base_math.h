@@ -52,7 +52,7 @@ union v4
 internal inline v2 
 V2AddV2(v2 A, v2 B)
 {
-    v2 Result = {};
+    v2 Result = {0};
     Result.X = A.X + B.X;
     Result.Y = A.Y + B.Y;
     return Result;
@@ -61,7 +61,7 @@ V2AddV2(v2 A, v2 B)
 internal inline v2 
 V2AddF32(v2 A, f32 B)
 {
-    v2 Result = {};
+    v2 Result = {0};
     Result.X = A.X + B;
     Result.Y = A.Y + B;
     return Result;
@@ -70,7 +70,7 @@ V2AddF32(v2 A, f32 B)
 internal inline v2 
 V2SubF32(v2 A, f32 B)
 {
-    v2 Result = {};
+    v2 Result = {0};
     Result.X = A.X - B;
     Result.Y = A.Y - B;
     return Result;
@@ -79,7 +79,7 @@ V2SubF32(v2 A, f32 B)
 internal inline v2 
 V2MulF32(v2 A, f32 B)
 {
-    v2 Result = {};
+    v2 Result = {0};
     Result.X = A.X * B;
     Result.Y = A.Y * B;
     return Result;
@@ -88,7 +88,7 @@ V2MulF32(v2 A, f32 B)
 internal inline v2
 V2SubV2(v2 A, v2 B)
 {
-    v2 Result = {};
+    v2 Result = {0};
     Result.X = A.X - B.X;
     Result.Y = A.Y - B.Y;
     return Result;
@@ -97,7 +97,7 @@ V2SubV2(v2 A, v2 B)
 internal inline v2
 V2S32(s32 X, s32 Y)
 {
-    v2 Result = {};
+    v2 Result = {0};
     Result.X = (f32)X;
     Result.Y = (f32)Y;
     return Result;
@@ -106,7 +106,7 @@ V2S32(s32 X, s32 Y)
 internal inline v2
 V2MulV2(v2 A, v2 B)
 {
-    v2 Result = {};
+    v2 Result = {0};
     Result.X = A.X * B.X;
     Result.Y = A.Y * B.Y;
     return Result;
@@ -115,7 +115,7 @@ V2MulV2(v2 A, v2 B)
 internal inline v2 
 V2(f32 A, f32 B) 
 {
-    v2 Result = {};
+    v2 Result = {0};
     Result.X = A;
     Result.Y = B;
     return Result;
@@ -131,7 +131,7 @@ Inner(v2 A, v2 B)
 internal inline v3 
 V3(f32 X, f32 Y, f32 Z) 
 {
-    v3 Result = {};
+    v3 Result = {0};
     Result.X = X;
     Result.Y = Y;
     Result.Z = Z;
@@ -141,7 +141,7 @@ V3(f32 X, f32 Y, f32 Z)
 internal inline v4 
 V4(f32 X, f32 Y, f32 Z, f32 W) 
 {
-    v4 Result = {};
+    v4 Result = {0};
     Result.X = X;
     Result.Y = Y;
     Result.Z = Z;

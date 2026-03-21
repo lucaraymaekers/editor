@@ -1581,8 +1581,8 @@ MD_FUNCTION MD_String8
 MD_PathSkipLastSlash(MD_String8 string)
 {
     MD_u64 slash_pos = MD_S8FindSubstring(string, MD_S8Lit("/"), 0,
-                                          MD_StringMatchFlag_SlashInsensitive|
-                                          MD_MatchFlag_FindLast);
+                                          (MD_MatchFlags)MD_StringMatchFlag_SlashInsensitive|
+                                          (MD_MatchFlags)MD_MatchFlag_FindLast);
     if(slash_pos < string.size)
     {
         string.str += slash_pos+1;
@@ -1607,8 +1607,8 @@ MD_FUNCTION MD_String8
 MD_PathChopLastSlash(MD_String8 string)
 {
     MD_u64 slash_pos = MD_S8FindSubstring(string, MD_S8Lit("/"), 0,
-                                          MD_StringMatchFlag_SlashInsensitive|
-                                          MD_MatchFlag_FindLast);
+                                          (MD_MatchFlags)MD_StringMatchFlag_SlashInsensitive|
+                                          (MD_MatchFlags)MD_MatchFlag_FindLast);
     if(slash_pos < string.size)
     {
         string.size = slash_pos;

@@ -1,3 +1,5 @@
+- make initialization with permanentarena homogenous
+
 other:
   - Improve text rendering
     - Check text rendering extensively (xoff & leftsidebearing)

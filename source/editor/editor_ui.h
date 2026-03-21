@@ -169,11 +169,12 @@ global_variable ui_box *UI_NilBox = 0;
 
 // TODO(luca): Freelist?
 #define StackPush(Arena, t, PushValue, Top) \
-t *Push = PushStruct((Arena), t); \
+t *Push = PushStructZero((Arena), t); \
 Push->Value = (PushValue); \
 Push->Prev = (Top); \
 Top = Push;
 
+// NOTE(luca): This only works if there is a possible nil value 
 #define StackPop(Top) \
 ((Top)->Value, (Top = Top->Prev)->Value)
 

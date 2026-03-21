@@ -107,7 +107,7 @@ void _Str8ArrayAppendMultiple(str8_array *Array, u64 Count, str8 *Strings)
 internal str8 
 Str8ArrayJoinFrom(str8_array *Array, u8 Char)
 {
-    str8 Result = {};
+    str8 Result = {0};
     
     u64 TotalSize = 0;
     for EachIndex(Idx, Array->Count)
@@ -169,8 +169,8 @@ CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug)
     
     str8 LinuxLinkerFlags = S8("-lpthread -lm");
     
-    str8 Compiler = {};
-    str8 Mode = {};
+    str8 Compiler = {0};
+    str8 Mode = {0};
     
     if(0) {}
     else if(Release)
@@ -225,7 +225,7 @@ CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug)
     
     Str8ArrayAppend(S8("cl"));
     Str8ArrayAppend(S8("-MTd -Gm- -nologo -GR- -EHa- -Oi -FC -Z7"));
-    Str8ArrayAppend(S8("-std:c++20 -Zc:strictStrings-"));
+    Str8ArrayAppend(S8("-Zc:strictStrings-"));
     Str8ArrayAppend(S8("-WX -W4 -wd4459 -wd4456 -wd4201 -wd4100 -wd4101 -wd4189 -wd4505 -wd4996 -wd4389 -wd4244 -wd5287"));
     Str8ArrayAppend(S8("-I" CLING_CODE_PATH));
 #endif
@@ -477,7 +477,7 @@ LinuxFindCommandInPATH(umm BufferSize, u8 *Buffer, char *Command, char *Env[])
     char Search[] = "PATH=";
     int MatchedSearch = false;
     
-    str8 Result = {};
+    str8 Result = {0};
     Result.Data = Buffer;
     
     while(*VarAt && !MatchedSearch)
@@ -578,9 +578,9 @@ LinuxRunCommand(char *Args[])
 internal void 
 Cng_RunCommand(str8 Command)
 {
-    char *Args[64] = {};
+    char *Args[64] = {0};
     
-    u8 ArgsBuffer[1024] = {};
+    u8 ArgsBuffer[1024] = {0};
     u64 ArgsBufferIndex = 0;
     
     // 1. split on whitespace into null-terminated strings.
@@ -617,7 +617,7 @@ Cng_RunCommand(str8 Command)
     
     if(Args[0] && Args[0][0] != '/')
     {
-        u8 Buffer[PATH_MAX] = {};
+        u8 Buffer[PATH_MAX] = {0};
         str8 ExePath = LinuxFindCommandInPATH(sizeof(Buffer), Buffer, Args[0], GlobalEnv);
         if(ExePath.Size)
         {
@@ -673,7 +673,7 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
         Cng_RunCommand(BuildCommand);
         
         // Run without rebuilding
-        char *Arguments[64] = {};
+        char *Arguments[64] = {0};
         u32 At;
         for(At = 1;
             At < ArgsCount;

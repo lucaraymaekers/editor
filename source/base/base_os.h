@@ -36,7 +36,7 @@ struct os_thread
 
 //~ Globals
 global_variable u8 LogBuffer[KB(64)];
-global_variable os_profiler GlobalProfiler = {}; 
+global_variable os_profiler GlobalProfiler = {0}; 
 global_variable char *GlobalProfilerPrefix = ""; 
 
 #if BASE_PROFILE

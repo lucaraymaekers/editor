@@ -58,7 +58,7 @@ struct gl_render_state
     b32 ShadersCompiled;
 };
 
-struct ui_box;
+typedef struct ui_box ui_box;
 
 typedef struct panel panel;
 struct panel
@@ -132,10 +132,10 @@ global_variable s32 GlobalRectsCount;
 
 global_variable arena *FrameArena = 0;
 
-global_variable v4 Color_Background = Color_Night3;
-global_variable v4 Color_Foreground = Color_Snow0;
-global_variable v4 Color_ButtonBorder = Color_Night2;
-global_variable v4 Color_ButtonBackground = Color_Night0;
-global_variable v4 Color_ButtonText = Color_Black;
+global_variable v4 Color_Background = {U32ToV4Arg(0xff2e3440)};
+global_variable v4 Color_Foreground = {U32ToV4Arg(0xffeceff4)};
+global_variable v4 Color_ButtonBorder = {U32ToV4Arg(0xff3b4252)};
+global_variable v4 Color_ButtonBackground = {U32ToV4Arg(0xff4c566a)};
+global_variable v4 Color_ButtonText = {U32ToV4Arg(0xff000000)};
 
 #endif //EDITOR_APP_H
