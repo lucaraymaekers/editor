@@ -367,7 +367,6 @@ PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 Pare
 internal panel *
 SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
 {
-    
     panel *Result = To;
     
     panel *New = PanelAlloc(Arena);
@@ -999,17 +998,18 @@ UPDATE_AND_RENDER(UpdateAndRender)
         PermanentArena->Pos = 0;
         AsanPoisonMemoryRegion(PermanentArena->Base, PermanentArena->Size);
         
-        FrameArena = PushArena(PermanentArena, Memory->MemorySize/2);
+        FrameArena = PushArena(PermanentArena, Memory->MemorySize/2, true);
         
         App = PushStruct(PermanentArena, app_state);
         
         App->Text = PushArray(PermanentArena, rune, KB(1));
-        App->FontAtlasArena = PushArena(PermanentArena, MB(100));
+        App->FontAtlasArena = PushArena(PermanentArena, MB(100), false);
+        
         App->UIBoxTableSize = 4096;
         App->UIBoxTable = PushArray(PermanentArena, ui_box, App->UIBoxTableSize);
-        App->UIBoxArena = PushArena(PermanentArena, 256*sizeof(ui_box));
+        App->UIBoxArena = PushArena(PermanentArena, (256*sizeof(ui_box)), false);
         
-        PanelArena = App->PanelArena = PushArena(PermanentArena, ArenaAllocDefaultSize);
+        PanelArena = App->PanelArena = PushArena(PermanentArena, ArenaAllocDefaultSize, false);
     }
     
     font_atlas *Atlas = &App->FontAtlas;
@@ -1037,6 +1037,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         App->TextCount = 0;
         App->TextCursor = 0;
+        
+        App->UIBoxArena->Pos = 0;
+        App->FontAtlasArena->Pos = 0;
+        App->PanelArena->Pos = 0;
         
         // Nil read only structs 
         {        
@@ -1195,6 +1199,31 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             App->TextTrail = 0;
                             App->TextCursor = App->TextCount;
                         } break; 
+                        
+                        case 'c':
+                        {
+                            NotImplemented();
+                        } break;
+                        
+                        case 'x':
+                        {
+                            NotImplemented();
+                        } break; 
+                        
+                        case 'v':
+                        {
+                            NotImplemented();
+                        } break;
+                        
+                        case 'z':
+                        {
+                            NotImplemented();
+                        } break;
+                        
+                        case 'y':
+                        {
+                            NotImplemented();
+                        } break;
                     }
                 }
             }
@@ -1351,7 +1380,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     case PlatformKey_Home:
                     {
                         u64 Cursor = App->TextCursor;
-                        while(Cursor > 0 && App->Text[Cursor - 1] != '\n') Cursor -= 1;
+                        
+                        if(!Control)
+                        {
+                            while(Cursor > 0 && App->Text[Cursor - 1] != '\n') Cursor -= 1;
+                        }
+                        else
+                        {
+                            Cursor = 0;
+                        }
+                        
                         App->TextCursor = Cursor;
                         
                         if(!Shift)
@@ -1364,7 +1402,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     case PlatformKey_End:
                     {
                         u64 Cursor = App->TextCursor;
-                        while(Cursor < App->TextCount && App->Text[Cursor] != '\n') Cursor += 1;
+                        
+                        if(!Control)
+                        {
+                            while(Cursor < App->TextCount && App->Text[Cursor] != '\n') Cursor += 1;
+                        }
+                        else
+                        {
+                            Cursor = App->TextCount;
+                        }
+                        
                         App->TextCursor = Cursor;
                         
                         if(!Shift)

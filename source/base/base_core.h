@@ -152,7 +152,7 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 # define ReadWriteBarrier __asm__ __volatile__ ("" : : : "memory")
 #endif
 
-#define DebugBreak() do { if(GlobalDebuggerIsAttached) Trap(); } while(0)
+#define DebugBreak() do { if(GlobalDebuggerIsAttached) { Trap(); } } while(0)
 
 #define Var(Name) Glue(Name, __LINE__)
 #define DoOnce local_persist s32 Var(X) = 0; Var(X) += 1; if(Var(X) < 2)
@@ -164,7 +164,7 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 #define Assert(Expression) AssertMsg(Expression, "Hit assertion")
 
-#define NotImplemented() TrapMsg("Not Implemented!")
+#define NotImplemented() DebugBreakMsg("Not Implemented!")
 #define InvalidPath()    TrapMsg("Invalid Path!")
 #define StaticAssert(C, ID) global_variable u8 Glue(ID, __LINE__)[(C)?1:-1]
 

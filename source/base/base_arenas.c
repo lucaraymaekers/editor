@@ -24,14 +24,14 @@ ArenaAlloc_(arena_alloc_params Params)
 }
 
 internal arena *
-PushArena(arena *Arena, u64 Size)
+PushArena(arena *Arena, u64 Size, b32 Zero)
 {
     arena *Result = 0;
     
     Result = PushStruct(Arena, arena);
     Result->Size = Size;
     Result->Base = PushArray(Arena, u8, Result->Size);
-    Result->Pos = 0;
+    if(Zero) Result->Pos = 0;
     
     return Result;
 }
