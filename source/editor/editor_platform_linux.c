@@ -46,6 +46,8 @@ struct linux_x11_context
     Atom WM_DELETE_WINDOW;
     b32 OpenGLMode;
     b32 Initialized;
+    u8 ClipboardBuffer[KB(64)];
+    b32 WeOwnClipboard;
 };
 
 global_variable b32 *GlobalRunning;
@@ -474,6 +476,7 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
                 Context->WindowHandle = WindowHandle;
                 Context->OpenGLMode = OpenGLMode;
                 Context->Initialized = true;
+                
                 Result = (u64)Context;
             }
         }
@@ -494,7 +497,13 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
     
     if(Linux)
     {
+        Atom PropertyAtom = XInternAtom(Linux->DisplayHandle, "X11_CLIPBOARD_DATA", False);
+        Atom UTF8Atom = XInternAtom(Linux->DisplayHandle, "UTF8_STRING", False);
+        Atom StringAtom = XInternAtom(Linux->DisplayHandle, "STRING", False);
+        Atom TargetsAtom  = XInternAtom(Linux->DisplayHandle, "TARGETS", False);
+        Atom ClipboardAtom = XInternAtom(Linux->DisplayHandle, "CLIPBOARD", False);
         
+        // Handle Cursor
         {        
             XUndefineCursor(Linux->DisplayHandle, Linux->WindowHandle);
             switch(Input->PlatformCursor)
@@ -530,6 +539,40 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
             
         }
         
+        // Clipboard
+        {
+            Input->PlatformClipboard.Data = Linux->ClipboardBuffer;
+            
+            if(Input->PlatformSetClipboard.Size)
+            {
+                Assert(Input->PlatformSetClipboard.Size < ArrayCount(Linux->ClipboardBuffer));
+                
+                MemoryCopy(Input->PlatformClipboard.Data, 
+                           Input->PlatformSetClipboard.Data, 
+                           Input->PlatformSetClipboard.Size);
+                Input->PlatformClipboard.Size = Input->PlatformSetClipboard.Size;
+                XSetSelectionOwner(Linux->DisplayHandle, ClipboardAtom, Linux->WindowHandle, CurrentTime);
+                
+                MemoryZero(&Input->PlatformSetClipboard);
+                Linux->WeOwnClipboard = true;
+            }
+            
+            if(!Linux->WeOwnClipboard)
+            {
+                // TODO(luca): Poll on notify instead.
+                
+                // NOTE(luca): Request CLIPBOARD as STRING target. 
+                XConvertSelection(Linux->DisplayHandle,
+                                  ClipboardAtom,
+                                  UTF8Atom,
+                                  PropertyAtom,
+                                  Linux->WindowHandle,
+                                  CurrentTime);
+                
+            }
+            
+            
+        }
         
         XEvent WindowEvent = {0};
         while(XPending(Linux->DisplayHandle) > 0)
@@ -544,6 +587,103 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
             
             switch(WindowEvent.type)
             {
+                case SelectionClear:
+                {
+                    Linux->WeOwnClipboard = false;
+                    Log("Lost clipboard selection\n");
+                } break;
+                
+                case SelectionRequest:
+                {
+                    XSelectionRequestEvent *Event = (XSelectionRequestEvent *)&WindowEvent;
+                    
+                    if(Event->target != UTF8Atom || Event->property == None)
+                    {
+                        // NOTE(luca): Unsupported format, or requestor has not filled in 'property'
+                        char *AtomName = XGetAtomName(Linux->DisplayHandle, Event->target);
+                        Log("Unsupported request of type: '%s'\n", AtomName);
+                        if(AtomName) XFree(AtomName);
+                        
+                        XSelectionEvent Response = {0};
+                        Response.type = SelectionNotify;
+                        Response.requestor = Event->requestor;
+                        Response.selection = Event->selection;
+                        Response.target = Event->target;
+                        Response.property = None;
+                        Response.time = Event->time;
+                        
+                        XSendEvent(Linux->DisplayHandle, Event->requestor, True, NoEventMask, (XEvent *)&Response);
+                    }
+                    else
+                    {
+                        XChangeProperty(Linux->DisplayHandle, Event->requestor, Event->property, UTF8Atom, 8,
+                                        PropModeReplace, (u8 *)Input->PlatformClipboard.Data, (int)Input->PlatformClipboard.Size);
+                        
+                        XSelectionEvent Response = {0};
+                        Response.type = SelectionNotify;
+                        Response.requestor = Event->requestor;
+                        Response.selection = Event->selection;
+                        Response.target = Event->target;
+                        Response.property = Event->property;
+                        Response.time = Event->time;
+                        
+                        XSendEvent(Linux->DisplayHandle, Event->requestor, True, NoEventMask, (XEvent *)&Response);
+                    }
+                } break;
+                
+                case SelectionNotify:
+                {
+                    XSelectionEvent *Event = (XSelectionEvent *)&WindowEvent;
+                    // NOTE(luca): We will only erase the clipboard once we know for sure that we don't own the clipboard.  This handles the case where the user presses 'ctrl+c' and the application gets a SelectionNotify event right after -- It will be ignored.
+                    if(!Linux->WeOwnClipboard)
+                    {                    
+                        if(Event->property != None)
+                        {
+                            Atom AtomRet, Incr, Type;
+                            int Format;
+                            unsigned long Size, ItemsCount;
+                            unsigned char *Data = 0;
+                            int Ret;
+                            
+                            Ret = XGetWindowProperty(Linux->DisplayHandle, Linux->WindowHandle, 
+                                                     PropertyAtom, 0, 0, False, AnyPropertyType,
+                                                     &Type, &Format, &ItemsCount, &Size, &Data);
+                            XFree(Data);
+                            
+                            Incr = XInternAtom(Linux->DisplayHandle, "INCR", False);
+                            if(Type != Incr)
+                            {
+                                if(Size > 0)
+                                {                                
+                                    Ret = XGetWindowProperty(Linux->DisplayHandle, Linux->WindowHandle,
+                                                             PropertyAtom, 0, Size, False, AnyPropertyType,
+                                                             &AtomRet, &Format, &ItemsCount, &Size, &Data);
+                                    
+                                    Size = (Format/8)*ItemsCount;
+                                    MemoryCopy(Input->PlatformClipboard.Data, Data, Size);
+                                    Input->PlatformClipboard.Size = Size;
+                                    XFree(Data);
+                                }
+                            }
+                            else
+                            {
+                                NotImplemented();
+                            }
+                        }
+                        else
+                        {
+                            Window Owner = XGetSelectionOwner(Linux->DisplayHandle, ClipboardAtom);
+                            if(Owner != None)
+                            {
+                                ErrorLog("X11 clipboard conversion failed.");
+                            }
+                        }
+                        
+                        // NOTE(luca): Signals the owner that the data has been read.
+                        XDeleteProperty(Linux->DisplayHandle, Linux->WindowHandle, PropertyAtom);
+                    }
+                } break;
+                
                 case KeyPress:
                 case KeyRelease:
                 {

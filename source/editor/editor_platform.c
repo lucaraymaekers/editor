@@ -155,6 +155,9 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     }
                     NewInput->dtForFrame = TargetSecondsPerFrame;
                     NewInput->PlatformCursor = OldInput->PlatformCursor;
+                    NewInput->PlatformSetClipboard = OldInput->PlatformSetClipboard;
+                    
+                    NewInput->PlatformClipboard = OldInput->PlatformClipboard;
                     NewInput->MouseX = OldInput->MouseX;
                     NewInput->MouseY = OldInput->MouseY;
                     

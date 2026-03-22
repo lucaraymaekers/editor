@@ -11,6 +11,13 @@ struct range_s64
     s64 Max;
 };
 
+typedef struct range_u64 range_u64;
+struct range_u64
+{
+    u64 Min;
+    u64 Max;
+};
+
 typedef union v2 v2;
 union v2
 {
@@ -49,6 +56,13 @@ union v4
 ((f32)(((Value) >> 8*3) & 0xFF)/255.0f)
 
 //~ Functions 
+internal inline u64
+GetRangeU64Count(range_u64 Range)
+{
+    u64 Result = Range.Max - Range.Min;
+    return Result;
+}
+
 internal inline v2 
 V2AddV2(v2 A, v2 B)
 {

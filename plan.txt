@@ -1,4 +1,5 @@
 - make initialization with permanentarena homogenous
+		? Poisoning should take care of everything, do the rest manually,  since we are using arena's it's not that much work
 
 other:
   - Improve text rendering
@@ -7,11 +8,13 @@ other:
     - kb_text_shape()
     - harfbuzz
     - implement all movements taking unicode into account
-
-  - Movements
-  - Deletions
-  - Selections
+  - Scrolling text
+  x Movements
+  x Deletions
+  x Selections
   - Clipboard
+    x linux
+    - win32
   - Undo/Redo
   - Non contiguous selection (e.g., with control)
 

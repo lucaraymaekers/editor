@@ -63,15 +63,15 @@ Lex(app_state *App, arena *Arena, token_list *List)
     s32 Line        = 1;
     s32 Column      = 1;
     
-    for(s32 TextIndex = 0; TextIndex < App->TextCount; TextIndex++)
+    for(s32 TextIndex = 0; TextIndex < App->Text.Count; TextIndex++)
     {
-        rune Character = App->Text[TextIndex];
+        rune Character = App->Text.Data[TextIndex];
         
         if(Character == '\r' || Character == '\n')
         {
             if(Character == '\r' &&
-               (TextIndex + 1 < App->TextCount) &&
-               App->Text[TextIndex + 1] == '\n')
+               (TextIndex + 1 < App->Text.Count) &&
+               App->Text.Data[TextIndex + 1] == '\n')
             {
                 TextIndex++;
             }
@@ -111,8 +111,8 @@ Lex(app_state *App, arena *Arena, token_list *List)
         else if(IsRuneAlpha(Character))
         {
             {
-                while((TextIndex + 1 < App->TextCount) &&
-                      (IsRuneAlpha(App->Text[TextIndex + 1]) || IsRuneDigit(App->Text[TextIndex + 1])))
+                while((TextIndex + 1 < App->Text.Count) &&
+                      (IsRuneAlpha(App->Text.Data[TextIndex + 1]) || IsRuneDigit(App->Text.Data[TextIndex + 1])))
                 {
                     ++TextIndex;
                 }
@@ -121,7 +121,7 @@ Lex(app_state *App, arena *Arena, token_list *List)
             }
             {
                 // NOTE(luca): This will never work, since the App->Text is a u32 array, should it be str32 instead?
-                str8 Lexeme = S8FromTo((S8Cast{.Data = (u8 *)App->Text, .Size = (u64)App->TextCount}), (u64)TokenStart, (u64)TokenEnd);
+                str8 Lexeme = S8FromTo((S8Cast{.Data = (u8 *)App->Text.Data, .Size = (u64)App->Text.Count}), (u64)TokenStart, (u64)TokenEnd);
                 
                 // TODO(nasr): handle functions
                 if(S8Match(Lexeme, S8("if"), 0))
@@ -144,8 +144,8 @@ Lex(app_state *App, arena *Arena, token_list *List)
         }
         else if(IsRuneDigit(Character))
         {
-            while((TextIndex + 1 < App->TextCount) &&
-                  IsRuneDigit(App->Text[TextIndex + 1]))
+            while((TextIndex + 1 < App->Text.Count) &&
+                  IsRuneDigit(App->Text.Data[TextIndex + 1]))
             {
                 ++TextIndex;
             }
@@ -156,7 +156,7 @@ Lex(app_state *App, arena *Arena, token_list *List)
         
         else
         {
-            rune Next = (TextIndex + 1 < App->TextCount) ? App->Text[TextIndex + 1] : 0;
+            rune Next = (TextIndex + 1 < App->Text.Count) ? App->Text.Data[TextIndex + 1] : 0;
             
             switch(Character)
             {
@@ -214,10 +214,10 @@ Lex(app_state *App, arena *Arena, token_list *List)
                 
                 case '"':
                 {
-                    while(App->Text[TextIndex + 1] != '"' && App->Text[TextIndex + 1] != '\0')
+                    while(App->Text.Data[TextIndex + 1] != '"' && App->Text.Data[TextIndex + 1] != '\0')
                     {
                         ++TextIndex;
-                        if(App->Text[TextIndex + 1] == '\\')
+                        if(App->Text.Data[TextIndex + 1] == '\\')
                             
                             ++TextIndex;  
                     }
@@ -237,7 +237,7 @@ Lex(app_state *App, arena *Arena, token_list *List)
         
         TokenEnd = TextIndex + 1;
         
-        Token->Lexeme.Data = (u8 *)&App->Text[TokenStart];
+        Token->Lexeme.Data = (u8 *)&App->Text.Data[TokenStart];
         Token->Lexeme.Size = (u64)(TokenEnd - TokenStart);
         Column += (s32)Token->Lexeme.Size;
         

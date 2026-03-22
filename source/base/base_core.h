@@ -173,7 +173,7 @@ do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 #define EachIndexType(t, Index, Count) (t Index = 0; Index < (Count); Index += 1)
 #define EachIndex(Index, Count)           EachIndexType(TypeOf((Count)), Index, Count)
 #define EachElement(Index, Array)         EachIndexType(umm, Index, ArrayCount(Array))
-#define EachInRange(Index, Range)         (u64 Index = (Range).Min; Index < (Range).Max; Index += 1)
+#define EachInRange(Index, Range)         (TypeOf((Range).Min) Index = (Range).Min; Index < (Range).Max; Index += 1)
 #define EachNode(Index, t, First)      (t *Index = First; Index != 0; Index = Index->Next)
 
 #define MemoryCopy(Dest, Source, Count) memmove(Dest, Source, Count)

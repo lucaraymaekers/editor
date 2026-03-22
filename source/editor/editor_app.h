@@ -87,6 +87,18 @@ raddbg_type_view(panel,
 
 #define EachPanel(Child, Parent) (panel *Child = Parent->First; !IsNilPanel(Child); Child = Child->Next)
 
+typedef struct app_text app_text; 
+struct app_text
+{
+    u64 Cursor;
+    u64 Count;
+    u64 Capacity;
+    u64 Trail;
+    u64 LineScrollOffset;
+    f32 CursorAnimTime;
+    rune *Data;
+};
+
 typedef struct app_state app_state;
 struct app_state
 {
@@ -97,11 +109,7 @@ struct app_state
     f32 PreviousHeightPx;
     f32 HeightPx;
     
-    u64 TextCursor;
-    u64 TextCount;
-    u64 TextTrail;
-    f32 TextCursorAnimTime;
-    rune *Text;
+    app_text Text;
     
     // TODO(luca): Move this over to UI state
     arena *UIBoxArena;

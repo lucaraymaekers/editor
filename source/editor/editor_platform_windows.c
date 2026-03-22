@@ -3,6 +3,7 @@ struct win32_context
 {
     HWND Window;
     HDC OwnDC;
+    u8 ClipboardBuffer[KB(64)];
 };
 
 global_variable b32 *GlobalRunning;
@@ -187,7 +188,6 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
             Context->Window = Window;
             
             Result = (umm)Context;
-            
         }
     }
     
@@ -207,9 +207,90 @@ P_UpdateImage(P_context Context, app_offscreen_buffer *Buffer)
 internal void      
 P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buffer, b32 *Running)
 {
-    win32_context *Win32Context = (win32_context *)Context;
+    win32_context *Win32 = (win32_context *)Context;
     
     Input->PlatformWindowIsFocused = GlobalWindowIsFocused;
+    
+    // Clipboard handling
+    {    
+        Input->PlatformClipboard.Data = Win32->ClipboardBuffer;
+        if(OpenClipboard(0) == 0)
+        {
+            Win32LogIfError();
+        }
+        
+        if(GetClipboardOwner() != Win32->Window)
+        {
+            HANDLE ClipboardData = GetClipboardData(CF_TEXT);
+            if(ClipboardData)
+            {
+                // NOTE(luca): Minus null terminating character
+                u64 Size = GlobalSize(ClipboardData);
+                
+                char *Mem = (char*)GlobalLock(ClipboardData);
+                if(Mem)
+                {
+                    // NOTE(luca): Getting the length and looping over the string could be done faster.
+                    str8 Clip = S8FromCString(Mem);
+                    
+                    Assert(Size < ArrayCount(Win32->ClipboardBuffer));
+                    
+                    MemoryCopy(Input->PlatformClipboard.Data, Mem, Size);
+                    Input->PlatformClipboard.Size = Size - 1;
+                    
+                    GlobalUnlock(ClipboardData);
+                }
+                else
+                {
+                    ErrorLog("Failed to lock global memory\n");
+                    CloseClipboard();
+                }
+                
+            }
+            else
+            {
+                ErrorLog("No text data in clipboard\n");
+            }
+        }
+        
+        if(Input->PlatformSetClipboard.Size)
+        {
+            Assert(Input->PlatformSetClipboard.Size < ArrayCount(Win32->ClipboardBuffer));
+            
+            MemoryCopy(Input->PlatformClipboard.Data, 
+                       Input->PlatformSetClipboard.Data, 
+                       Input->PlatformSetClipboard.Size);
+            Input->PlatformClipboard.Size = Input->PlatformSetClipboard.Size;
+            
+            EmptyClipboard();
+            
+            u64 Len = Input->PlatformClipboard.Size;
+            
+            HGLOBAL W32GlobalMemory = GlobalAlloc(GMEM_MOVEABLE, Len + 1);
+            
+            if(W32GlobalMemory)
+            {
+                u8 *Mem = (u8 *)GlobalLock(W32GlobalMemory);
+                MemoryCopy(Mem, Input->PlatformClipboard.Data, Input->PlatformClipboard.Size);
+                Mem[Len] = 0;
+                GlobalUnlock(W32GlobalMemory);
+                
+                if(SetClipboardData(CF_TEXT, W32GlobalMemory) == 0)
+                {
+                    Win32LogIfError();
+                }
+                
+            }
+            else
+            {
+                ErrorLog("GlobalAlloc failed\n");
+            }
+            
+            MemoryZero(&Input->PlatformSetClipboard);
+        }
+        
+        CloseClipboard();
+    }
     
     switch(Input->PlatformCursor)
     {
@@ -236,7 +317,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
         } break;
     }
     
-    if(Win32Context)
+    if(Win32)
     {    
         MSG Message;
         while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
@@ -381,7 +462,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
         {        
             POINT MouseP;
             GetCursorPos(&MouseP);
-            ScreenToClient(Win32Context->Window, &MouseP);
+            ScreenToClient(Win32->Window, &MouseP);
             Input->MouseX = MouseP.x;
             Input->MouseY = MouseP.y;
             // TODO(luca): Support mousewheel

@@ -4,6 +4,8 @@ data
 
 tags
 
+*.raddbg_project
+
 .*
 *.swp
 *~

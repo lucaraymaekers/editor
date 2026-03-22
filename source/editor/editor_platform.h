@@ -160,6 +160,8 @@ struct app_input
     b32 PlatformIsRecording;
     b32 PlatformIsPlaying;
     u32 PlatformCursor;
+    str8 PlatformClipboard;
+    str8 PlatformSetClipboard;
     
     b32 Consumed;
 };

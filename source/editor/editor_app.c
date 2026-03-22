@@ -37,7 +37,6 @@ global_variable u32 PanelDebugLevel = 0;
 
 global_variable axis2_stack_node *PanelAxisTop = 0; 
 
-global_variable u64 GlobalTextCursor = 0;
 //- 
 internal inline b32
 InRange(f32 P, f32 Min, f32 Max, f32 Size)
@@ -48,92 +47,145 @@ InRange(f32 P, f32 Min, f32 Max, f32 Size)
     return Result;
 }
 
-//- Text editing 
+//~ Text editing 
 internal void
-DeleteChar(app_state *App)
+DeleteChar(app_text *Text)
 {
-    if(App->TextCursor)
+    if(Text->Cursor)
     {
-        MemoryCopy(App->Text + (App->TextCursor - 1),
-                   App->Text + App->TextCursor,
-                   sizeof(rune)*((App->TextCount - App->TextCursor) + 1));
+        MemoryCopy(Text->Data + (Text->Cursor - 1),
+                   Text->Data + Text->Cursor,
+                   sizeof(rune)*((Text->Count - Text->Cursor) + 1));
         
-        App->TextCount -= 1;
-        App->TextCursor -= 1;
+        Text->Count -= 1;
+        Text->Cursor -= 1;
+    }
+}
+
+internal range_u64
+GetSelection(app_text *Text)
+{
+    range_u64 Range = {0};
+    
+    u64 Start = Text->Cursor;
+    u64 End = Text->Trail;
+    if(Start > End) Swap(Start, End);
+    
+    Range.Min = Start;
+    Range.Max = End;
+    
+    return Range;
+};
+
+internal void
+SaveTextToFile(app_text *Text, app_memory *Memory, str8 FileName)
+{
+    str8 Source = PushS8(FrameArena, Text->Count);
+    for EachIndex(Idx, Source.Size)
+    {
+        Source.Data[Idx] = (u8)Text->Data[Idx];
+    }
+    char *Path = PathFromExe(FrameArena, Memory->ExeDirPath, FileName);
+    OS_WriteEntireFile(Path, Source);
+}
+
+internal void
+LoadFileToText(app_text *Text, app_memory *Memory, str8 FileName)
+{
+    char *Path = PathFromExe(FrameArena, Memory->ExeDirPath, FileName);
+    str8 Source = OS_ReadEntireFileIntoMemory(Path);
+    if(Source.Size)
+    {
+        Text->Cursor = Text->Trail = Min(Text->Cursor, Source.Size);
+        Text->Count = Source.Size;
+        for EachIndex(Idx, Source.Size)
+        {
+            Text->Data[Idx] = Source.Data[Idx];
+        }
+        OS_FreeFileMemory(Source);
     }
 }
 
 internal void
-DeleteSelection(app_state *App)
+CopySelection(app_text *Text, app_input *Input)
 {
-    u64 Begin = App->TextCursor;
-    u64 End = App->TextTrail;
-    if(Begin > End) Swap(Begin, End);
+    range_u64 Selection = GetSelection(Text);
+    u64 Size = GetRangeU64Count(Selection);
     
-    u64 DeleteCount = End - Begin;
-    u64 CharsAfterEnd = App->TextCount - End;
+    Input->PlatformSetClipboard = PushS8(FrameArena, Size);
     
-    MemoryCopy(App->Text + Begin, App->Text + End,
+    for EachIndex(Idx, Size)
+    {
+        Input->PlatformSetClipboard.Data[Idx] = (u8)Text->Data[Selection.Min + Idx];
+    }
+}
+
+internal void
+DeleteSelection(app_text *Text)
+{
+    range_u64 Selection = GetSelection(Text);
+    u64 SelectionSize = GetRangeU64Count(Selection);
+    
+    u64 CharsAfterEnd = Text->Count - Selection.Max;
+    
+    MemoryCopy(Text->Data + Selection.Min, Text->Data + Selection.Max,
                sizeof(rune)*(CharsAfterEnd));
     
-    App->TextCursor = Begin;
-    App->TextCount -= DeleteCount;
-    App->TextCursorAnimTime = 0.f;
+    Text->Cursor = Selection.Min;
+    Text->Count -= SelectionSize;
+    Text->CursorAnimTime = 0.f;
 }
 
 internal void
 
-AppendChar(app_state *App, rune Codepoint)
+AppendChar(app_text *Text, rune Codepoint)
 {
-    if(App->TextCursor > 0)
+    MemoryCopy(Text->Data + (Text->Cursor + 1),
+               Text->Data + (Text->Cursor),
+               sizeof(rune)*((Text->Count - Text->Cursor) + 1));
+    
+    Text->Data[Text->Cursor] = Codepoint;
+    
+    Text->Count += 1;
+    Text->Cursor += 1;
+    Text->CursorAnimTime = 0.f;
+    Text->Trail = Text->Cursor;
+    
+    Assert(Text->Count < Text->Capacity);
+}
+
+internal void
+MoveRight(app_text *Text)
+{
+    Text->Cursor += (Text->Cursor < Text->Count);
+    Text->CursorAnimTime = 0.f;
+}
+
+internal void
+MoveLeft(app_text *Text)
+{
+    Text->Cursor -= (Text->Cursor > 0);
+    Text->CursorAnimTime = 0.f;
+}
+
+
+internal void
+DeleteWordLeft(app_text *Text)
+{
+    while(Text->Cursor > 0 && 
+          IsWhiteSpace(Text->Data[Text->Cursor - 1]))
     {
-        MemoryCopy(App->Text + (App->TextCursor),
-                   App->Text + (App->TextCursor - 1),
-                   sizeof(rune)*((App->TextCount - App->TextCursor) + 1));
+        DeleteChar(Text);
     }
     
-    App->Text[App->TextCursor] = Codepoint;
-    
-    App->TextCount += 1;
-    App->TextCursor += 1;
-    App->TextCursorAnimTime = 0.f;
-    App->TextTrail = App->TextCursor;
-    
-    Assert(App->TextCount < KB(1));
-}
-
-internal void
-MoveRight(app_state *App)
-{
-    App->TextCursor += (App->TextCursor < App->TextCount);
-    App->TextCursorAnimTime = 0.f;
-}
-
-internal void
-MoveLeft(app_state *App)
-{
-    App->TextCursor -= (App->TextCursor > 0);
-    App->TextCursorAnimTime = 0.f;
-}
-
-
-internal void
-DeleteWordLeft(app_state *App)
-{
-    while(App->TextCursor > 0 && 
-          IsWhiteSpace(App->Text[App->TextCursor - 1]))
+    while(Text->Cursor > 0 && 
+          !IsWhiteSpace(Text->Data[Text->Cursor - 1]))
     {
-        DeleteChar(App);
-    }
-    
-    while(App->TextCursor > 0 && 
-          !IsWhiteSpace(App->Text[App->TextCursor - 1]))
-    {
-        DeleteChar(App);
+        DeleteChar(Text);
     }
 }
 
-//- 
+//~ Misc
 
 internal inline b32
 EqualsWithEpsilon(f32 A, f32 B, f32 Epsilon)
@@ -249,7 +301,6 @@ GetWrapPositions(arena *Arena, str8 Text, font_atlas *Atlas, f32 MaxWidth)
     return Result;
 }
 
-
 internal rect_instance *
 DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
 {
@@ -290,6 +341,200 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
 
 #include "editor_ui.c"
 
+
+//~ Text rendering 
+
+typedef struct custom_text_draw_params custom_text_draw_params;
+struct custom_text_draw_params
+{
+    ui_box *Box;
+    app_text *Text;
+};
+
+UI_CUSTOM_DRAW(CustomDrawText)
+{
+    custom_text_draw_params *Params = (custom_text_draw_params *)CustomDrawData;
+    ui_box *Box = Params->Box;
+    app_text *Text = Params->Text;
+    
+    ui_box *Parent = Box->Parent;
+    v4 Dest = Box->Rec;
+    
+    // TODO(luca): Account for padding instead
+    v4 TextDim = RectShrink(Dest, Box->BorderThickness);
+    
+    v2 CursorPos = {0};
+    
+    f32 CharHeight = (UI_State->Atlas->HeightPx);
+    
+    u64 CursorLinePos = 0;
+    
+    v2 Pen;
+    
+    Pen = TextDim.Min;
+    
+    u64 ScrollOffset = 0;
+    
+    for EachIndex(Idx, Text->Cursor)
+    {
+        rune Char = Text->Data[Idx];
+        f32 CharWidth = (UI_State->Atlas->PackedChars[Char].xadvance);
+        
+        if(CursorLinePos == Text->LineScrollOffset)
+        {
+            ScrollOffset = Idx;
+        }
+        
+        if(Char == '\n')
+        {
+            Pen.X = TextDim.Min.X;
+            CursorLinePos += 1;
+        }
+        else if(Pen.X + CharWidth > TextDim.Max.X)
+        {
+            Pen.X = TextDim.Min.X;
+            CursorLinePos += 1;
+        }
+    }
+    
+    b32 IsCursorOffscreen = (Pen.Y > TextDim.Max.Y);
+    
+    if(IsCursorOffscreen)
+    {
+        Text->LineScrollOffset += 1;
+    }
+    
+    Text->LineScrollOffset = CursorLinePos;
+    
+    Pen = TextDim.Min;
+    for EachIndex(Idx, Text->Count)
+    {
+        rune Char = Text->Data[Idx];
+        f32 CharWidth = (UI_State->Atlas->PackedChars[Char].xadvance);
+        
+        v4 CharColor = Box->TextColor;
+        rune DrawChar = Char;
+        
+        // TODO(luca): Proper wrapping on whitespace
+        if(Pen.X + CharWidth > TextDim.Max.X)
+        {
+            Pen.X = TextDim.Min.X;
+            Pen.Y += CharHeight;
+        }
+        
+        v2 PenMax = V2AddV2(Pen, V2(CharWidth, CharHeight));
+        if(IsInsideRectV2(Pen, Dest) &&
+           IsInsideRectV2(PenMax, Dest))
+        {
+            b32 IsInSelection = false;
+            
+            range_u64 Selection = GetSelection(Text);
+            IsInSelection = (Idx >= Selection.Min && Idx < Selection.Max); 
+            
+            v4 CharRect = RectFromSize(Pen, V2(CharWidth, Box->HeightPx));
+            
+            if(IsInSelection)
+            {
+                v4 SelectionColor = Color_Blue;
+                SelectionColor.A = .5f;
+                DrawRect(CharRect, SelectionColor, 0.f, 0.f, 0.f);
+            }
+            
+            // Mouse text input
+            {                
+                v2 MouseP = V2S32(UI_State->Input->MouseX, UI_State->Input->MouseY);
+                
+                if(IsInsideRectV2(MouseP, CharRect))
+                {
+                    b32 OnRightSide = !!(((CharRect.Max.X - MouseP.X)/CharWidth) < .5f); 
+                    
+                    app_button_state *LeftButton = &UI_State->Input->MouseButtons[PlatformMouseButton_Left];
+                    b32 Shift = (LeftButton->Modifiers & PlatformKeyModifier_Shift);
+                    
+                    if(LeftButton->EndedDown)
+                    {
+                        Text->Cursor = Idx + OnRightSide;
+                        if(WasPressed(*LeftButton) && !Shift)
+                        {
+                            Text->Trail = Text->Cursor;
+                            Text->CursorAnimTime = 0.f;
+                        }
+                    }
+                    
+                    if(0)
+                    {
+                        DrawRect(CharRect, Color_Red, 0.f, 1.f, 0.f); 
+                    }
+                }
+            }
+            
+            b32 VisualizeWhitespace = true;
+            
+            if(IsWhiteSpace(Char) && VisualizeWhitespace)
+            {
+                if (Char == L' ')       DrawChar = L'\u00B7'; // · Middle Dot
+                if (Char == L'\t')      DrawChar = L'\u2192'; // → Rightwards Arrow
+                if (Char == L'\n')      DrawChar = L'\u0024'; // $ Dollar Sign
+                CharColor.A *= 0.2f;
+            }
+            
+            // TODO(luca): Assert that DrawChar is in Atlas
+            DrawRectChar(UI_State->Atlas, Pen, DrawChar, CharColor);
+            
+            Pen.X += CharWidth;
+        }
+        
+        if(Char == '\n')
+        {
+            Pen.X = TextDim.Min.X;
+            Pen.Y += CharHeight;
+        }
+        
+        if(Idx + 1 == Text->Cursor)
+        {
+            CursorPos = Pen;
+            
+            // NOTE(luca): When at the end of the line, draw cursor on the next.
+            if(CursorPos.X + CharWidth > TextDim.Max.X)
+            {
+                CursorPos.X = TextDim.Min.X;
+                CursorPos.Y += CharHeight;
+            }
+        }
+        
+    }
+    
+    // Draw the cursor
+    {        
+        if(Text->Trail == Text->Cursor)
+        {            
+            if(Text->Cursor == 0)
+            {
+                CursorPos = TextDim.Min;
+            }
+            
+            v4 CursorColor = Box->TextColor;
+            
+            f32 Ratio = 1000.f/1200.f;
+            
+            if(cos(Text->CursorAnimTime*Pi32*Ratio) < 0.f)
+            {
+                CursorColor.A = 0.f;
+            }
+            
+            v4 MarkRec = RectFromSize(CursorPos, V2(1.f, CharHeight));
+            
+            MarkRec = RectIntersect(MarkRec, Parent->Rec);
+            if(RectValid(MarkRec)) 
+            {
+                DrawRect(MarkRec, CursorColor, 0.f, 0.f, 0.f);
+            }
+        }
+    }
+}
+
+//~ Opengl
+
 internal void
 gl_InitState(gl_render_state *Render)
 {
@@ -310,7 +555,7 @@ gl_CleanupState(gl_render_state *Render)
     glDeleteProgram(Render->RectShader);
 }
 
-//- Panels 
+//~ Panels 
 internal panel *
 PanelAlloc(arena *Arena)
 {
@@ -792,180 +1037,6 @@ PanelGetRegion(panel *Panel, v4 FreeRegion)
     }
 }
 
-//- 
-
-typedef struct custom_text_draw_params custom_text_draw_params;
-struct custom_text_draw_params
-{
-    ui_box *Box;
-    
-    u64 Count;
-    u64 Cursor;
-    u64 Trail;
-    f32 AnimTime;
-    rune *Text;
-};
-
-UI_CUSTOM_DRAW(CustomTextDraw)
-{
-    custom_text_draw_params *Params = (custom_text_draw_params *)CustomDrawData;
-    ui_box *Box = Params->Box;
-    u64 Count = Params->Count;
-    u64 Trail = Params->Trail;
-    u64 Cursor = Params->Cursor;
-    f32 CursorAnimTime = Params->AnimTime;
-    rune *Text = Params->Text;
-    
-    ui_box *Parent = Box->Parent;
-    v4 Dest = Box->Rec;
-    
-    // TODO(luca): Account for padding instead
-    v4 TextDim = RectShrink(Dest, Box->BorderThickness);
-    
-    v2 Pen = TextDim.Min;
-    
-    v2 CursorPos = {0};
-    
-    f32 CharHeight = (UI_State->Atlas->HeightPx);
-    
-    for EachIndex(Idx, Count)
-    {
-        rune Char = Params->Text[Idx];
-        f32 CharWidth = (UI_State->Atlas->PackedChars[Char].xadvance);
-        
-        v4 CharColor = Box->TextColor;
-        rune DrawChar = Char;
-        
-        // TODO(luca): Proper wrapping on whitespace
-        if(Pen.X + CharWidth > TextDim.Max.X)
-        {
-            Pen.X = TextDim.Min.X;
-            Pen.Y += CharHeight;
-        }
-        
-        {                    
-            v2 PenMax = V2AddV2(Pen, V2(CharWidth, CharHeight));
-            if(IsInsideRectV2(Pen, Dest) &&
-               IsInsideRectV2(PenMax, Dest))
-            {
-                
-                b32 IsInSelection = false;
-                
-                if(Trail < Cursor)
-                {
-                    IsInSelection = (Idx >= Trail && Idx < Cursor);
-                }
-                else if(Trail > Cursor)
-                {
-                    IsInSelection = (Idx >= Cursor && Idx < Trail);
-                }
-                
-                v4 CharRect = RectFromSize(Pen, V2(CharWidth, Box->HeightPx));
-                
-                if(IsInSelection)
-                {
-                    v4 SelectionColor = Color_Blue;
-                    SelectionColor.A = .5f;
-                    DrawRect(CharRect, SelectionColor, 0.f, 0.f, 0.f);
-                }
-                
-                // Mouse text input
-                {                
-                    v2 MouseP = V2S32(UI_State->Input->MouseX, UI_State->Input->MouseY);
-                    
-                    if(IsInsideRectV2(MouseP, CharRect))
-                    {
-                        b32 OnRightSide = !!(((CharRect.Max.X - MouseP.X)/CharWidth) < .5f); 
-                        
-                        app_button_state *LeftButton = &UI_State->Input->MouseButtons[PlatformMouseButton_Left];
-                        b32 Shift = (LeftButton->Modifiers & PlatformKeyModifier_Shift);
-                        
-                        if(LeftButton->EndedDown)
-                        {
-                            PanelApp->TextCursor = Idx + OnRightSide;
-                            if(WasPressed(*LeftButton) && !Shift)
-                            {
-                                PanelApp->TextTrail = PanelApp->TextCursor;
-                                PanelApp->TextCursorAnimTime = 0.f;
-                            }
-                            
-                        }
-                        
-                        if(0)
-                        {
-                            DrawRect(CharRect, Color_Red, 0.f, 1.f, 0.f); 
-                        }
-                    }
-                }
-                
-                b32 VisualizeWhitespace = true;
-                
-                if(IsWhiteSpace(Char) && VisualizeWhitespace)
-                {
-                    if(Char == L' ') DrawChar = L'·';
-                    
-                    if(Char == L'\t') DrawChar = L'→';
-                    if(Char == L'\n') DrawChar = L'$';
-                    CharColor.A *= 0.2f;
-                }
-                
-                // TODO(luca): Assert that DrawChar is in Atlas
-                DrawRectChar(UI_State->Atlas, Pen, DrawChar, CharColor);
-                
-                Pen.X += CharWidth;
-            }
-        }
-        
-        if(Char == '\n')
-        {
-            Pen.X = TextDim.Min.X;
-            Pen.Y += CharHeight;
-        }
-        
-        if(Idx + 1 == Cursor)
-        {
-            CursorPos = Pen;
-            
-            if(CursorPos.X + CharWidth > TextDim.Max.X)
-            {
-                CursorPos.X = TextDim.Min.X;
-                CursorPos.Y += CharHeight;
-            }
-            
-        }
-        
-    }
-    
-    // Draw the cursor
-    {        
-        if(Trail == Cursor)
-        {            
-            if(Cursor == 0)
-            {
-                CursorPos = TextDim.Min;
-            }
-            
-            v4 CursorColor = Box->TextColor;
-            
-            f32 Ratio = 1000.f/1200.f;
-            
-            if(cos(CursorAnimTime*Pi32*Ratio) < 0.f)
-            {
-                CursorColor.A = 0.f;
-            }
-            
-            v4 MarkRec = RectFromSize(CursorPos, V2(1.f, CharHeight));
-            
-            MarkRec = RectIntersect(MarkRec, Parent->Rec);
-            if(RectValid(MarkRec)) 
-            {
-                DrawRect(MarkRec, CursorColor, 0.f, 0.f, 0.f);
-            }
-        }
-    }
-    
-}
-
 //-
 
 C_LINKAGE
@@ -1002,7 +1073,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         App = PushStruct(PermanentArena, app_state);
         
-        App->Text = PushArray(PermanentArena, rune, KB(1));
+        App->Text.Capacity = KB(64);
+        App->Text.Data = PushArray(PermanentArena, rune, App->Text.Capacity);
         App->FontAtlasArena = PushArena(PermanentArena, MB(100), false);
         
         App->UIBoxTableSize = 4096;
@@ -1035,8 +1107,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
         App->PreviousHeightPx = DefaultHeightPx + 1.0f;
         App->HeightPx = DefaultHeightPx;
         
-        App->TextCount = 0;
-        App->TextCursor = 0;
+        App->Text.Count = 0;
+        App->Text.Cursor = 0;
         
         App->UIBoxArena->Pos = 0;
         App->FontAtlasArena->Pos = 0;
@@ -1122,13 +1194,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
     UI_NilBox = App->TrackerForUI_NilBox;
     NilPanel = App->TrackerForNilPanel;
     
-    GlobalTextCursor = App->TextCursor;
-    
     StringsScratch = FrameArena;
     
     PanelArena = App->PanelArena;
     PanelInput = Input;
     PanelApp = App;
+    
+    app_text *Text = &App->Text;
     
     for EachIndex(Idx, Input->Text.Count)
     {
@@ -1187,8 +1259,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
                 if(ModifiersShiftIgnored == PlatformKeyModifier_None)
                 {
-                    DeleteSelection(App);
-                    AppendChar(App, Key.Codepoint);
+                    DeleteSelection(Text);
+                    AppendChar(Text, Key.Codepoint);
                 }
                 else
                 {
@@ -1196,23 +1268,29 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     {
                         case 'a':
                         {
-                            App->TextTrail = 0;
-                            App->TextCursor = App->TextCount;
+                            Text->Trail = 0;
+                            Text->Cursor = Text->Count;
                         } break; 
                         
                         case 'c':
                         {
-                            NotImplemented();
+                            CopySelection(&App->Text, Input);
                         } break;
                         
                         case 'x':
                         {
-                            NotImplemented();
+                            CopySelection(&App->Text, Input);
+                            DeleteSelection(&App->Text);
                         } break; 
                         
                         case 'v':
                         {
-                            NotImplemented();
+                            str8 Clip = Input->PlatformClipboard;
+                            DeleteSelection(&App->Text);
+                            for EachIndex(Idx, Input->PlatformClipboard.Size)
+                            {
+                                AppendChar(&App->Text, (rune)Clip.Data[Idx]);
+                            }
                         } break;
                         
                         case 'z':
@@ -1224,6 +1302,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         {
                             NotImplemented();
                         } break;
+                        
+                        case 's':
+                        {
+                            SaveTextToFile(Text, Memory, S8("./hello.c"));
+                        } break;
+                        
+                        case 'o':
+                        {
+                            LoadFileToText(Text, Memory, S8("./hello.c"));
+                        } break;
                     }
                 }
             }
@@ -1233,44 +1321,44 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     case PlatformKey_Return: 
                     {
-                        DeleteSelection(App);
-                        AppendChar(App, L'\n'); 
+                        DeleteSelection(Text);
+                        AppendChar(Text, L'\n'); 
                     } break;
                     
                     case PlatformKey_Right: 
                     {
                         if(!Control)
                         {
-                            if(!Shift && App->TextTrail != App->TextCursor)
+                            if(!Shift && Text->Trail != Text->Cursor)
                             {                                
-                                u64 End = ((App->TextTrail < App->TextCursor) ?
-                                           App->TextCursor :
-                                           App->TextTrail);
-                                App->TextCursor = End ;
+                                u64 End = ((Text->Trail < Text->Cursor) ?
+                                           Text->Cursor :
+                                           Text->Trail);
+                                Text->Cursor = End ;
                             }
                             else
                             {
-                                MoveRight(App);
+                                MoveRight(Text);
                             }
                         }
                         else
                         {
-                            while(App->TextCursor < App->TextCount &&
-                                  IsWhiteSpace(App->Text[App->TextCursor]))
+                            while(Text->Cursor < Text->Count &&
+                                  IsWhiteSpace(Text->Data[Text->Cursor]))
                             {
-                                MoveRight(App);
+                                MoveRight(Text);
                             }
                             
-                            while(App->TextCursor < App->TextCount && 
-                                  !IsWhiteSpace(App->Text[(App->TextCursor)]))
+                            while(Text->Cursor < Text->Count && 
+                                  !IsWhiteSpace(Text->Data[(Text->Cursor)]))
                             {
-                                MoveRight(App);
+                                MoveRight(Text);
                             }
                         }
                         
                         if(!Shift)
                         {
-                            App->TextTrail = App->TextCursor;
+                            Text->Trail = Text->Cursor;
                         }
                     } break;
                     
@@ -1278,37 +1366,37 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     {
                         if(!Control)
                         {
-                            if(!Shift && App->TextTrail != App->TextCursor)
+                            if(!Shift && Text->Trail != Text->Cursor)
                             {
                                 // Get on the left of the selection
-                                u64 Begin = ((App->TextTrail > App->TextCursor) ?
-                                             App->TextCursor :
-                                             App->TextTrail);
-                                App->TextCursor = Begin;
+                                u64 Begin = ((Text->Trail > Text->Cursor) ?
+                                             Text->Cursor :
+                                             Text->Trail);
+                                Text->Cursor = Begin;
                             }
                             else
                             {
-                                MoveLeft(App);
+                                MoveLeft(Text);
                             }
                         }
                         else
                         {
-                            while(App->TextCursor > 0 && 
-                                  IsWhiteSpace(App->Text[App->TextCursor - 1]))
+                            while(Text->Cursor > 0 && 
+                                  IsWhiteSpace(Text->Data[Text->Cursor - 1]))
                             {
-                                MoveLeft(App);
+                                MoveLeft(Text);
                             }
                             
-                            while(App->TextCursor > 0 && 
-                                  !IsWhiteSpace(App->Text[App->TextCursor - 1]))
+                            while(Text->Cursor > 0 && 
+                                  !IsWhiteSpace(Text->Data[Text->Cursor - 1]))
                             {
-                                MoveLeft(App);
+                                MoveLeft(Text);
                             }
                         }
                         
                         if(!Shift)
                         {
-                            App->TextTrail = App->TextCursor;
+                            Text->Trail = Text->Cursor;
                         }
                         
                     } break;
@@ -1317,170 +1405,170 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     // Move up by line
                     case PlatformKey_Up:
                     {
-                        u64 End = App->TextCursor - !!(App->TextCursor > 0);
+                        u64 End = Text->Cursor - !!(Text->Cursor > 0);
                         
-                        while(End > 0 && App->Text[End] != '\n') End -= 1;
+                        while(End > 0 && Text->Data[End] != '\n') End -= 1;
                         
                         u64 Begin = End - !!(End > 0);
                         
-                        while(Begin > 0 && App->Text[Begin] != '\n') Begin -= 1;
+                        while(Begin > 0 && Text->Data[Begin] != '\n') Begin -= 1;
                         
-                        u64 ColumnPos = (App->TextCursor - End);
+                        u64 ColumnPos = (Text->Cursor - End);
                         u64 NewPos = Begin + ColumnPos;
                         
-                        if(App->Text[Begin] != '\n') NewPos -= 1;
+                        if(Text->Data[Begin] != '\n') NewPos -= 1;
                         
                         // NOTE(luca): Special case, we go to the beginning of the line.
                         if(End == 0) NewPos = 0;
                         
                         // NOTE(luca): If the cursor would end up after the newline clamp it to the end of it. 
-                        App->TextCursor = Min(NewPos, End);
+                        Text->Cursor = Min(NewPos, End);
                         
                         if(!Shift)
                         {
-                            App->TextTrail = App->TextCursor;
+                            Text->Trail = Text->Cursor;
                         }
                         
-                        App->TextCursorAnimTime = 0.f;
+                        Text->CursorAnimTime = 0.f;
                     } break;
                     
                     // Move down by line
                     case PlatformKey_Down:
                     {
-                        u64 Next = App->TextCursor;
-                        while(Next < App->TextCount && App->Text[Next] != '\n') Next += 1;
+                        u64 Next = Text->Cursor;
+                        while(Next < Text->Count && Text->Data[Next] != '\n') Next += 1;
                         
                         // NOTE(luca): If the text cursor was on the next new line we search before it
-                        u64 Begin = App->TextCursor - !!(App->TextCursor > 0 && App->TextCursor == Next);
-                        while(Begin > 0 && App->Text[Begin] != '\n') Begin -= 1;
+                        u64 Begin = Text->Cursor - !!(Text->Cursor > 0 && Text->Cursor == Next);
+                        while(Begin > 0 && Text->Data[Begin] != '\n') Begin -= 1;
                         
-                        u64 End = Next + !!(Next < App->TextCount);
-                        while(End < App->TextCount && App->Text[End] != '\n') End += 1;
+                        u64 End = Next + !!(Next < Text->Count);
+                        while(End < Text->Count && Text->Data[End] != '\n') End += 1;
                         
-                        u64 ColumnPos = (App->TextCursor - Begin);
+                        u64 ColumnPos = (Text->Cursor - Begin);
                         u64 NewPos = Next + ColumnPos;
                         
-                        if(App->Text[Begin] != '\n') NewPos += 1;
+                        if(Text->Data[Begin] != '\n') NewPos += 1;
                         
-                        if(Next == App->TextCount)
+                        if(Next == Text->Count)
                         {
-                            NewPos = App->TextCount;
+                            NewPos = Text->Count;
                         }
                         
-                        App->TextCursor = Min(NewPos, End);
+                        Text->Cursor = Min(NewPos, End);
                         
                         if(!Shift)
                         {
-                            App->TextTrail = App->TextCursor;
+                            Text->Trail = Text->Cursor;
                         }
                         
-                        App->TextCursorAnimTime = 0.f;
+                        Text->CursorAnimTime = 0.f;
                     } break;
                     
                     case PlatformKey_Home:
                     {
-                        u64 Cursor = App->TextCursor;
+                        u64 Cursor = Text->Cursor;
                         
                         if(!Control)
                         {
-                            while(Cursor > 0 && App->Text[Cursor - 1] != '\n') Cursor -= 1;
+                            while(Cursor > 0 && Text->Data[Cursor - 1] != '\n') Cursor -= 1;
                         }
                         else
                         {
                             Cursor = 0;
                         }
                         
-                        App->TextCursor = Cursor;
+                        Text->Cursor = Cursor;
                         
                         if(!Shift)
                         {
-                            App->TextTrail = App->TextCursor;
-                            App->TextCursorAnimTime = 0.f;
+                            Text->Trail = Text->Cursor;
+                            Text->CursorAnimTime = 0.f;
                         }
                     } break;
                     
                     case PlatformKey_End:
                     {
-                        u64 Cursor = App->TextCursor;
+                        u64 Cursor = Text->Cursor;
                         
                         if(!Control)
                         {
-                            while(Cursor < App->TextCount && App->Text[Cursor] != '\n') Cursor += 1;
+                            while(Cursor < Text->Count && Text->Data[Cursor] != '\n') Cursor += 1;
                         }
                         else
                         {
-                            Cursor = App->TextCount;
+                            Cursor = Text->Count;
                         }
                         
-                        App->TextCursor = Cursor;
+                        Text->Cursor = Cursor;
                         
                         if(!Shift)
                         {
-                            App->TextTrail = App->TextCursor;
-                            App->TextCursorAnimTime = 0.f;
+                            Text->Trail = Text->Cursor;
+                            Text->CursorAnimTime = 0.f;
                         }
                     } break;
                     
                     case PlatformKey_BackSpace: 
                     {
-                        if(App->TextTrail == App->TextCursor)
+                        if(Text->Trail == Text->Cursor)
                         {
                             if(None)
                             {
-                                MoveLeft(App); 
+                                MoveLeft(Text); 
                             }
                             else if(Control)
                             {
-                                while(App->TextCursor > 0 && 
-                                      IsWhiteSpace(App->Text[App->TextCursor - 1]))
+                                while(Text->Cursor > 0 && 
+                                      IsWhiteSpace(Text->Data[Text->Cursor - 1]))
                                 {
-                                    MoveLeft(App);
+                                    MoveLeft(Text);
                                 }
                                 
-                                while(App->TextCursor > 0 && 
-                                      !IsWhiteSpace(App->Text[App->TextCursor - 1]))
+                                while(Text->Cursor > 0 && 
+                                      !IsWhiteSpace(Text->Data[Text->Cursor - 1]))
                                 {
-                                    MoveLeft(App);
+                                    MoveLeft(Text);
                                 }
                             }
                         }
                         
-                        DeleteSelection(App);
+                        DeleteSelection(Text);
                         
-                        App->TextTrail = App->TextCursor;
+                        Text->Trail = Text->Cursor;
                         
                     } break;
                     
                     case PlatformKey_Delete:
                     {
-                        if(App->TextCursor == App->TextTrail)
+                        if(Text->Cursor == Text->Trail)
                         {
                             if(None)
                             {
-                                if(App->TextCursor < App->TextCount)
+                                if(Text->Cursor < Text->Count)
                                 {
-                                    MoveRight(App);
+                                    MoveRight(Text);
                                 }
                             }
                             else if(Control)
                             {
-                                while(App->TextCursor < App->TextCount &&
-                                      IsWhiteSpace(App->Text[App->TextCursor]))
+                                while(Text->Cursor < Text->Count &&
+                                      IsWhiteSpace(Text->Data[Text->Cursor]))
                                 {
-                                    MoveRight(App);
+                                    MoveRight(Text);
                                 }
                                 
-                                while(App->TextCursor < App->TextCount && 
-                                      !IsWhiteSpace(App->Text[(App->TextCursor)]))
+                                while(Text->Cursor < Text->Count && 
+                                      !IsWhiteSpace(Text->Data[(Text->Cursor)]))
                                 {
-                                    MoveRight(App);
+                                    MoveRight(Text);
                                 }
                             }
                         }
                         
-                        DeleteSelection(App);
+                        DeleteSelection(Text);
                         
-                        App->TextTrail = App->TextCursor;
+                        Text->Trail = Text->Cursor;
                     } break;
                     
                 }
@@ -1578,36 +1666,19 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {    
                 if(UI_AddBox(S8("Open"), ButtonFlags)->Clicked)
                 {
-                    char *FileName = PathFromExe(FrameArena, Memory->ExeDirPath, S8("./hello.c"));
-                    str8 Source = OS_ReadEntireFileIntoMemory(FileName);
-                    if(Source.Size)
-                    {
-                        App->TextCursor = App->TextTrail = 0;
-                        App->TextCount = Source.Size;
-                        for EachIndex(Idx, Source.Size)
-                        {
-                            App->Text[Idx] = Source.Data[Idx];
-                        }
-                        OS_FreeFileMemory(Source);
-                    }
+                    LoadFileToText(Text, Memory, S8("./hello.c"));
                 }
                 
                 if(UI_AddBox(S8("Clear"), ButtonFlags)->Clicked)
                 {
-                    App->TextCount = 0;
-                    App->TextCursor = 0;
-                    App->TextTrail = 0;
+                    Text->Count = 0;
+                    Text->Cursor = 0;
+                    Text->Trail = 0;
                 }
                 
                 if(UI_AddBox(S8("Save"), ButtonFlags)->Clicked)
                 {
-                    str8 Source = PushS8(FrameArena, App->TextCount);
-                    for EachIndex(Idx, Source.Size)
-                    {
-                        Source.Data[Idx] = (u8)App->Text[Idx];
-                    }
-                    char *FileName = PathFromExe(FrameArena, Memory->ExeDirPath, S8("./hello.c"));
-                    OS_WriteEntireFile(FileName, Source);
+                    SaveTextToFile(Text, Memory, S8("./hello.c"));
                 }
                 
                 UI_AddBox(S8(""), UI_BoxFlag_None);
@@ -1637,7 +1708,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                          UI_BoxFlag_DrawBorders |
                          UI_BoxFlag_DrawBackground |
                          UI_BoxFlag_DrawDisplayString |
-                         UI_BoxFlag_CenterTextVertically);
+                         UI_BoxFlag_CenterTextVertically |
+                         UI_BoxFlag_CenterTextHorizontally);
             
             // NOTE(luca): Adding an extra parent like this makes it easy to override defaults
             UI_LayoutAxis(Axis2_Y) 
@@ -1657,11 +1729,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     // TODO(luca): This does not work.
                     UI_LayoutAxis(Axis2_X) UI_SemanticHeight(UI_SizeChildren(1.f)) 
                         UI_AddBox(S8(""), UI_BoxFlag_Clip);
-                    UI_Push() UI_SemanticWidth(UI_SizeParent(1.f/3.f, 1.f)) UI_BorderThickness(1.f)
+                    UI_Push() UI_SemanticWidth(UI_SizeParent(1.f/4.f, 1.f)) UI_BorderThickness(1.f)
                     {
-                        UI_AddBox(Str8Fmt("Count: %lu###Text count", App->TextCount), Flags);
-                        UI_AddBox(Str8Fmt("Cursor: %lu###Text cursor pos", App->TextCursor), Flags);
-                        UI_AddBox(Str8Fmt("Trail: %lu###Text trail", App->TextTrail), Flags);
+                        UI_AddBox(Str8Fmt("Line: %lu###Line pos", Text->LineScrollOffset), Flags);
+                        UI_AddBox(Str8Fmt("Count: %lu###Text count", Text->Count), Flags);
+                        UI_AddBox(Str8Fmt("Cursor: %lu###Text cursor pos", Text->Cursor), Flags);
+                        UI_AddBox(Str8Fmt("Trail: %lu###Text trail", Text->Trail), Flags);
                     }
                     
                     // Text
@@ -1672,15 +1745,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             ui_box *TextBox = UI_AddBox(S8("app text"), UI_BoxFlag_DrawBackground | UI_BoxFlag_DrawBorders | UI_BoxFlag_Clip);
                             custom_text_draw_params *Params = PushStructZero(FrameArena, custom_text_draw_params);
                             Params->Box = TextBox;
-                            Params->Cursor = App->TextCursor;
-                            Params->Count = App->TextCount;
-                            Params->Trail = App->TextTrail;
-                            Params->AnimTime = App->TextCursorAnimTime;
-                            Params->Text = App->Text;
-                            TextBox->CustomDraw = CustomTextDraw;
+                            Params->Text = Text;
+                            TextBox->CustomDraw = CustomDrawText;
                             TextBox->CustomDrawData = Params;
                             
-                            App->TextCursorAnimTime += Input->dtForFrame;
+                            Text->CursorAnimTime += Input->dtForFrame;
                         }
                         
                     }

@@ -103,3 +103,10 @@ Back pressure is when filled up queues stall other queues.
 
 E.g., You can make memory usage go down by processing faster since that will reduce the average amount of customers in the system.
 You want a mechanism for informing the queue is full. 
+
+# Linux X11 Clipboard
+- super useful!: https://movq.de/blog/postings/2017-04-02/0/POSTING-en.html
+- https://stackoverflow.com/questions/79533533/access-the-clipboard-on-linux-x11-from-a-c-source-code
+- good to know: https://tronche.com/gui/x/icccm/sec-2.html#s-2
+- source code: https://github.com/kfish/xsel/
+- source code: https://github.com/astrand/xclip/
