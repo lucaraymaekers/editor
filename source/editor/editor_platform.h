@@ -97,7 +97,7 @@ struct app_text_button
 typedef struct app_button_state app_button_state;
 struct app_button_state
 {
-    u32 Modifiers;
+    s32 Modifiers;
     s32 HalfTransitionCount;
     b32 EndedDown;
 };
@@ -129,8 +129,14 @@ typedef enum platform_mouse_button_type platform_mouse_button_type;
 typedef struct app_input app_input;
 struct app_input
 {
-    app_button_state MouseButtons[PlatformMouseButton_Count];
-    s32 MouseX, MouseY, MouseZ;
+    
+    struct
+    {
+        app_button_state Buttons[PlatformMouseButton_Count];
+        s32 X, Y, Z;
+        
+        s32 StartX, StartY;
+    } Mouse;
     
     union
     {
@@ -148,22 +154,26 @@ struct app_input
         };
     };
     
-    struct Text
+    struct
     {
-        u32 Count;
-        app_text_button Buffer[64];
+        u64 Count;
+        // NOTE(luca): Who can press more than 256 keys in under one frame?
+        app_text_button Buffer[256];
     } Text;
+    
+    // NOTE(luca): We can invalidate the input with this.
+    b32 Consumed;
     
     f32 dtForFrame;
     
     b32 PlatformWindowIsFocused;
     b32 PlatformIsRecording;
     b32 PlatformIsPlaying;
-    u32 PlatformCursor;
-    str8 PlatformClipboard;
-    str8 PlatformSetClipboard;
     
-    b32 Consumed;
+    // Communication with the platform layer
+    s32 PlatformCursor;
+    str8 PlatformClipboard;
+    b32 PlatformSetClipboard;
 };
 
 typedef struct app_memory app_memory;
@@ -261,12 +271,12 @@ PathFromExe(arena *Arena, str8 ExeDirPath, str8 Path)
     u64 At = 0;
     for EachIndex(Idx, ExeDirPath.Size)
     {
-        Result[At] = ExeDirPath.Data[Idx];
+        Result[At] = (char)ExeDirPath.Data[Idx];
         At += 1;
     }
     for EachIndex(Idx, Path.Size)
     {
-        Result[At] = Path.Data[Idx];
+        Result[At] = (char)Path.Data[Idx];
         At += 1;
     }
     

@@ -32,6 +32,8 @@ UI_BoxFlags:
     CenterTextHorizontally,
     CenterTextVertically,
     MouseClickability,
+    FloatingX,
+    FloatingY,
     TextWrap,
     DrawTextCursor,
     Clip,

@@ -23,6 +23,15 @@ UI_IsNilBox(ui_box *Box)
     return Result;
 }
 
+internal b32
+UI_IsFloatingBox(ui_box *Box, axis2 Axis)
+{
+    b32 Floating = ((Box->Flags & UI_BoxFlag_FloatingX && Axis == Axis2_X) ||
+                    (Box->Flags & UI_BoxFlag_FloatingY && Axis == Axis2_Y));
+    
+    return Floating;
+}
+
 internal void
 UI_PushBox(void)
 {
@@ -55,7 +64,7 @@ UI_KeyMatch(ui_key A, ui_key B)
 }
 
 internal ui_box *
-UI_AddBox(str8 String, u32 Flags)
+UI_AddBox(str8 String, s32 Flags)
 {
     str8 DisplayString = String;
     ui_box *Box;
@@ -160,11 +169,21 @@ UI_AddBox(str8 String, u32 Flags)
     
     if(!FirstTime)
     {
-        v2 MouseP = V2S32(UI_State->Input->MouseX, UI_State->Input->MouseY);
+        b32 Hovered = false;
+        b32 Clicked = false;
+        b32 Pressed = false;
         
-        b32 Hovered = IsInsideRectV2(MouseP, RectFromSize(Box->FixedPosition, Box->FixedSize));
-        b32 Clicked = (Hovered && (WasPressed(UI_State->Input->MouseButtons[PlatformMouseButton_Left]))); 
-        b32 Pressed = (Hovered && UI_State->Input->MouseButtons[PlatformMouseButton_Left].EndedDown);
+        app_input *Input = UI_State->Input;
+        if(!Input->Consumed && Box->Flags & UI_BoxFlag_MouseClickability)
+        {        
+            v2 MouseP = V2S32(Input->Mouse.X, Input->Mouse.Y);
+            
+            Hovered = IsInsideRectV2(MouseP, RectFromSize(Box->FixedPosition, Box->FixedSize));
+            Clicked = (Hovered && (WasPressed(Input->Mouse.Buttons[PlatformMouseButton_Left]))); 
+            Pressed = (Hovered && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown);
+            
+                Input->Consumed = Hovered;
+        }
         
         Box->Clicked = Clicked;
         Box->Hovered = Hovered;
@@ -287,21 +306,34 @@ UI_CalculateDownwardSizes(ui_box *Box, axis2 Axis)
     if(Box->SemanticSize[Axis].Kind == UI_SizeKind_ChildrenSum)
     {
         f32 TotalSize = 0.f;
+        
+        ui_box *FirstNonFloatingChild = UI_NilBox;
         for UI_EachBox(Child, Box->First)
         {
-            b32 IsFirstChild = (Child == Box->First);
-            b32 IsPreviousAligned = (Child->Prev->LayoutAxis == Axis); 
-            if(IsFirstChild || IsPreviousAligned)
-            {                
+            if(!UI_IsFloatingBox(Child, Axis))
+            {
+                FirstNonFloatingChild = Child;
+                break;
+            }
+        }
+        
+        for UI_EachBox(Child, Box->First)
+        {
+            b32 IsFirstChild = (Child == FirstNonFloatingChild);
+            b32 IsAligned = (Box->LayoutAxis == Axis);
+            
+            if(IsFirstChild)
+            {
                 TotalSize += Child->FixedSize.e[Axis];
             }
-            
-            Child = Child->Next;
+            else if(IsAligned && !UI_IsFloatingBox(Child, Axis))
+            {
+                TotalSize += Child->FixedSize.e[Axis];
+            }
         }
         
         Box->FixedSize.e[Axis] = TotalSize;
     }
-    
 }
 
 internal void
@@ -314,14 +346,15 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
     // TODO(luca): This is inefficient since the violations should be solved once per level.
     f32 TotalSize = 0.f;
     {    
-        for UI_EachBox(Sibling, Parent->First)
+        for UI_EachBox(Child, Parent->First)
         {
-            if(Sibling->LayoutAxis == Axis)
+            if(Child->LayoutAxis == Axis)
             {            
-                TotalSize += Sibling->FixedSize.e[Axis];
+                if(!UI_IsFloatingBox(Child, Axis))
+                {
+                    TotalSize += Child->FixedSize.e[Axis];
+                }
             }
-            
-            Sibling = Sibling->Next;
         }
     }
     
@@ -329,18 +362,23 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
     
     if(ViolationSize > 0.f)
     {
-        ui_box *Sibling = Parent->First;
+        // NOTE(luca): Take size from all the siblings which have strictnes < 1.f
+        
+        ui_box *Child = Parent->First;
         // TODO(luca): epsilon compare?
-        while(!UI_IsNilBox(Sibling) && ViolationSize != 0.f)
+        while(!UI_IsNilBox(Child) && ViolationSize != 0.f)
         {
-            f32 Strictness = Sibling->SemanticSize[Axis].Strictness;
-            f32 AllowedSizeToTake = ((1.f - Strictness)*Sibling->FixedSize.e[Axis]);
-            f32 TakenSize = Min(ViolationSize, AllowedSizeToTake);
+            if(!UI_IsFloatingBox(Child, Axis))
+            {                
+                f32 Strictness = Child->SemanticSize[Axis].Strictness;
+                f32 AllowedSizeToTake = ((1.f - Strictness)*Child->FixedSize.e[Axis]);
+                f32 TakenSize = Min(ViolationSize, AllowedSizeToTake);
+                
+                Child->FixedSize.e[Axis] = Child->FixedSize.e[Axis] - TakenSize;
+                ViolationSize -= TakenSize;
+            }
             
-            Sibling->FixedSize.e[Axis] = Sibling->FixedSize.e[Axis] - TakenSize;
-            ViolationSize -= TakenSize;
-            
-            Sibling = Sibling->Next;
+            Child = Child->Next;
         }
         
         if(!EqualsWithEpsilon(ViolationSize, 0.f, .001f))
@@ -379,23 +417,39 @@ UI_CalculatePositions(ui_box *Box)
         Box->FixedPosition.Y = Parent->FixedPosition.Y;
     }
     else
-    {            
-        switch(Parent->LayoutAxis)
+    {  
+        axis2 Axis = Parent->LayoutAxis;
+        Assert(Axis == Axis2_X || Axis == Axis2_Y);
+        axis2 OtherAxis = 1 - Axis;
+        
+        ui_box *NonFloatingSibling = UI_NilBox;
+        for(ui_box *Sibling = Box->Prev; !UI_IsNilBox(Sibling); Sibling = Sibling->Prev)
         {
-            default: InvalidPath(); break;
-            case Axis2_X:
+            if(!UI_IsFloatingBox(Sibling, Axis2_X))
             {
-                Box->FixedPosition.X = (Box->Prev->FixedPosition.X + 
-                                        Box->Prev->FixedSize.X);
-                Box->FixedPosition.Y = (Box->Prev->FixedPosition.Y);
-            } break;
-            case Axis2_Y:
-            {
-                Box->FixedPosition.X = (Box->Prev->FixedPosition.X);
-                Box->FixedPosition.Y = (Box->Prev->FixedPosition.Y +
-                                        Box->Prev->FixedSize.Y);
-                
-            } break;
+                NonFloatingSibling = Sibling;
+                break;
+            }
+        }
+        
+        if(!UI_IsNilBox(NonFloatingSibling))
+        {
+            Box->FixedPosition.e[Axis] = (NonFloatingSibling->FixedPosition.e[Axis] + 
+                                          NonFloatingSibling->FixedSize.e[Axis]);
+            Box->FixedPosition.e[OtherAxis] = (NonFloatingSibling->FixedPosition.e[OtherAxis]);
+        }
+        else
+        {
+            Box->FixedPosition = Parent->FixedPosition;
+        }
+        
+        if(UI_IsFloatingBox(Box, Axis2_X))
+        {
+            Box->FixedPosition.X = NonFloatingSibling->FixedPosition.X;
+        }
+        if(UI_IsFloatingBox(Box, Axis2_Y))
+        {
+            Box->FixedPosition.Y = NonFloatingSibling->FixedPosition.Y;
         }
     }
     
@@ -531,7 +585,7 @@ UI_DrawBoxes(ui_box *Box)
     }
 }
 
-global_variable u32 UI_DebugIndentation = 0;
+global_variable s32 UI_DebugIndentation = 0;
 
 internal void
 UI_DebugPrintBoxes(ui_box *Box)

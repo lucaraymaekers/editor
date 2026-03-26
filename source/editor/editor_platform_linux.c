@@ -323,7 +323,7 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
             
             // NOTE(luca): Align window with the right edge of the screen.
             Window WindowHandle = XCreateWindow(DisplayHandle, RootWindow,
-                                                X, Y, Buffer->Width, Buffer->Height,
+                                                X, Y, (u32)Buffer->Width, (u32)Buffer->Height,
                                                 0,
                                                 WindowVisualInfo.depth, InputOutput,
                                                 WindowVisualInfo.visual, WindowAttributeMask, &WindowAttributes);
@@ -389,7 +389,7 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
                 if(!OpenGLMode)
                 {            
                     s32 BitsPerPixel = Buffer->BytesPerPixel*8;
-                    Context->WindowImage = XCreateImage(DisplayHandle, WindowVisualInfo.visual, WindowVisualInfo.depth, ZPixmap, 0, (char *)Buffer->Pixels, Buffer->Width, Buffer->Height, BitsPerPixel, 0);
+                    Context->WindowImage = XCreateImage(DisplayHandle, WindowVisualInfo.visual, (u32)WindowVisualInfo.depth, ZPixmap, 0, (char *)Buffer->Pixels, (u32)Buffer->Width, (u32)Buffer->Height, BitsPerPixel, 0);
                 }
                 
                 if(OpenGLMode)
@@ -536,31 +536,25 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     XDefineCursor(Linux->DisplayHandle, Linux->WindowHandle, vresize);
                 } break;
             }
-            
         }
         
         // Clipboard
         {
             Input->PlatformClipboard.Data = Linux->ClipboardBuffer;
             
-            if(Input->PlatformSetClipboard.Size)
+            if(Input->PlatformSetClipboard)
             {
-                Assert(Input->PlatformSetClipboard.Size < ArrayCount(Linux->ClipboardBuffer));
+                Assert(Input->PlatformClipboard.Size < ArrayCount(Linux->ClipboardBuffer));
                 
-                MemoryCopy(Input->PlatformClipboard.Data, 
-                           Input->PlatformSetClipboard.Data, 
-                           Input->PlatformSetClipboard.Size);
-                Input->PlatformClipboard.Size = Input->PlatformSetClipboard.Size;
                 XSetSelectionOwner(Linux->DisplayHandle, ClipboardAtom, Linux->WindowHandle, CurrentTime);
                 
-                MemoryZero(&Input->PlatformSetClipboard);
                 Linux->WeOwnClipboard = true;
+                Input->PlatformSetClipboard = false;
             }
             
             if(!Linux->WeOwnClipboard)
             {
                 // TODO(luca): Poll on notify instead.
-                
                 // NOTE(luca): Request CLIPBOARD as STRING target. 
                 XConvertSelection(Linux->DisplayHandle,
                                   ClipboardAtom,
@@ -656,10 +650,10 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                                 if(Size > 0)
                                 {                                
                                     Ret = XGetWindowProperty(Linux->DisplayHandle, Linux->WindowHandle,
-                                                             PropertyAtom, 0, Size, False, AnyPropertyType,
+                                                             PropertyAtom, 0, (long)Size, False, AnyPropertyType,
                                                              &AtomRet, &Format, &ItemsCount, &Size, &Data);
                                     
-                                    Size = (Format/8)*ItemsCount;
+                                    Size = ((unsigned long)Format/8)*ItemsCount;
                                     MemoryCopy(Input->PlatformClipboard.Data, Data, Size);
                                     Input->PlatformClipboard.Size = Size;
                                     XFree(Data);
@@ -925,7 +919,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     else if(ButtonValue == Button4) ButtonType = PlatformMouseButton_ScrollUp;
                     else if(ButtonValue == Button5) ButtonType = PlatformMouseButton_ScrollDown;
                     
-                    app_button_state *Button = &Input->MouseButtons[ButtonType];
+                    app_button_state *Button = &Input->Mouse.Buttons[ButtonType];
                     
                     ProcessKeyPress(Button, IsDown);
                     
@@ -941,9 +935,9 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     if(Event->x >= 0 && Event->x < Buffer->Width &&
                        Event->y >= 0 && Event->y < Buffer->Height)
                     {                    
-                        //Log("MotionNotify: %d,%d\n", Input->MouseX, Input->MouseY);
-                        Input->MouseX = Event->x;
-                        Input->MouseY = Event->y;
+                        //Log("MotionNotify: %d,%d\n", Input->Mouse.X, Input->Mouse.Y);
+                        Input->Mouse.X = Event->x;
+                        Input->Mouse.Y = Event->y;
                     }
                     
                 } break;
@@ -1037,8 +1031,8 @@ P_UpdateImage(P_context Context, app_offscreen_buffer *Buffer)
                       Linux->WindowHandle, 
                       Linux->DefaultGC, 
                       Linux->WindowImage, 0, 0, 0, 0, 
-                      Buffer->Width, 
-                      Buffer->Height);
+                      (u32)Buffer->Width, 
+                      (u32)Buffer->Height);
         }
         
         DoOnce
@@ -1058,10 +1052,12 @@ P_UpdateImage(P_context Context, app_offscreen_buffer *Buffer)
 internal void
 P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
 {
-	void *Library = (void *)(Code->LibraryHandle);
+	b32 KeepOldDLLsAllocated = false;
+    
+    void *Library = (void *)(Code->LibraryHandle);
     struct stat Stats = {0};
     stat(Code->LibraryPath, &Stats);
-    u64 Size = Stats.st_size;
+    u64 Size = (u64)Stats.st_size;
     s64 CurrentWriteTime = LinuxTimeSpecToNS(Stats.st_mtim);
     
     // NOTE(luca): Compilers will write twice to the executable for I know what reason, this
@@ -1076,18 +1072,30 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
         Code->LastWriteTime = CurrentWriteTime;
         
         StringsScratch = Arena;
-        str8 TempDLLFileName = Str8Fmt("editor_app_temp_%lu.so", (u64)OS_GetWallClock());
-        char *TempDLLPath = PathFromExe(Arena, Memory->ExeDirPath, TempDLLFileName);
         
-        int File = open(Code->LibraryPath, O_RDONLY, 0600);
-        if(File != -1)
-        {            
-            int TempFile = open(TempDLLPath, O_WRONLY|O_CREAT|O_TRUNC, 0700);
-            smm BytesCopied = copy_file_range(File, 0, TempFile, 0, Size, 0);
-            close(TempFile);
+        if(KeepOldDLLsAllocated)
+        {
+            str8 TempDLLFileName = Str8Fmt("editor_app_temp_%lu.so", (u64)OS_GetWallClock());
+            char *TempDLLPath = PathFromExe(Arena, Memory->ExeDirPath, TempDLLFileName);
+            
+            int File = open(Code->LibraryPath, O_RDONLY, 0600);
+            if(File != -1)
+            {            
+                int TempFile = open(TempDLLPath, O_WRONLY|O_CREAT|O_TRUNC, 0700);
+                smm BytesCopied = copy_file_range(File, 0, TempFile, 0, Size, 0);
+                close(TempFile);
+            }
+            Library = dlopen(TempDLLPath, RTLD_NOW);
+        }
+        else
+        {
+            if(Library)
+            {
+                dlclose(Library);
+            }
+            Library = dlopen(Code->LibraryPath, RTLD_NOW);
         }
         
-        Library = dlopen(TempDLLPath, RTLD_NOW);
         if(Library)
         {
             // Load code from library

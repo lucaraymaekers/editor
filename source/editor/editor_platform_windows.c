@@ -212,6 +212,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
     Input->PlatformWindowIsFocused = GlobalWindowIsFocused;
     
     // Clipboard handling
+    if(!Input->PlatformSetClipboard)
     {    
         Input->PlatformClipboard.Data = Win32->ClipboardBuffer;
         if(OpenClipboard(0) == 0)
@@ -252,15 +253,11 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                 ErrorLog("No text data in clipboard\n");
             }
         }
-        
-        if(Input->PlatformSetClipboard.Size)
+        else
         {
-            Assert(Input->PlatformSetClipboard.Size < ArrayCount(Win32->ClipboardBuffer));
+            Input->PlatformSetClipboard = false;
             
-            MemoryCopy(Input->PlatformClipboard.Data, 
-                       Input->PlatformSetClipboard.Data, 
-                       Input->PlatformSetClipboard.Size);
-            Input->PlatformClipboard.Size = Input->PlatformSetClipboard.Size;
+            Assert(Input->PlatformClipboard.Size < ArrayCount(Win32->ClipboardBuffer));
             
             EmptyClipboard();
             
@@ -334,8 +331,8 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                 case WM_KEYDOWN:
                 case WM_KEYUP:
                 {
-                    u32 VKCode = (u32)Message.wParam;
-                    u32 ScanCode = (Message.lParam >> 16) & 0xFF;
+                    s32 VKCode = Message.wParam;
+                    s32 ScanCode = (Message.lParam >> 16) & 0xFF;
                     
                     b32 WasDown = ((Message.lParam & (1 << 30)) != 0);
                     b32 IsDown = ((Message.lParam & (1 << 31)) == 0);
@@ -463,16 +460,16 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
             POINT MouseP;
             GetCursorPos(&MouseP);
             ScreenToClient(Win32->Window, &MouseP);
-            Input->MouseX = MouseP.x;
-            Input->MouseY = MouseP.y;
+            Input->Mouse.X = MouseP.x;
+            Input->Mouse.Y = MouseP.y;
             // TODO(luca): Support mousewheel
-            Input->MouseZ = 0; 
+            Input->Mouse.Z = 0; 
             
-            ProcessKeyPress(&Input->MouseButtons[PlatformMouseButton_Left], GetKeyState(VK_LBUTTON) & (1 << 15));
-            ProcessKeyPress(&Input->MouseButtons[PlatformMouseButton_Middle], GetKeyState(VK_MBUTTON) & (1 << 15));
-            ProcessKeyPress(&Input->MouseButtons[PlatformMouseButton_Right], GetKeyState(VK_RBUTTON) & (1 << 15));
-            ProcessKeyPress(&Input->MouseButtons[PlatformMouseButton_ScrollUp], GetKeyState(VK_XBUTTON1) & (1 << 15));
-            ProcessKeyPress(&Input->MouseButtons[PlatformMouseButton_ScrollDown], GetKeyState(VK_XBUTTON2) & (1 << 15));
+            ProcessKeyPress(&Input->Mouse.Buttons[PlatformMouseButton_Left], GetKeyState(VK_LBUTTON) & (1 << 15));
+            ProcessKeyPress(&Input->Mouse.Buttons[PlatformMouseButton_Middle], GetKeyState(VK_MBUTTON) & (1 << 15));
+            ProcessKeyPress(&Input->Mouse.Buttons[PlatformMouseButton_Right], GetKeyState(VK_RBUTTON) & (1 << 15));
+            ProcessKeyPress(&Input->Mouse.Buttons[PlatformMouseButton_ScrollUp], GetKeyState(VK_XBUTTON1) & (1 << 15));
+            ProcessKeyPress(&Input->Mouse.Buttons[PlatformMouseButton_ScrollDown], GetKeyState(VK_XBUTTON2) & (1 << 15));
         }
         
     }
@@ -481,6 +478,9 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
 internal void
 P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
 {
+    // TODO(luca): Make a report about this tricking RAD debugger.
+    b32 KeepOldDLLsAllocated = false;
+    
     HMODULE Library = (HMODULE)Code->LibraryHandle;
     
     char *LockFileName = PathFromExe(Arena, Memory->ExeDirPath, S8("lock.tmp"));
@@ -509,6 +509,10 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
             {
                 Code->Loaded = false;
                 Code->LibraryHandle = 0;
+                if(!KeepOldDLLsAllocated)
+                {
+                    FreeLibrary(Library);
+                }
             }
             
             b32 Result = CopyFile(Code->LibraryPath, TempDLLPath, FALSE);

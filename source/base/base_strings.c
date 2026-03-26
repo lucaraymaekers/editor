@@ -132,7 +132,7 @@ Str8Fmt(char *Format, ...)
     va_list Args;
     va_start(Args, Format);
     
-    Result.Size = vsprintf((char *)Result.Data, Format, Args);
+    Result.Size = (u64)vsprintf((char *)Result.Data, Format, Args);
     
     return Result;
 }

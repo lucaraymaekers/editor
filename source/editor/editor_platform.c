@@ -20,7 +20,6 @@
 #endif
 #include "lib/raddbg_markup.h"
 
-#include "lib/md5.h"
 //-
 
 C_LINKAGE ENTRY_POINT(EntryPoint)
@@ -42,7 +41,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         Buffer.Height = 1080/2;
         Buffer.BytesPerPixel = 4;
         Buffer.Pitch = Buffer.BytesPerPixel*Buffer.Width;
-        Buffer.Pixels = PushArray(PermanentArena, u8, Buffer.Pitch*Buffer.Height);
+        Buffer.Pixels = PushArray(PermanentArena, u8, (u64)(Buffer.Pitch*Buffer.Height));
         
         P_context PlatformContext = P_ContextInit(PermanentArena, &Buffer, Running);
         if(!PlatformContext)
@@ -52,13 +51,13 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         str8 ExeDirPath = {0};
         {        
-            u32 OnePastLastSlash = 0;
+            u64 OnePastLastSlash = 0;
 #if OS_LINUX || OS_ANDROID
             char *FileName = Params->Args[0];
-            u32 SizeOfFileName = (u32)StringLength(FileName);
+            u64 SizeOfFileName = StringLength(FileName);
 #elif OS_WINDOWS
             char *FileName = PushArray(PermanentArena, char, 1024);
-            u32 SizeOfFileName = GetModuleFileNameA(0, FileName, 1024);
+            u64 SizeOfFileName = GetModuleFileNameA(0, FileName, 1024);
             Win32LogIfError();
 #else
 # error "OS not supported" 
@@ -67,7 +66,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
             {
                 if(FileName[Idx] == OS_SlashChar)
                 {
-                    OnePastLastSlash = (u32)Idx + 1;
+                    OnePastLastSlash = Idx + 1;
                 }
             }
             
@@ -141,11 +140,11 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 // Input
                 { 
                     NewInput->Text.Count = 0;
-                    for EachElement(Idx, NewInput->MouseButtons)
+                    for EachElement(Idx, NewInput->Mouse.Buttons)
                     {
-                        NewInput->MouseButtons[Idx].EndedDown = OldInput->MouseButtons[Idx].EndedDown;
-                        NewInput->MouseButtons[Idx].HalfTransitionCount = 0;
-                        NewInput->MouseButtons[Idx].Modifiers = 0;
+                        NewInput->Mouse.Buttons[Idx].EndedDown = OldInput->Mouse.Buttons[Idx].EndedDown;
+                        NewInput->Mouse.Buttons[Idx].HalfTransitionCount = 0;
+                        NewInput->Mouse.Buttons[Idx].Modifiers = 0;
                     }
                     for EachElement(Idx, NewInput->GameButtons)
                     {
@@ -158,10 +157,19 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     NewInput->PlatformSetClipboard = OldInput->PlatformSetClipboard;
                     
                     NewInput->PlatformClipboard = OldInput->PlatformClipboard;
-                    NewInput->MouseX = OldInput->MouseX;
-                    NewInput->MouseY = OldInput->MouseY;
+                    NewInput->PlatformSetClipboard = OldInput->PlatformSetClipboard;
+                    NewInput->Mouse.X = OldInput->Mouse.X;
+                    NewInput->Mouse.Y = OldInput->Mouse.Y;
+                    NewInput->Mouse.StartX = OldInput->Mouse.StartX;
+                    NewInput->Mouse.StartY = OldInput->Mouse.StartY;
                     
                     P_ProcessMessages(PlatformContext, NewInput, &Buffer, Running);
+                    
+                    if(WasPressed(NewInput->Mouse.Buttons[PlatformMouseButton_Left]))
+                    {                        
+                        NewInput->Mouse.StartX = NewInput->Mouse.X;
+                        NewInput->Mouse.StartY = NewInput->Mouse.Y;
+                    }
                 }
                 
                 OS_ProfileAndPrint("Messages");
@@ -193,6 +201,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                         Buffer.Size = AppMemory.MemorySize;
                         
                         OS_WriteEntireFile(Path, Buffer);
+                        Log("Saved state.\n");
                     }
                     
                     if(CharPressed(NewInput, 's', PlatformKeyModifier_Alt | PlatformKeyModifier_Shift))
@@ -204,6 +213,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                         
                         MemoryCopy(AppMemory.Memory, Buffer.Data, Buffer.Size);
                         OS_FreeFileMemory(Buffer);
+                        Log("Loaded state.\n");
                     }
                 }
                 
@@ -342,11 +352,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
                 NewInput->Text.Buffer[NewInput->Text.Count].Codepoint = 0;
                 
-#if EDITOR_PROFILE
-                // TODO(luca): Sometimes we hit more than 4ms/f
-                if(WorkMSPerFrame >= 4000.0f) DebugBreakOnce();
-#endif
-                
                 Swap(OldInput, NewInput);
                 
                 OS_ProfileAndPrint("Sleep");
@@ -355,13 +360,14 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
                 if(Logging)
                 {
-                    Log("'%c' (%d, %d) 1:%c 2:%c 3:%c", 
+                    Log("'%c' (%d %d -> %d, %d) 1:%c 2:%c 3:%c", 
                         ((Codepoint == 0) ?
                          '\a' : Codepoint),
-                        NewInput->MouseX, NewInput->MouseY,
-                        (NewInput->MouseButtons[PlatformMouseButton_Left  ].EndedDown ? 'x' : 'o'),
-                        (NewInput->MouseButtons[PlatformMouseButton_Middle].EndedDown ? 'x' : 'o'),
-                        (NewInput->MouseButtons[PlatformMouseButton_Right ].EndedDown ? 'x' : 'o')); 
+                        NewInput->Mouse.StartX, NewInput->Mouse.StartY,
+                        NewInput->Mouse.X, NewInput->Mouse.Y,
+                        (NewInput->Mouse.Buttons[PlatformMouseButton_Left  ].EndedDown ? 'x' : 'o'),
+                        (NewInput->Mouse.Buttons[PlatformMouseButton_Middle].EndedDown ? 'x' : 'o'),
+                        (NewInput->Mouse.Buttons[PlatformMouseButton_Right ].EndedDown ? 'x' : 'o')); 
                     
                     Log(" %.2fms/f", (f64)WorkMSPerFrame);
                     Log("\n");

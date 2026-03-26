@@ -44,8 +44,8 @@ commands =
     .build_editor = 
     {
         .out = "*compilation*", 
-        .linux = "sh ./source/build.sh editor",
-        .win = ".\\source\\build.bat editor",
+        .linux = "sh ./source/build.sh norebuild",
+        .win = ".\\source\\build.bat",
         .save_dirty_files = true,
         .footer_panel = false,
         .cursor_at_end = false,

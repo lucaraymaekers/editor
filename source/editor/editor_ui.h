@@ -59,7 +59,7 @@ struct ui_box
     u64 LastTouchedFrameIndex;
     
     // TODO(luca): Metaprogram
-    u32 Flags;
+    s32 Flags;
     ui_size SemanticSize[Axis2_Count];
     str8 DisplayString;
     f32 BorderThickness;

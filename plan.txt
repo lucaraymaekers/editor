@@ -1,35 +1,45 @@
-- make initialization with permanentarena homogenous
-		? Poisoning should take care of everything, do the rest manually,  since we are using arena's it's not that much work
+- Display images through shader
 
+- Sound
+  - when hovering over an item
+  - when clicking
+
+- make initialization with permanentarena homogenous
+  ? Poisoning should take care of everything, do the rest manually,  since we are using arena's it's not that much work
+
+- on windows get cling to run ./cling_temp.exe even when "norebuild" since that will be the most up-to-date version of the program.
+
+- Marker in arena's to not have to clear to 0 from freshly allocated pages.
+
+- linux: release clipboard when exiting
+- clipboard: use bool instead of second buffer `PlatftormSetClipboard`
+  x win32
+  - linux
+
+multiline text editing:
+- multiple buffers
+- when selecting with mouse, do not scroll
 - When selecting to the side of the text do select as well.
 - Virtual whitespace
-
+- Improve text rendering
+  - Check text rendering extensively (xoff & leftsidebearing)
+- Unicode
+  - kb_text_shape()
+  - harfbuzz
+  - implement all movements taking unicode into account
+x Scrolling text
+x Movements
+x Deletions
+x Selections
+x Clipboard
+  x linux
+  x win32
+- Undo/Redo
+- Non contiguous selection (e.g., with control)
 - Have text be clipped at pixel level and not rectangle level
-
-- Eat up input events, because resizing a pane shouldn't be clicking buttons or selecting text.
-  + concept of "selected" to receive key inputs.
-
-- Marker in arena's to have 0 not be happening.
-
-other:
-  - Improve text rendering
-    - Check text rendering extensively (xoff & leftsidebearing)
-  - Unicode
-    - kb_text_shape()
-    - harfbuzz
-    - implement all movements taking unicode into account
-  - Scrolling text
-  x Movements
-  x Deletions
-  x Selections
-  - Clipboard
-    x linux
-    - win32
-  - Undo/Redo
-  - Non contiguous selection (e.g., with control)
-
-- https://www.dgtlgrove.com/p/ui-bonus-1-simple-single-line-text
-- https://rxi.github.io/textbox_behaviour.html
+sources:
+  - https://www.dgtlgrove.com/p/ui-bonus-1-simple-single-line-text
+  - https://rxi.github.io/textbox_behaviour.html
 
 - popup, lister and command palette
 
@@ -126,3 +136,6 @@ app:
    -> wasn't a rounding error.
 x Custom draw command for rendering text edit view.
 x replace X macros
+x Eat up input events, because resizing a pane shouldn't be clicking buttons or selecting text.
+  x concept of "selected" to receive key inputs.
+x Implement dragging in the platform layer

@@ -242,7 +242,7 @@ Cng_PathFromExe(char *ExePath, str8 Path)
 {
 	str8 FileName = PushS8(GlobalClingArena, 512);
     
-    u32 SizeOfFileName = (u32)StringLength(ExePath);
+    u64 SizeOfFileName = StringLength(ExePath);
     MemoryCopy(FileName.Data, ExePath, SizeOfFileName);
     
     u64 OnePastLastSlash = 0;
@@ -273,12 +273,12 @@ Cng_GetBaseFileName(str8 FileName)
 {
     str8 Result = {0};
     
-    u32 OnePastLastSlash = 0;
+    u64 OnePastLastSlash = 0;
     for EachIndex(Idx, FileName.Size)
     {
         if(FileName.Data[Idx] == OS_SlashChar)
         {
-            OnePastLastSlash = (u32)Idx + 1;
+            OnePastLastSlash = Idx + 1;
         }
     }
     
@@ -484,7 +484,7 @@ LinuxFindCommandInPATH(umm BufferSize, u8 *Buffer, char *Command, char *Env[])
     {
         MatchedSearch = true;
         
-        for(u32 At = 0;
+        for(u64 At = 0;
             (At < sizeof(Search) - 1) && (VarAt[At]);
             At++)
         {
@@ -585,7 +585,7 @@ Cng_RunCommand(str8 Command)
     
     // 1. split on whitespace into null-terminated strings.
     //    TODO: skip quotes
-    u32 ArgsCount = 0;
+    s32 ArgsCount = 0;
     
     for(u64 At = 0; At < Command.Size;)
     {
@@ -674,7 +674,7 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
         
         // Run without rebuilding
         char *Arguments[64] = {0};
-        u32 At;
+        s32 At;
         for(At = 1;
             At < ArgsCount;
             At++)

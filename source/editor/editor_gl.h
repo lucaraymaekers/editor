@@ -3,14 +3,16 @@
 #ifndef EDITOR_GL_H
 #define EDITOR_GL_H
 
-typedef unsigned int gl_handle;
+typedef GLuint gl_uint;
+typedef GLint gl_int;
+typedef GLenum gl_enum;
 
 #include "editor/editor_app.h"
 
 //- GL helpers 
 
 internal void
-GL_ErrorStatus(gl_handle Handle, b32 IsShader)
+GL_ErrorStatus(gl_uint Handle, b32 IsShader)
 {
     b32 Success = true;
     
@@ -32,10 +34,10 @@ GL_ErrorStatus(gl_handle Handle, b32 IsShader)
     }
 }
 
-internal gl_handle
-GL_CompileShaderFromSource(arena *Arena, str8 ExeDirPath, str8 FileNameAfterExe, s32 Type)
+internal gl_uint
+GL_CompileShaderFromSource(arena *Arena, str8 ExeDirPath, str8 FileNameAfterExe, u32 Type)
 {
-    gl_handle Shader = glCreateShader(Type);
+    gl_uint Shader = glCreateShader(Type);
     
     char *FileName = PathFromExe(Arena, ExeDirPath, FileNameAfterExe);
     str8 Source = OS_ReadEntireFileIntoMemory(FileName);
@@ -52,12 +54,12 @@ GL_CompileShaderFromSource(arena *Arena, str8 ExeDirPath, str8 FileNameAfterExe,
     return Shader;
 }
 
-internal gl_handle
+internal gl_uint
 GL_ProgramFromShaders(arena *Arena, str8 ExeDirPath, str8 VertPath, str8 FragPath)
 {
-    gl_handle Program = 0;
+    gl_uint Program = 0;
     
-    gl_handle VertexShader, FragmentShader;
+    gl_uint VertexShader, FragmentShader;
     VertexShader = GL_CompileShaderFromSource(Arena, ExeDirPath, VertPath, GL_VERTEX_SHADER);
     FragmentShader = GL_CompileShaderFromSource(Arena, ExeDirPath, FragPath, GL_FRAGMENT_SHADER);
     
@@ -74,24 +76,24 @@ GL_ProgramFromShaders(arena *Arena, str8 ExeDirPath, str8 VertPath, str8 FragPat
 }
 
 internal void
-GL_LoadFloatsIntoBuffer(gl_handle BufferHandle, gl_handle ShaderHandle, char *AttributeName, u64 Count, s32 VecSize, void *Buffer)
+GL_LoadFloatsIntoBuffer(gl_uint BufferHandle, gl_uint ShaderHandle, char *AttributeName, s32 Count, s32 VecSize, void *Buffer)
 {
-    gl_handle AttribHandle;
+    gl_int AttribHandle;
     
-    s32 SizeOfVec = sizeof(f32)*VecSize;
+    s32 SizeOfVec = (smm)(sizeof(f32))*VecSize;
     
     glBindBuffer(GL_ARRAY_BUFFER, BufferHandle);
     
     AttribHandle = glGetAttribLocation(ShaderHandle, AttributeName);
     Assert(AttribHandle != -1);
-    glEnableVertexAttribArray(AttribHandle);
-    glVertexAttribPointer(AttribHandle, VecSize, GL_FLOAT, GL_FALSE, SizeOfVec, 0);
+    glEnableVertexAttribArray((gl_uint)AttribHandle);
+    glVertexAttribPointer((gl_uint)AttribHandle, VecSize, GL_FLOAT, GL_FALSE, SizeOfVec, 0);
     
-    glBufferData(GL_ARRAY_BUFFER, SizeOfVec*Count, Buffer, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, (SizeOfVec*Count), Buffer, GL_STATIC_DRAW);
 }
 
 internal void
-GL_LoadTextureFromImage(gl_handle Texture, s32 Width, s32 Height, u8 *Image, s32 Format, gl_handle ShaderProgram, char *TextureHandle)
+GL_LoadTextureFromImage(gl_uint Texture, s32 Width, s32 Height, u8 *Image, gl_enum Format, gl_uint ShaderProgram, char *TextureHandle)
 {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Texture);
@@ -117,16 +119,16 @@ GL_LoadTextureFromImage(gl_handle Texture, s32 Width, s32 Height, u8 *Image, s32
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, Color);
 #endif
     
-    gl_handle UTexture = glGetUniformLocation(ShaderProgram, TextureHandle); 
+    gl_int UTexture = glGetUniformLocation(ShaderProgram, TextureHandle); 
     glUniform1i(UTexture, 0);
 }
 
 void
-GL_SetQuadAttribute(s32 Index, s32 Count, u64 *Offset)
+GL_SetQuadAttribute(gl_uint Index, u64 Count, u64 *Offset)
 {
     glEnableVertexAttribArray(Index);
     glVertexAttribDivisor(Index, 1);
-    glVertexAttribPointer(Index, Count, GL_FLOAT, false, sizeof(rect_instance), (void *)((*Offset)*sizeof(f32)));
+    glVertexAttribPointer(Index, (gl_int)Count, GL_FLOAT, false, sizeof(rect_instance), (void *)((*Offset)*sizeof(f32)));
     *Offset += Count;
 }
 

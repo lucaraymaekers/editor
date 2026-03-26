@@ -56,7 +56,7 @@ OS_ReadEntireFileIntoMemory(char *FileName)
         LARGE_INTEGER FileSize;
         if(GetFileSizeEx(FileHandle, &FileSize))
         {
-            u32 FileSize32 = (u32)(FileSize.QuadPart);
+            u32 FileSize32 = SafeTruncateU64(FileSize.QuadPart);
             Result.Data = (u8 *)VirtualAlloc(0, FileSize32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
             if(Result.Data)
             {
@@ -126,6 +126,7 @@ OS_WriteEntireFile(char *FileName, str8 File)
     }
     else
     {
+        Win32LogIfError();
         ErrorLog("Could not open '%s' for writing.", FileName);
     }
     
@@ -201,7 +202,6 @@ OS_GetWallClock(void)
 internal void
 OS_Sleep(u32 MicroSeconds)
 {
-    
     HANDLE Timer;
     LARGE_INTEGER DueTime;
     
@@ -214,7 +214,6 @@ OS_Sleep(u32 MicroSeconds)
     SetWaitableTimer(Timer, &DueTime, 0, NULL, NULL, FALSE);
     WaitForSingleObject(Timer, INFINITE);
     CloseHandle(Timer);
-    
 }
 
 internal void

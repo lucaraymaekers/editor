@@ -1,3 +1,5 @@
+NO_WARNINGS_BEGIN
+
 internal inline b32
 IsWhiteSpace(rune Character)
 {
@@ -259,3 +261,5 @@ Lex(app_state *App, arena *Arena, token_list *List)
     
     return List;
 }
+
+NO_WARNINGS_END

@@ -110,3 +110,7 @@ You want a mechanism for informing the queue is full.
 - good to know: https://tronche.com/gui/x/icccm/sec-2.html#s-2
 - source code: https://github.com/kfish/xsel/
 - source code: https://github.com/astrand/xclip/
+
+# Sources
+- linux clipboard:
+  https://movq.de/blog/postings/2017-04-02/0/POSTING-en.html

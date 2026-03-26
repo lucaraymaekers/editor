@@ -30,8 +30,8 @@ NO_STRUCT_PADDING_END
 typedef struct font_atlas font_atlas;
 struct font_atlas
 {
-    u32 Width;
-    u32 Height;
+    s32 Width;
+    s32 Height;
     u8 *Data;
     
     f32 HeightPx;
@@ -39,7 +39,10 @@ struct font_atlas
     app_font *Font;
     
     rune FirstCodepoint;
-    u32 CodepointsCount;
+    s32 CodepointsCount;
+    
+    rune IconsFirstCodepoint;
+    s32 IconsCodepointsCount;
     
     f32 PixelScaleWidth;
     f32 PixelScaleHeight;
@@ -51,10 +54,10 @@ struct font_atlas
 typedef struct gl_render_state gl_render_state;
 struct gl_render_state
 {
-    gl_handle VAOs[1];
-    gl_handle VBOs[1];
-    gl_handle Textures[1];
-    gl_handle RectShader;
+    gl_uint VAOs[1];
+    gl_uint VBOs[1];
+    gl_uint Textures[2];
+    gl_uint RectShader;
     b32 ShadersCompiled;
 };
 
@@ -85,7 +88,8 @@ raddbg_type_view(panel,
                               (Axis == Axis2_X ? "X" : "Y"))));
 
 
-#define EachPanel(Child, Parent) (panel *Child = Parent->First; !IsNilPanel(Child); Child = Child->Next)
+#define EachPanel(Child, Parent) \
+(panel *Child = Parent->First; !IsNilPanel(Child); Child = Child->Next)
 
 typedef struct app_text app_text; 
 struct app_text
@@ -140,7 +144,7 @@ struct app_state
 
 //~ Globals
 global_variable rect_instance *GlobalRectsInstances;
-global_variable s32 GlobalRectsCount;
+global_variable u64 GlobalRectsCount;
 
 global_variable arena *FrameArena = 0;
 

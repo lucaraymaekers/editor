@@ -31,9 +31,10 @@ global_variable panel *PanelCurrent = 0;
 global_variable panel *PanelRoot = 0;
 global_variable app_state *PanelApp = 0;
 global_variable app_input *PanelInput = 0;
+global_variable panel *PanelDragging = 0;
 
-global_variable u32 PanelDebugIndentation = 0;
-global_variable u32 PanelDebugLevel = 0;
+global_variable s32 PanelDebugIndentation = 0;
+global_variable s32 PanelDebugLevel = 0;
 
 global_variable axis2_stack_node *PanelAxisTop = 0; 
 
@@ -113,12 +114,15 @@ CopySelection(app_text *Text, app_input *Input)
     range_u64 Selection = GetSelection(Text);
     u64 Size = GetRangeU64Count(Selection);
     
-    Input->PlatformSetClipboard = PushS8(FrameArena, Size);
+    Input->PlatformSetClipboard = true;
+    
+    Input->PlatformClipboard.Size = Size;;
     
     for EachIndex(Idx, Size)
     {
-        Input->PlatformSetClipboard.Data[Idx] = (u8)Text->Data[Selection.Min + Idx];
+        Input->PlatformClipboard.Data[Idx] = (u8)Text->Data[Selection.Min + Idx];
     }
+    
 }
 
 internal void
@@ -302,50 +306,6 @@ EqualsWithEpsilon(f32 A, f32 B, f32 Epsilon)
     return Result;
 }
 
-void
-InitAtlas(arena *Arena, app_font *Font, font_atlas *Atlas, f32 HeightPx)
-{
-    Atlas->FirstCodepoint = ' ';
-    // NOTE(luca): 2 bytes =>small alphabets.
-    Atlas->CodepointsCount = ((0xFFFF - 1) - Atlas->FirstCodepoint);
-    
-    Atlas->Width = 1024;
-    Atlas->Height = 1024;
-    u32 Size = (Atlas->Width*Atlas->Height);
-    
-    Arena->Pos = 0;
-    Atlas->Data = PushArray(Arena, u8, Size);
-    Atlas->PackedChars = PushArray(Arena, stbtt_packedchar, Size);
-    Atlas->AlignedQuads = PushArray(Arena, stbtt_aligned_quad, Size);
-    
-    Atlas->HeightPx = HeightPx;
-    Atlas->FontScale = stbtt_ScaleForPixelHeight(&Font->Info, HeightPx);
-    Atlas->Font = Font;
-    
-    stbtt_pack_context Ctx;
-    {
-        stbtt_PackBegin(&Ctx, 
-                        Atlas->Data,
-                        Atlas->Width, Atlas->Height,
-                        0, 1, 0);
-        
-        stbtt_PackFontRange(&Ctx, Font->Info.data, 0, HeightPx, 
-                            Atlas->FirstCodepoint, Atlas->CodepointsCount, 
-                            Atlas->PackedChars);
-        stbtt_PackEnd(&Ctx);
-    }
-    
-    for EachIndex(Idx, Atlas->CodepointsCount)
-    {
-        float UnusedX, UnusedY;
-        stbtt_GetPackedQuad(Atlas->PackedChars, Atlas->Width, Atlas->Height, 
-                            (u32)Idx,
-                            &UnusedX, &UnusedY,
-                            &Atlas->AlignedQuads[Idx], 0);
-    }
-    
-}
-
 internal rect_instance *
 DrawRect(v4 Dest, v4 Color, f32 CornerRadius, f32 BorderThickness, f32 Softness)
 {
@@ -408,6 +368,7 @@ GetWrapPositions(arena *Arena, str8 Text, font_atlas *Atlas, f32 MaxWidth)
     return Result;
 }
 
+
 internal rect_instance *
 DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
 {
@@ -416,6 +377,10 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
     
     // NOTE(luca): Evereything happens in pixel coordinates in here.
     
+    b32 Supported = (Codepoint >= Atlas->FirstCodepoint && 
+                     Codepoint < Atlas->CodepointsCount - Atlas->FirstCodepoint);
+    if(1 || Supported)
+{        
     rune CharIdx = Codepoint - Atlas->FirstCodepoint;
     stbtt_packedchar *PackedChar = &Atlas->PackedChars[CharIdx];
     stbtt_aligned_quad *Quad = &Atlas->AlignedQuads[CharIdx];
@@ -442,7 +407,17 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
 #if 0
     DrawRect(Result->Dest, V4(0.f, 0.f, 1.f, 1.f), 0.f, 1.f, 0.f);
 #endif
-    
+    }
+
+    return Result;
+}
+
+internal rect_instance *
+DrawRectIcon(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
+{
+    rune Shifted = (Atlas->FirstCodepoint + Atlas->CodepointsCount + 
+                      Codepoint - Atlas->IconsFirstCodepoint);
+    rect_instance *Result = DrawRectChar(Atlas, Pos, Shifted, Color); 
     return Result;
 }
 
@@ -580,26 +555,21 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
             }
             
             // Mouse text input
+            app_input *Input = UI_State->Input;
+            if(!Input->Consumed)
             {                
-                v2 MouseP = V2S32(UI_State->Input->MouseX, UI_State->Input->MouseY);
+                v2 MouseP = V2S32(Input->Mouse.X, Input->Mouse.Y);
                 
                 if(IsInsideRectV2(MouseP, CharRect))
                 {
                     b32 OnRightSide = !!(((CharRect.Max.X - MouseP.X)/CharWidth) < .5f); 
                     
-                    app_button_state *LeftButton = &UI_State->Input->MouseButtons[PlatformMouseButton_Left];
+                    app_button_state *LeftButton = &Input->Mouse.Buttons[PlatformMouseButton_Left];
                     b32 Shift = (LeftButton->Modifiers & PlatformKeyModifier_Shift);
                     
                     if(LeftButton->EndedDown)
                     {
-#if 0
-                        Text->Cursor = Idx + OnRightSide;
-                        if(WasPressed(*LeftButton))
-                        {
-                            MoveTrail(Text, Shift);
-                        }
-#else
-                        Text->Trail = Idx + OnRightSide;
+                        Text->Trail = Idx + (u64)OnRightSide;
                         if(WasPressed(*LeftButton))
                         {
                             if(!Shift)
@@ -607,8 +577,9 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
                                 Text->Cursor = Text->Trail;
                                 Text->CursorAnimTime = 0.f;
                             }
+                            
+                            Input->Consumed = true;
                         }
-#endif
                     }
                     
                     if(0)
@@ -720,6 +691,14 @@ gl_CleanupState(gl_render_state *Render)
 }
 
 //~ Panels 
+
+internal inline f32 
+SizeOnAxis(v4 Rec, s32 Axis)
+{
+    f32 Result = (Rec.Max.e[Axis] - Rec.Min.e[Axis]);
+    return Result;
+}
+
 internal panel *
 PanelAlloc(arena *Arena)
 {
@@ -744,7 +723,7 @@ PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 Pare
     New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
     
     New->ParentPct = ParentPct;
-    New->Axis = Axis;
+    New->Axis = (s32)Axis;
     
     if(!IsNilPanel(Current))
     {            
@@ -789,7 +768,7 @@ SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
         //The new child's ParentPct becomes 1/n where n is the children count
         //Other children's ParentPct *= (1-1/n) 
         {        
-            u32 ChildrenCount = 0;
+            s32 ChildrenCount = 0;
             for EachPanel(Child, Parent)
             {
                 ChildrenCount += 1;
@@ -969,6 +948,7 @@ PanelNextLeaf(panel *Start, b32 Backwards)
     return Result;
 }
 
+// NOTE(luca): Returns the panel that absorbed its size
 internal panel *
 ClosePanel(panel *Panel)
 {
@@ -1034,7 +1014,7 @@ ClosePanel(panel *Panel)
 }
 
 internal void
-PanelGetRegion(panel *Panel, v4 FreeRegion)
+PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
 {
     panel *Parent = Panel->Parent;
     s32 Axis = Panel->Parent->Axis;
@@ -1057,148 +1037,154 @@ PanelGetRegion(panel *Panel, v4 FreeRegion)
     
     if(!IsNilPanel(Panel->First))
     {
-        PanelGetRegion(Panel->First, Panel->Region);
+        PanelGetRegionAndInput(Panel->First, Panel->Region);
     }
     
     if(!IsNilPanel(Panel->Next))
     {
         FreeRegion.Min.e[Axis] = Panel->Region.Max.e[Axis];
-        PanelGetRegion(Panel->Next, FreeRegion);
+        PanelGetRegionAndInput(Panel->Next, FreeRegion);
     }
     
-    v2 MouseP = V2S32(PanelInput->MouseX, PanelInput->MouseY);
-    b32 MouseIsDown = PanelInput->MouseButtons[PlatformMouseButton_Left].EndedDown;
-    b32 MouseWasPressed = WasPressed(PanelInput->MouseButtons[PlatformMouseButton_Left]);
+    app_input *Input = PanelInput;
+    v2 MouseP = V2S32(Input->Mouse.X, Input->Mouse.Y);
+    
+    b32 MouseIsDown = false;
+    b32 MouseWasPressed = false;
+    b32 IsInsidePanel = false;
+    
+    if(1)
+    {    
+        MouseIsDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
+        MouseWasPressed = WasPressed(Input->Mouse.Buttons[PlatformMouseButton_Left]);
+        IsInsidePanel = IsInsideRectV2(MouseP, Panel->Region);
+    }
     
     b32 HasResizeBorder = !IsNilPanel(Panel->Next); 
-    if(HasResizeBorder)
-    {
-        v4 ResizeBorderColor = Color_Red;
-        f32 ResizeBorderSize = 8.f;
-        
-        v4 ResizeBorder = Panel->Region;
-        ResizeBorder.Min.e[Axis] = Panel->Region.Max.e[Axis] - ResizeBorderSize;
-        ResizeBorder.Max.e[Axis] += GapSize; 
-        
-        // TODO(luca): Only one border should be dragged at a time, this should be taken care of by an input queue
-        local_persist b32 IsDragging = false;
-        local_persist v2 OldMouseP = {0};
-        local_persist panel *DraggingPanel = 0;
-        
-        if(!MouseIsDown)
-        {
-            IsDragging = false;
-        }
-        
-        if(IsInsideRectV2(MouseP, ResizeBorder) && !IsDragging)
-        {
-            ResizeBorderColor = Color_Green;
-            PanelInput->PlatformCursor = (PlatformCursorShape_ResizeHorizontal + Axis);
-            
-            if(MouseWasPressed)
-            {
-                IsDragging = true;
-                OldMouseP = MouseP;
-                DraggingPanel = Panel;
-            }
-        }
-        
-        if(IsDragging)
-        {
-            PanelInput->PlatformCursor = (PlatformCursorShape_ResizeHorizontal + DraggingPanel->Parent->Axis);
-            PanelInput->Consumed = true;
-        }
-        
-        if(IsDragging && Panel == DraggingPanel)
-        {
-            ResizeBorderColor = Color_Yellow;
-            
-            f32 dP = (MouseP.e[Axis] - OldMouseP.e[Axis]);
-            f32 ParentOtherSize = (Parent->Region.Max.e[OtherAxis] - Parent->Region.Min.e[OtherAxis]);
-            f32 dPPct = (dP/ParentSize);
-            
-            panel *Next = Panel->Next;
-            
-            // NOTE(luca): Proper resizing
-            // Other panels should be clamped to a minimum size, which should be pixel based since percents can mean visible on large screen but invisible on small screens 
-            // More size taken from bigger panels than from smaller panels.
-            // TODO(luca): Make good resizing ->
-            // The delta distance computed should be relative to the new position of the Panel Min.  This elimitates being able to resize to the right when being on the left of the border. (User should pass over the border to resize in that direction).
-            
-            //Attempt #2
-            // Resize between this panel and next panel
-            // Clamp panel between .05 and .95 of the root panel
-            
-            f32 SizeTaken = 0.f;
-            
-            f32 RelMin = .05f;
-            
-            f32 RelFactor = 1.f;
-            for(panel *Parent = Panel->Parent; !IsNilPanel(Parent); Parent = Parent->Parent)
-            {
-                if(Parent->Axis == Panel->Parent->Axis && !IsNilPanel(Parent->Parent))
-                {                    
-                    RelFactor *= Parent->Parent->ParentPct;
-                }
-            }
-            RelMin /= RelFactor;
-            
-            panel *Inc = Panel;
-            panel *Dec = Next;
-            if(dPPct < 0.f)
-            {
-                Swap(Inc, Dec);
-                dPPct = -dPPct;
-            }
-            
-            if(Dec->ParentPct >= RelMin)
-            {                
-                SizeTaken = Min(Dec->ParentPct - RelMin, dPPct);
-            }
-            else
-            {
-                // Clamp
-                // NOTE(luca): Unless other is also below 
-                if(Inc->ParentPct >= 0.5f)
-                {                    
-                    SizeTaken = -(RelMin - Dec->ParentPct);
-                }
-            }
-            
-            Dec->ParentPct -= SizeTaken;
-            Inc->ParentPct += SizeTaken;
-            
-            OldMouseP = MouseP;
-        }
-        
-#if 0
-        DrawRect(ResizeBorder, ResizeBorderColor, 0.f, 0.f, 0.f);
-#endif
-    }
     
     v4 PanelBorderColor = Color_Blue;
     
-    // NOTE(luca): This happens post-order so that the borders are overlaid correctly.
+    if(Panel == PanelApp->SelectedPanel)
+    {
+        PanelBorderColor = Color_Yellow;
+    }
     
+    // NOTE(luca): This happens post-order so that the borders are overlaid correctly.
     b32 HasContents = IsNilPanel(Panel->First);
     
     // draw panel rectangle
     if(HasContents)
     {
-        if(!PanelInput->Consumed && IsInsideRectV2(MouseP, Panel->Region) && MouseWasPressed)
+        if(IsInsidePanel && MouseWasPressed)
         {
             PanelApp->SelectedPanel = Panel;
         }
         
-        if(Panel == PanelApp->SelectedPanel)
-        {
-            PanelBorderColor = Color_Cyan;
-        }
-        
         Panel->Region = RectShrink(Panel->Region, GapSize);
         DrawRect(Panel->Region, PanelBorderColor, 0.f, PanelBorderSize, 0.f);
+        
         Panel->Region = RectShrink(Panel->Region, PanelBorderSize);
     }
+    
+    if(HasResizeBorder)
+    {
+        v4 BorderColor = Color_Red;
+        f32 BorderSize = 8.f;
+        
+        v2 MouseP = V2S32(PanelInput->Mouse.X, PanelInput->Mouse.Y);
+        
+        v4 Border = Panel->Region;
+        
+        Border.Max.e[Axis] += PanelBorderSize;
+        
+        Border.Min.e[Axis] = Border.Max.e[Axis];
+        
+        Border.Min.e[Axis] -= BorderSize; 
+        Border.Max.e[Axis] += BorderSize;
+        
+        b32 Down = false;
+        b32 Pressed = false;
+        b32 IsInsideBorder = false;
+        if(!Input->Consumed && (IsNilPanel(PanelDragging) || Panel == PanelDragging))
+        {
+            Pressed = WasPressed(Input->Mouse.Buttons[PlatformMouseButton_Left]);
+            Down = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
+            IsInsideBorder = IsInsideRectV2(MouseP, Border);
+            
+            if(PanelDragging == Panel && !Down) 
+            {
+                PanelDragging = NilPanel;
+            }
+        }
+        
+        if(IsInsideBorder)
+        {
+            Input->Consumed = true;
+            
+            BorderColor = Color_Blue;
+            Input->PlatformCursor = (PlatformCursorShape_ResizeHorizontal + Axis);
+            
+            if(IsNilPanel(PanelDragging) && Pressed)
+            {                
+                PanelDragging = Panel; 
+            }
+        }
+        
+        if(PanelDragging == Panel && Down)
+        {
+            Input->Consumed = true;
+            
+            BorderColor = Color_Yellow;
+            
+            // Resize
+            {
+                panel *Next = Panel->Next;
+                AssertMsg(!IsNilPanel(Next), "Panel should have a next panel since it has a resize border");
+                
+                f32 Size = SizeOnAxis(PanelApp->FirstPanel->Region, Axis);
+                f32 Pct = MouseP.e[Axis]/Size;
+                
+                // NOTE(luca): Will the calculations be wrong because we don't account for gap size?
+                // no it might create the illusion that we should not be resizing though, but I guess that's fine
+                
+                //1. Position of mouse in the region of the panel
+                //2. Subtra ct all Pcts before 
+                
+                //Dec->ParentPct -= Value;
+                
+                //
+                
+                f32 dPPct = Pct;
+                for(panel *Sibling = Panel; !IsNilPanel(Sibling); Sibling = Sibling->Prev)
+                {
+                    dPPct -= Sibling->ParentPct;
+                }
+                
+                f32 AbsMin = .05f;
+                
+                panel *Inc = Panel;
+                panel *Dec = Next;
+                if(dPPct < 0.f)
+                {
+                    Swap(Inc, Dec);
+                    dPPct = -dPPct;
+                }
+                
+                if(Dec->ParentPct - dPPct >= AbsMin)
+                {                    
+                    Inc->ParentPct += dPPct;
+                    Dec->ParentPct -= dPPct;
+                }
+                
+            }
+            
+        }
+        
+#if 0
+        DrawRect(Border, BorderColor, 0.f, 0.f, 0.f);
+#endif
+    }
+    
 }
 
 //-
@@ -1239,7 +1225,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         App->Text.Capacity = KB(64);
         App->Text.Data = PushArray(PermanentArena, rune, App->Text.Capacity);
-        App->FontAtlasArena = PushArena(PermanentArena, MB(100), false);
+        App->FontAtlasArena = PushArena(PermanentArena, MB(150), false);
         
         App->UIBoxTableSize = 4096;
         App->UIBoxTable = PushArray(PermanentArena, ui_box, App->UIBoxTableSize);
@@ -1262,7 +1248,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     f32 WindowBorderSize = 2.f;
     v2 BufferDim = V2S32(Buffer->Width, Buffer->Height);
-    v2 MouseP = V2S32(Input->MouseX, Input->MouseY);
+    v2 MouseP = V2S32(Input->Mouse.X, Input->Mouse.Y);
     
     if(!Memory->Initialized)
     {
@@ -1275,11 +1261,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
         {        
             arena *Arena = ArenaAlloc(.Size = MB(1), .Offset = TB(3));
             
-            panel *Panel = PushStruct(Arena, panel);
-            *Panel = (panel){Panel, Panel, Panel, Panel, Panel};
-            
             ui_box *Box = PushStruct(Arena, ui_box);
             *Box = (ui_box){Box, Box, Box, Box, Box, Box, Box};
+            
+            panel *Panel = PushStruct(Arena, panel);
+            *Panel = (panel){Panel, Panel, Panel, Panel, Panel};
+            Panel->Root = Box;
             
 #if OS_WINDOWS
             DWORD OldProtection = {0};
@@ -1300,22 +1287,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         // Panels
         {        
-            f32 TextPadding = 2.f + 1.f + 2.f;
-            
-            f32 TopSplitPct = (App->HeightPx + TextPadding*2.f)/(BufferDim.Y - 2.f*WindowBorderSize);
-            
             PanelAxis(Axis2_Y) PanelGroup()
             {
                 panel *RootPanel = PanelAdd(1.f);
                 
                 PanelAxis(Axis2_X) PanelGroup()
                 {
-                    panel *TitlebarPanel = PanelAdd(TopSplitPct);
-                    TitlebarPanel->CannotClose = true;
-                    
-                    App->TitlebarPanel = TitlebarPanel;
-                    
-                    panel *AppPanel = PanelAdd(1.f - TopSplitPct);
+                    panel *AppPanel = PanelAdd(1.f);
                     
                     PanelAxis(Axis2_Y) PanelGroup()
                     {
@@ -1331,7 +1309,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         {            
                             panel *DebugPanel = PanelAdd(.6f);
                             App->DebugPanel = DebugPanel;
-                            App->DebugPanel->CannotClose = true;
                             App->DebugPanel->Root = UI_BoxAlloc(App->PanelArena);
                             App->SelectedPanel = App->DebugPanel;
                             panel *BottomRightPanel = PanelAdd(.4f);
@@ -1343,7 +1320,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             }
         }
         
-        Memory->Initialized = true;
         OS_ProfileAndPrint("Memory Init");
     }
     
@@ -1367,7 +1343,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         b32 Control = Key.Modifiers & PlatformKeyModifier_Control;
         b32 Shift = Key.Modifiers & PlatformKeyModifier_Shift;
         b32 Alt = Key.Modifiers & PlatformKeyModifier_Alt;
-        u32 ModifiersShiftIgnored = (Key.Modifiers & ~PlatformKeyModifier_Shift);
+        s32 ModifiersShiftIgnored = (Key.Modifiers & ~PlatformKeyModifier_Shift);
         b32 None = (Key.Modifiers == PlatformKeyModifier_None);
         
         if(!Key.IsSymbol)
@@ -1381,6 +1357,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     //- Panels 
                     case 'p':
                     {
+                        if(App->SelectedPanel == App->DebugPanel)
+                        {
+                            App->DebugPanel = NilPanel;
+                        }
                         App->SelectedPanel = (!Shift ?
                                               SplitPanel(PanelArena, App->SelectedPanel, Axis2_X, false) :
                                               ClosePanel(App->SelectedPanel));
@@ -1412,6 +1392,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
         
         //- Text Input
+        if(App->SelectedPanel == App->DebugPanel)
         {
             if(!Key.IsSymbol)
             {
@@ -1453,7 +1434,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                 AppendChar(&App->Text, (rune)Clip.Data[Idx]);
                             }
                             
-                            Text->Cursor = Text->Trail = Cursor;
+                            Text->Cursor = Text->Trail = Cursor + Input->PlatformClipboard.Size;
                         } break;
                         
                         case 'z':
@@ -1722,14 +1703,99 @@ UPDATE_AND_RENDER(UpdateAndRender)
     OS_ProfileAndPrint("Misc setup");
     
     //- Draw text
-    if(App->Font.Initialized)
-    {
         if(App->PreviousHeightPx != App->HeightPx)
         {
             App->PreviousHeightPx = App->HeightPx;
-            InitAtlas(App->FontAtlasArena, &App->Font, &App->FontAtlas, App->HeightPx);
+        
+        // Init atlas
+        { 
+            font_atlas *Atlas = &App->FontAtlas;
+            app_font *Font = &App->Font;
+            f32 HeightPx = App->HeightPx;
+            arena *Arena = App->FontAtlasArena;
+            
+            // TODO(luca): Display icons.
+            // There are three options:
+            
+            // 1) Add icons to the font and render from there.
+            //    - If we use PUA that means we need to create a very big atlas?
+            //      - We could create the cached glyph table version of our atlas for this instead.
+            //    + This is good because we will eventually need this.
+            
+            // 2) Use multiple fonts
+            
+            //    2.1) Use a megatexture that is all atlases concatenated, have atlas store an offset?
+            //         - This sounds hard, because this has to play nice with stbtt for creating correct Alignedquads
+            //         - NOTE(luca): this can end up being easier if we can pack multiple fonts into the same atlas with stbtt_PackFontRange() 
+            
+            //    2.2) Have an option to specify a texture per list of items, grouping the draw calls by texture.
+            //         - This sounds like the easiest.
+            //         + A similar system will probably be needed in the future i.e., specifying different rendering properties for an array of elements to draw whilst having the API have a single path for adding elements.
+            
+            //    2.3) Specify a second texture
+            //         - this makes the shader more complex
+            
+            local_persist app_font IconsFont = {0};
+            if(!IconsFont.Initialized)
+            {
+                char *FontPath = PathFromExe(FrameArena, Memory->ExeDirPath, S8("../data/icons.ttf"));
+                InitFont(&IconsFont, FontPath);
+            }
+            
+            if(Font->Initialized)
+            {
+                Atlas->FirstCodepoint = ' ';
+            // NOTE(luca): 2 bytes =>small alphabets.
+            Atlas->CodepointsCount = ((0xFFFF - 1) - Atlas->FirstCodepoint);
+                Atlas->IconsFirstCodepoint = 'a';
+                Atlas->IconsCodepointsCount = 2;
+                
+                Atlas->Width = KB(1);
+                Atlas->Height = KB(2);
+            u64 Size = (u64)(Atlas->Width*Atlas->Height);
+            
+            Arena->Pos = 0;
+                Atlas->Data = PushArray(Arena, u8, Size);
+                s32 CodepointsCount = (Atlas->CodepointsCount + Atlas->IconsCodepointsCount);
+                Atlas->PackedChars = PushArray(Arena, stbtt_packedchar, (u64)CodepointsCount);
+                Atlas->AlignedQuads = PushArray(Arena, stbtt_aligned_quad, (u64)CodepointsCount);
+            
+            Atlas->HeightPx = HeightPx;
+            Atlas->FontScale = stbtt_ScaleForPixelHeight(&Font->Info, HeightPx);
+            Atlas->Font = Font;
+            
+            stbtt_pack_context Ctx;
+            {
+                stbtt_PackBegin(&Ctx, 
+                                Atlas->Data,
+                                Atlas->Width, Atlas->Height,
+                                0, 1, 0);
+                
+                stbtt_PackFontRange(&Ctx, Font->Info.data, 0, HeightPx, 
+                                    Atlas->FirstCodepoint, Atlas->CodepointsCount, 
+                                    Atlas->PackedChars);
+                    
+                    // Icons
+{                    
+                    stbtt_PackFontRange(&Ctx, IconsFont.Info.data, 0, HeightPx, 
+                                        Atlas->IconsFirstCodepoint, Atlas->IconsCodepointsCount, 
+                                        Atlas->PackedChars + Atlas->CodepointsCount);
+                    }
+
+                    stbtt_PackEnd(&Ctx);
+            }
+            
+                for EachIndex(Idx, CodepointsCount)
+                {
+                float UnusedX, UnusedY;
+                stbtt_GetPackedQuad(Atlas->PackedChars, Atlas->Width, Atlas->Height, 
+                                    Idx,
+                                    &UnusedX, &UnusedY,
+                                        &Atlas->AlignedQuads[Idx], 0);
+            }
+            }
+}
         }
-    }
     
     OS_ProfileAndPrint("Atlas");
     
@@ -1746,80 +1812,32 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
     }
     
-    u32 Flags = (UI_BoxFlag_DrawBorders | UI_BoxFlag_DrawBackground |
+    s32 Flags = (UI_BoxFlag_DrawBorders | UI_BoxFlag_DrawBackground |
                  UI_BoxFlag_DrawDisplayString |
-                 UI_BoxFlag_CenterTextHorizontally | UI_BoxFlag_CenterTextVertically );
-    u32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickability);
-    u32 TitlebarFlags = (Flags ^ 
+                 UI_BoxFlag_CenterTextHorizontally | UI_BoxFlag_CenterTextVertically |
+                 UI_BoxFlag_Clip);
+    s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickability);
+    s32 TitlebarFlags = (Flags ^ 
                          UI_BoxFlag_DrawDisplayString ^ 
                          UI_BoxFlag_DrawBackground);
     
     OS_ProfileAndPrint("UI setup");
     
+    v4 FreeRegion;
+{    
     v2 Pos = V2(0.f, 0.f);
     v2 Size = BufferDim;
     Pos = V2AddF32(Pos, WindowBorderSize);
     Size = V2SubF32(Size, 2.f*WindowBorderSize);
-    
-    v4 FreeRegion = RectFromSize(Pos, Size);
-    
+    FreeRegion = RectFromSize(Pos, Size);
+    }
+
     // UI Panels
+    
     {
-        // TODO(luca): 
-        //1. For each panel 
-        // 2. Add split borders for resizing
-        // 3. Capture input events for dragging
-        // 4. Compute the region for UI and create root ui_box
-        // 5. Solve layout for UI
-        // 6. Solve UI for each panel
+        PanelGetRegionAndInput(App->FirstPanel, FreeRegion);
         
-        PanelGetRegion(App->FirstPanel, FreeRegion);
-        
-        // UI for this panel
-        {
-            App->TitlebarPanel->Root = UI_BoxAlloc(FrameArena);
-            ui_box *Root = App->TitlebarPanel->Root;
-            
-            Root->FixedPosition = App->TitlebarPanel->Region.Min;
-            Root->FixedSize = SizeFromRect(App->TitlebarPanel->Region);
-            Root->Rec = RectFromSize(Root->FixedPosition, Root->FixedSize);
-            
-            UI_State = PushStructZero(FrameArena, ui_state);
-            UI_InitState(Root, Input, App);
-            
-            UI_SemanticWidth(UI_SizeParent(1.f/5.f, 1.f)) 
-                UI_SemanticHeight(UI_SizeText(2.f, 1.f))
-            {    
-                if(UI_AddBox(S8("Open"), ButtonFlags)->Clicked)
-                {
-                    LoadFileToText(Text, Memory, S8("./hello.c"));
-                }
-                
-                if(UI_AddBox(S8("Clear"), ButtonFlags)->Clicked)
-                {
-                    Text->Count = 0;
-                    Text->Cursor = 0;
-                    Text->Trail = 0;
-                    Text->CurRelLine = 0;
-                }
-                
-                if(UI_AddBox(S8("Save"), ButtonFlags)->Clicked)
-                {
-                    SaveTextToFile(Text, Memory, S8("./hello.c"));
-                }
-                
-                UI_AddBox(S8(""), UI_BoxFlag_None);
-                
-                if(UI_AddBox(S8("Close"), ButtonFlags)->Clicked)
-                {
-                    ShouldQuit = true;
-                }
-            }
-            
-            UI_ResolveLayout(Root->First);
-        }
-        
-        // Test UI, nothing concrete yet.
+        if(!IsNilPanel(App->DebugPanel))
         {
             panel *Panel = App->DebugPanel;
             ui_box *Root = Panel->Root;
@@ -1831,7 +1849,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             UI_State = PushStructZero(FrameArena, ui_state);
             UI_InitState(App->DebugPanel->Root, Input, App);
             
-            u32 Flags = (UI_BoxFlag_Clip |
+            s32 Flags = (UI_BoxFlag_Clip |
                          UI_BoxFlag_DrawBorders |
                          UI_BoxFlag_DrawBackground |
                          UI_BoxFlag_DrawDisplayString |
@@ -1840,27 +1858,72 @@ UPDATE_AND_RENDER(UpdateAndRender)
             
             // NOTE(luca): Adding an extra parent like this makes it easy to override defaults
             UI_LayoutAxis(Axis2_Y) 
-                UI_SemanticWidth(UI_SizeParent(1.f, 1.f)) UI_SemanticHeight(UI_SizeParent(1.f, 1.f))
+                UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
                 UI_AddBox(S8(""), UI_BoxFlag_Clip);
             
-            UI_Push()
-            {            
+            UI_BorderThickness(1.f)
                 UI_CornerRadii(V4(0.f, 0.f, 0.f, 0.f))
-                    UI_SemanticWidth(UI_SizeParent(1.f, 1.f)) 
+                UI_Push()
+            {
+                UI_SemanticWidth(UI_SizeParent(1.f, 1.f)) 
                     UI_SemanticHeight(UI_SizeText(2.f, 1.f))
                 {
-                    
-                    local_persist f64 StartTime;
+                    local_persist f64 StartTime; 
                     DoOnce StartTime = OS_GetWallClock();
                     
-                    // TODO(luca): This does not work.
-                    UI_LayoutAxis(Axis2_X) UI_SemanticHeight(UI_SizeChildren(1.f)) 
+                    UI_SemanticHeight(UI_SizeChildren(1.f))
+                        UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                    
+                    UI_Push()
+                    {
+                        UI_SemanticWidth(UI_SizeParent(1.f/5.f, 1.f)) 
+                            UI_SemanticHeight(UI_SizeText(2.f, 1.f))
+                            UI_LayoutAxis(Axis2_X)
+                        {
+                            // Background
+                            UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
+                                UI_AddBox(S8(""), (UI_BoxFlag_DrawBackground|UI_BoxFlag_DrawBorders|
+                                                   UI_BoxFlag_FloatingX|UI_BoxFlag_Clip));
+                            
+                            if(UI_AddBox(S8("Open"), ButtonFlags)->Clicked)
+                            {
+                                LoadFileToText(Text, Memory, S8("./hello.c"));
+                            }
+                            
+                            if(UI_AddBox(S8("Clear"), ButtonFlags)->Clicked)
+                            {
+                                Text->Count = 0;
+                                Text->Cursor = 0;
+                                Text->Trail = 0;
+                                Text->CurRelLine = 0;
+                            }
+                            
+                            if(UI_AddBox(S8("Save"), ButtonFlags)->Clicked)
+                            {
+                                SaveTextToFile(Text, Memory, S8("./hello.c"));
+                            }
+                            
+                            UI_SemanticWidth(UI_SizeParent(1.f, 0.f))
+                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                            
+                            if(UI_AddBox(S8("Close"), ButtonFlags)->Clicked)
+                            {
+                                App->SelectedPanel = ClosePanel(App->DebugPanel);
+                                App->DebugPanel = NilPanel;
+                            }
+                        }
+                    }
+                    
+                    UI_SemanticHeight(UI_SizeChildren(1.f)) 
                         UI_AddBox(S8(""), UI_BoxFlag_Clip);
                     UI_Push() UI_SemanticWidth(UI_SizeText(4.f, 1.f)) UI_BorderThickness(1.f)
                     {
                         UI_AddBox(Str8Fmt("Rel:%lu/%lu###Line pos", Text->CurRelLine, Text->Lines - !!(Text->Lines > 0)), Flags);
                         UI_AddBox(Str8Fmt("#%lu###Text count", Text->Count), Flags);
                         UI_AddBox(Str8Fmt("Cur:%lu/%lu###Text cursor pos", Text->Cursor, Text->Trail), Flags);
+                        
+                        UI_SemanticWidth(UI_SizeParent(1.f, 0.f)) UI_CornerRadii(V4(0.f, 0.f, 0.f, 0.f))
+                            UI_AddBox(S8(""), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground|UI_BoxFlag_DrawBorders);
                     }
                     
                     // Text
@@ -1877,15 +1940,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             Text->CursorAnimTime += Input->dtForFrame;
                         }
-                        
                     }
                 }
             }
             
             UI_ResolveLayout(Root->First);
             
+            DrawRectIcon(&App->FontAtlas, V2(845.f, 8.f), 'b', Color_ButtonText); 
         }
-        
     }
     
     // Prune unused boxes
@@ -1922,7 +1984,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     {
         if(!App->Render.ShadersCompiled)
         {
-            gl_handle RectShader = App->Render.RectShader;
+            gl_uint RectShader = App->Render.RectShader;
             glDeleteProgram(RectShader);
             
             RectShader = GL_ProgramFromShaders(FrameArena, Memory->ExeDirPath,
@@ -1930,13 +1992,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                S8("../source/editor/generated/rect_frag.glsl"));
             glUseProgram(RectShader);
             
+            GL_LoadTextureFromImage(App->Render.Textures[0], Atlas->Width, Atlas->Height, Atlas->Data, GL_RED, RectShader, "Texture");
             // Uniforms
             {
-                gl_handle UViewport = glGetUniformLocation(RectShader, "Viewport");
+                gl_int UViewport = glGetUniformLocation(RectShader, "Viewport");
                 glUniform2f(UViewport, V2Arg(BufferDim));
-                
-                GL_LoadTextureFromImage(App->Render.Textures[0], Atlas->Width, Atlas->Height, Atlas->Data, GL_RED, RectShader, "Texture");
-                
             }
             
             App->Render.RectShader = RectShader;
@@ -1949,25 +2009,28 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         Assert(GlobalRectsCount < MaxRectsCount);
         u64 Size = GlobalRectsCount*sizeof(rect_instance);
-        glBufferData(GL_ARRAY_BUFFER, Size, GlobalRectsInstances, GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, (s32)Size, GlobalRectsInstances, GL_STATIC_DRAW);
         
         u64 Offset = 0;
         
         s32 TotalSize = 0;
         for EachElement(Idx, RectVSAttribOffsets)
         {            
-            GL_SetQuadAttribute((s32)Idx, RectVSAttribOffsets[Idx], &Offset);
+            GL_SetQuadAttribute((gl_uint)Idx, (u64)RectVSAttribOffsets[Idx], &Offset);
             TotalSize += RectVSAttribOffsets[Idx];
         }
         Assert(TotalSize == (sizeof(rect_instance)/sizeof(f32)));
         
         glEnable(GL_MULTISAMPLE);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, GlobalRectsCount);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, (gl_int)GlobalRectsCount);
     }
     
     OS_ProfileAndPrint("R rects");
     
     App->FrameIndex += 1;
+    
+    // NOTE(luca): This is so that we can split our initialization code if we want.
+    Memory->Initialized = true;
     
     return ShouldQuit;
 }

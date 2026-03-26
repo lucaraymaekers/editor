@@ -83,7 +83,7 @@ LinuxMakeBuildCommand(str8 Source,
     // NOTE(luca): These are almost all c++ flags.
     str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
     // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
-    str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wdouble-promotion -Wno-sign-conversion -Wno-sign-compare -Wno-double-promotion -Wno-unused-but-set-variable -Wno-unused-variable -Wno-write-strings -Wno-missing-field-initializers -Wno-pointer-arith -Wno-unused-parameter -Wno-unused-function -Wno-switch");
+    str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wdouble-promotion -Wno-double-promotion -Wno-unused-but-set-variable -Wno-unused-variable -Wno-write-strings -Wno-missing-field-initializers -Wno-pointer-arith -Wno-unused-parameter -Wno-unused-function -Wno-switch");
     
     str8 LinkerFlags = S8("-lm");
     str8 Compiler = {0};
@@ -139,9 +139,9 @@ ENTRY_POINT(EntryPoint)
         OS_ChangeDirectory((char *)CodePath.Data);
         
         // Targets
-        b32 Editor = false;
+        b32 Editor = true;
         b32 EditorBuild = true;
-        b32 EditorMetaprogram = false;
+        b32 EditorMetaprogram = true;
         
         b32 Windows = false;
         b32 Linux = false;
@@ -205,13 +205,14 @@ ENTRY_POINT(EntryPoint)
                         {
                             MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
                             MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
-                            MD_S8ListPushFmt(GlobalMDArena, &CStream, "u32 ColorU32_%S = %S;\n", ColorName->string, ColorValue->string);
+                            MD_S8ListPushFmt(GlobalMDArena, &CStream, "const u32 ColorU32_%S = %S;\n", ColorName->string, ColorValue->string);
                         }
                         
                         for(MD_EachNode(Node, ColorsTable->first_child))
                         {
                             MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
-                            MD_S8ListPushFmt(GlobalMDArena, &CStream, "v4 Color_%S = V4(U32ToV4Arg(ColorU32_%S));\n", ColorName->string, ColorName->string);
+                            MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
+                            MD_S8ListPushFmt(GlobalMDArena, &CStream, "v4 Color_%S = {U32ToV4Arg(%S)};\n", ColorName->string, ColorValue->string);
                             
                         }
                         
@@ -234,7 +235,7 @@ ENTRY_POINT(EntryPoint)
                         MD_S8ListPushFmt(GlobalMDArena, &CStream,
                                          "s32 RectVSAttribOffsets[] =\n{\n");
                         
-                        u32 Index = 0;
+                        s32 Index = 0;
                         for(MD_EachNode(Node, Table->first_child))
                         {
                             MD_Node *Name = MD_NodeAtIndex(Node->first_child, 0);
