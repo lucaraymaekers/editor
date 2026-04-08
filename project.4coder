@@ -24,12 +24,14 @@ blacklist_patterns =
 paths = 
 {
     { .path = ".",              .recursive = false, .relative = true, },
-    { .path = "source",         .recursive = false, .relative = true, },
-    { .path = "source/base",    .recursive = true,  .relative = true, },
-    { .path = "source/lib",     .recursive = true,  .relative = true, },
-    { .path = "source/shaders", .recursive = true,  .relative = true, },
-    { .path = "source/cling/",  .recursive = false, .relative = true, },
-    { .path = "source/editor/", .recursive = true,  .relative = true, },
+    { .path = "code",         .recursive = false, .relative = true, },
+    { .path = "code/base",    .recursive = true,  .relative = true, },
+    { .path = "code/lib",     .recursive = true,  .relative = true, },
+    { .path = "code/shaders", .recursive = true,  .relative = true, },
+    { .path = "code/cling/",  .recursive = false, .relative = true, },
+    //{ .path = "code/editor/", .recursive = true,  .relative = true, },
+    { .path = "code/computerenhance/", .recursive = true,  .relative = true, },
+    
 };
 
 load_paths =
@@ -44,8 +46,8 @@ commands =
     .build_editor = 
     {
         .out = "*compilation*", 
-        .linux = "sh ./source/build.sh norebuild",
-        .win = ".\\source\\build.bat",
+        .linux = "sh ./code/build.sh norebuild",
+        .win = ".\\code\\build.bat",
         .save_dirty_files = true,
         .footer_panel = false,
         .cursor_at_end = false,
@@ -53,8 +55,8 @@ commands =
     .build_lexer = 
     {
         .out = "*compilation*", 
-        .linux = "sh ./source/test.sh",
-        .win = ".\\source\\build.bat",
+        .linux = "sh ./code/test.sh",
+        .win = ".\\code\\build.bat",
         .save_dirty_files = true,
         .footer_panel = false,
         .cursor_at_end = false,
@@ -71,7 +73,7 @@ commands =
     .raddbg_kill = 
     {
         .out = "*compilation*", 
-        .linux = "sh ./source/test.sh",
+        .linux = "sh ./code/test.sh",
         .win = "raddbg --ipc kill_all",
         .save_dirty_files = true,
         .footer_panel = false,

@@ -67,6 +67,9 @@
 #include <string.h> // memset
 
 #if OS_WINDOWS
+
+# define _CRT_SECURE_NO_WARNINGS 1
+# define WIN32_LEAN_AND_MEAN 1
 # include <windows.h>
 # include <stdio.h>
 # define RADDBG_MARKUP_IMPLEMENTATION
@@ -78,7 +81,8 @@
 
 #if defined(COMPILER_MSVC)
 #  if defined(__cplusplus)
-#    define TypeOf(x) decltype(x)
+// NOTE(luca): Decay to numeric type.
+#    define TypeOf(x) decltype((x)+0)
 #  else
 #    define TypeOf(x) __typeof__(x)
 #  endif
@@ -168,7 +172,8 @@ do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 #define InvalidPath()    TrapMsg("Invalid Path!")
 #define StaticAssert(C, ID) global_variable u8 Glue(ID, __LINE__)[(C)?1:-1]
 
-//-
+//~ Loop macros
+#define DeferLoop(Begin, End) for(int _i_ = ((Begin), 0); !_i_; _i_ += 1, (End))
 
 #define EachIndexType(t, Index, Count) (t Index = 0; Index < (Count); Index += 1)
 #define EachIndex(Index, Count)           EachIndexType(TypeOf((Count)), Index, Count)

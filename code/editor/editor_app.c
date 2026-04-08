@@ -2075,8 +2075,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             glDeleteProgram(RectShader);
             
             RectShader = GL_ProgramFromShaders(FrameArena, Memory->ExeDirPath,
-                                               S8("../source/editor/generated/rect_vert.glsl"),
-                                               S8("../source/editor/generated/rect_frag.glsl"));
+                                               S8("../code/editor/generated/rect_vert.glsl"),
+                                               S8("../code/editor/generated/rect_frag.glsl"));
             glUseProgram(RectShader);
             
             GL_LoadTextureFromImage(App->Render.Textures[0], Atlas->Width, Atlas->Height, Atlas->Data, GL_RED, RectShader, "Texture");

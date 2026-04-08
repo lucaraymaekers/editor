@@ -720,7 +720,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     // The app code is responsible for traversing this buffer and applying the logic. 
                     
                     // The problem of input methods and hotkeys: 
-                    // Basically the problem is that if we allow the input method and combo's that could be 
+                    // Basically the problem is that if we allow the input method and combos that could be 
                     // filtered by the input method it won't seem consistent to the user.
                     // So we don't allow key bound to the input method to have an effect and we only pass key
                     // inputs that have not been filtered.

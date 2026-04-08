@@ -7,7 +7,7 @@
 #include "base/base.h"
 #include "base/base.c"
 
-#define CLING_CODE_PATH ".." SLASH "source" SLASH
+#define CLING_CODE_PATH ".." SLASH "code" SLASH
 #define CLING_SOURCE_PATH CLING_CODE_PATH "cling" SLASH "cling.c"
 #include "cling/cling.h"
 
@@ -71,7 +71,7 @@ WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags)
 internal void
 LinuxMakeBuildCommand(str8 Source, 
                       str8 OutputName, 
-                      b32 GCC, b32 Clang, b32 Asan, 
+                      b32 GCC, b32 Clang, b32 Asan, b32 Debug,
                       str8_array *ExtraFlags,
                       b32 Run)
 {
@@ -87,7 +87,7 @@ LinuxMakeBuildCommand(str8 Source,
                                  "-Wno-unused-parameter "
                                  "-Wno-unused-variable "
                                  "-Wno-unused-function "
-                                 );
+                                 "-Wno-unused-command-line-argument ");
     
     str8 LinkerFlags = S8("-lm");
     str8 Compiler = {0};
@@ -95,8 +95,9 @@ LinuxMakeBuildCommand(str8 Source,
     else if(Clang) Compiler = S8("clang");
     else if(GCC) Compiler = S8("gcc");
     
-    str8 DebugFlags = S8("-g -ggdb -g3 -fno-omit-frame-pointer");
-    str8 ReleaseFlags = S8("-O3");
+    str8 ModeFlags = (Debug ? 
+                      S8("-g -ggdb -g3 -fno-omit-frame-pointer") :
+                      S8("-O3"));
     
     str8 ClangCompilerFlags = S8("-fdiagnostics-absolute-paths -ftime-trace");
     str8 ClangWarningFlags = S8("-Wno-null-dereference -Wno-missing-braces -Wno-vla-cxx-extension -Wno-writable-strings -Wno-missing-designated-field-initializers -Wno-address-of-temporary -Wno-int-to-void-pointer-cast");
@@ -105,7 +106,7 @@ LinuxMakeBuildCommand(str8 Source,
     str8 GCCWarningFlags = S8("-Wno-cast-function-type -Wno-missing-field-initializers -Wno-int-to-pointer-cast");
     
     Str8ArrayAppendMultiple(Compiler,
-                            DebugFlags,
+                            ModeFlags,
                             CommonCompilerFlags,
                             CommonWarningFlags);
     if(Clang)
@@ -138,18 +139,21 @@ ENTRY_POINT(EntryPoint)
     if(LaneIndex() == 0)
     {
         Cng_InitAndRebuildSelf(Params->ArgsCount, Params->Args, Params->Env);
-        
-        str8 CodePath = Cng_PathFromExe(Params->Args[0], S8(CLING_CODE_PATH));
-        OS_ChangeDirectory((char *)CodePath.Data);
-        
+
+{        
+        str8 Path = Cng_PathFromExe(Params->Args[0], S8(CLING_CODE_PATH CLING_BUILD_PATH));
+        OS_ChangeDirectory((char *)Path.Data);
+        }
+
         // Targets
-        b32 Editor = true;
-        b32 EditorBuild = true;
-        b32 EditorMetaprogram = true;
+        b32 Editor = false;
+        
+        b32 HaversineProcessor = false;
+        b32 HaversineGenerator = false;
+        b32 Sim86 = true;
         
         b32 Windows = false;
         b32 Linux = false;
-        
 #if OS_WINDOWS
         Windows = true;
 #elif OS_LINUX
@@ -159,7 +163,6 @@ ENTRY_POINT(EntryPoint)
         //- Targets 
         b32 Asan = false;
         b32 Debug = true;
-        b32 Release = false;
         b32 Personal = false;
         //- TODO(luca): 
         b32 Clean = false;
@@ -169,13 +172,191 @@ ENTRY_POINT(EntryPoint)
         b32 Wine = false;
         //-
         
-        Editor = (EditorBuild || EditorMetaprogram);
+        //~ Computer enhance
+        
+        if(HaversineGenerator)
+        {
+            Log("[haversine generator]\n");
+            
+            // Haversine generator metaprogram
+            {
+                Log("Generating code...\n");
+                
+                GlobalMDArena = MD_ArenaAlloc();
+                MD_String8 FileName = MD_S8Lit("../code/computerenhance/haversine_generator/haversine.mdesk");
+                MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FileName);
+                
+                // print metadesk errors
+                for(MD_Message *Message = Parse.errors.first;
+                    Message != 0;
+                    Message = Message->next)
+                {
+                    MD_CodeLoc code_loc = MD_CodeLocFromNode(Message->node);
+                    MD_PrintMessage(stdout, code_loc, Message->kind, Message->string);
+                }
+                
+                if(Parse.errors.max_message_kind < MD_MessageKind_Error)
+                {
+                    MD_Node *Root = Parse.node->first_child;
+                    
+                    MD_String8List Stream = {0};
+                    for(MD_EachNode(Node, Root))
+                    {
+                        if(MD_NodeHasTag(Node, MD_S8Lit("table_gen_flags"), 0))
+                        {
+                            MD_String8 TableName = MD_NodeAtIndex(Node->first_tag->first_child, 0)->string;
+                            MD_String8 MemberName = MD_NodeAtIndex(Node->first_tag->first_child, 1)->string;
+                            
+                            MD_Node *TableNode = MD_FirstNodeWithString(Root, TableName, 0);
+                            MD_Node *TableTag = MD_TagFromString(TableNode, MD_S8Lit("table"), 0);
+                            
+                            MD_Node *MemberNode = MD_FirstNodeWithString(TableTag->first_child, MemberName, 0);
+                            int MemberIndex = MD_IndexFromNode(MemberNode);
+                            
+                            DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &Stream, "enum %S\n{\n", Node->string),
+                                      MD_S8ListPushFmt(GlobalMDArena, &Stream, "%S", MD_S8Lit("};\n\n")))
+{                            
+                            int MemberCount = 0;
+                            for(MD_EachNode(Member, TableNode->first_child))
+                            {
+                                MD_Node *MemberNode = MD_NodeAtIndex(Member->first_child, MemberIndex);
+                                
+                                MD_S8ListPushFmt(GlobalMDArena, &Stream, " Flag_%S = (1 << %d),\n", 
+                                                 MemberNode->string, MemberCount);
+                                MemberCount++;
+                            }
+                            }
+
+                            
+                        }
+                        
+                        if(MD_NodeHasTag(Node, MD_S8Lit("table_gen_data"), 0))
+                        {
+                            MD_String8 TableName = MD_NodeAtIndex(Node->first_tag->first_child, 0)->string;
+                            MD_String8 Type = MD_NodeAtIndex(Node->first_tag->first_child, 1)->string;
+                            MD_String8 MemberName = MD_NodeAtIndex(Node->first_tag->first_child, 2)->string;
+                            
+                            MD_Node *Table = MD_FirstNodeWithString(Root, TableName, 0);
+                            
+                            MD_Node *TableTag = MD_TagFromString(Table, MD_S8Lit("table"), 0);
+                            MD_Node *MemberNode = MD_FirstNodeWithString(TableTag->first_child, MemberName, 0);
+                            int MemberIndex = MD_IndexFromNode(MemberNode);
+                            
+                            MD_u64 MemberCount = MD_ChildCountFromNode(Table);
+                            
+                            MD_S8ListPushFmt(GlobalMDArena, &Stream, "int %SCount = %d;\n", Node->string, MemberCount);
+                            
+                            DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &Stream, "%S%S[] =\n{\n", Type, Node->string),
+                                      MD_S8ListPushFmt(GlobalMDArena, &Stream, "%S", MD_S8Lit("};\n\n")))
+{                            
+                            for(MD_EachNode(Member, Table->first_child))
+                            {
+                                MD_Node *ValueNode  = MD_NodeAtIndex(Member->first_child, MemberIndex);
+                                MD_S8ListPushFmt(GlobalMDArena, &Stream, " %S,\n", ValueNode->raw_string);
+                            }
+                            }
+
+                        }
+                        
+                        if(MD_NodeHasTag(Node, MD_S8Lit("table_gen_enum"), 0))
+                        {
+                            MD_String8 TableName = MD_NodeAtIndex(Node->first_tag->first_child, 0)->string;
+                            MD_String8 Prefix = MD_NodeAtIndex(Node->first_tag->first_child, 1)->string;
+                            MD_String8 MemberName = MD_NodeAtIndex(Node->first_tag->first_child, 2)->string;
+                            
+                            MD_Node *Table = MD_FirstNodeWithString(Root, TableName, 0);
+                            
+                            MD_Node *TableTag = MD_TagFromString(Table, MD_S8Lit("table"), 0);
+                            MD_Node *MemberNode = MD_FirstNodeWithString(TableTag->first_child, MemberName, 0);
+                            int MemberIndex = MD_IndexFromNode(MemberNode);
+                            
+                            
+                            DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &Stream, "enum %S\n{\n", Node->raw_string),
+                                      MD_S8ListPushFmt(GlobalMDArena, &Stream, "};\n"))
+{                                      
+                            for(MD_EachNode(Member, Table->first_child))
+                            {
+                                MD_Node *ValueNode  = MD_NodeAtIndex(Member->first_child, MemberIndex);
+                                if(Member != Table->first_child)
+                                {
+                                    MD_S8ListPushFmt(GlobalMDArena, &Stream, " %S%S,\n", Prefix, ValueNode->raw_string);
+                                }
+                                else
+                                {
+                                    MD_S8ListPushFmt(GlobalMDArena, &Stream, " %S%S = 0,\n", Prefix, ValueNode->raw_string);
+                                }
+                            }
+                            }
+
+                            
+                        }
+                        }
+                    
+                    WriteStreamToFile(Stream, "../code/computerenhance/haversine_generator/generated/types.h");
+                }
+            }
+            
+            // Haversine generator build
+            {
+                str8_array *ExtraFlags = PushStr8Array(256);
+                    Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
+                
+                LinuxMakeBuildCommand(S8("../code/computerenhance/haversine_generator/haversine_generator.c"), 
+                                      S8("haversine_generator"),
+                                      GCC, Clang, Asan, Debug,
+                                      ExtraFlags,
+                                      false);
+                
+                RunCommand();
+                
+            }
+        }
+        
+        if(HaversineProcessor)
+        {
+            Log("[haversine processor]\n");
+            
+            if(Linux)
+{            
+            str8_array *ExtraFlags = PushStr8Array(256);
+                Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH
+                                                 " -std=c++11"));
+            
+            LinuxMakeBuildCommand(S8("../code/computerenhance/haversine_processor/haversine_processor.c"), 
+                                  S8("haversine_processor"),
+                                  GCC, Clang, Asan, Debug,
+                                  ExtraFlags,
+                                  false);
+            
+            RunCommand();
+}
+        }
+        
+        if(Sim86)
+        {
+            Log("[sim86]\n");
+            
+            if(Linux)
+            {            
+                str8_array *ExtraFlags = PushStr8Array(256);
+                Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
+                
+                LinuxMakeBuildCommand(S8("../code/computerenhance/sim86/sim86.cpp"), 
+                                      S8("sim86"),
+                                      GCC, Clang, Asan, Debug,
+                                      ExtraFlags,
+                                      false);
+                
+                RunCommand();
+            }
+        }
+        
+        //~ Editor 
         
         if(Editor)
         {            
-            Log("[editor build]\n");
+            Log("[editor]\n");
             
-            if(EditorMetaprogram)
                 // Metaprogram
             {
                 Log("Generating code...\n");
@@ -204,7 +385,9 @@ ENTRY_POINT(EntryPoint)
                     {
                         MD_Node *ColorsTable = MD_FirstNodeWithString(Root, MD_S8Lit("Colors"), 0);
                         
-                        MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors begin\n"));
+                        DeferLoop(MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors begin\n")),
+                                  MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors end\n")))
+{                            
                         for(MD_EachNode(Node, ColorsTable->first_child))
                         {
                             MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
@@ -219,8 +402,7 @@ ENTRY_POINT(EntryPoint)
                             MD_S8ListPushFmt(GlobalMDArena, &CStream, "v4 Color_%S = {U32ToV4Arg(%S)};\n", ColorName->string, ColorValue->string);
                             
                         }
-                        
-                        MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors end\n"));
+                        }
                     }
                     
                     // Rect shader attributes
@@ -230,15 +412,17 @@ ENTRY_POINT(EntryPoint)
                         MD_Node *ShaderPreTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPreCode"), 0);
                         MD_Node *ShaderPostTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPostCode"), 0);
                         MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPreTable->first_child->string);
-                        MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code start\n");
                         
+                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code start\n"),
+                        MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code end\n"))
+{                        
                         MD_Node *RectPSCodeTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectPSCode"), 0);
                         MD_S8ListPush(GlobalMDArena, &PSStream, RectPSCodeTable->first_child->string);
                         
-                        
-                        MD_S8ListPushFmt(GlobalMDArena, &CStream,
-                                         "s32 RectVSAttribOffsets[] =\n{\n");
-                        
+                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream,
+                                                   "s32 RectVSAttribOffsets[] =\n{\n"),
+                                  MD_S8ListPushFmt(GlobalMDArena, &CStream, "};\n"))
+{                        
                         s32 Index = 0;
                         for(MD_EachNode(Node, Table->first_child))
                         {
@@ -260,19 +444,22 @@ ENTRY_POINT(EntryPoint)
                             
                             Index += 1;
                         }
-                        MD_S8ListPushFmt(GlobalMDArena, &CStream, "};\n");
-                        MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code end\n");
-                        
+                        }
+}
+
                         MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPostTable->first_child->string);
-                        
                     }
                     
                     // UI Box flags
                     {
                         MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("UI_BoxFlags"), 0);
                         
-                        MD_S8ListPushFmt(GlobalMDArena, &CStream, "enum ui_box_flag\n{\n");
-                        
+                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream, 
+                                                   "enum ui_box_flag\n{\n"),
+                                  MD_S8ListPushFmt(GlobalMDArena, &CStream, 
+                                                   "};\n"
+                                                   "typedef enum ui_box_flag ui_box_flag;\n"))
+{                        
                         u64 MaxWidth = 0;
                         for(MD_EachNode(Node, Table->first_child))
                         {
@@ -291,14 +478,9 @@ ENTRY_POINT(EntryPoint)
                             
                             Index += 1;
                         }
-                        
-                        MD_S8ListPushFmt(GlobalMDArena, &CStream, 
-                                         "};\n"
-                                         "typedef enum ui_box_flag ui_box_flag;\n");
+                        }
                     }
                     
-                    
-                    MD_String8 Str = {0};
                     WriteStreamToFile(CStream, "./editor/generated/everything.c");
                     WriteStreamToFile(VSStream, "./editor/generated/rect_vert.glsl");
                     WriteStreamToFile(PSStream, "./editor/generated/rect_frag.glsl");
@@ -306,9 +488,8 @@ ENTRY_POINT(EntryPoint)
                 
             }
             
-            if(EditorBuild)
+            // Editor build
             {
-                
                 str8_array *EditorFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(EditorFlags, S8("-I" CLING_CODE_PATH));
                 if(OS_FileExists("base/base_build.h"))
@@ -324,8 +505,6 @@ ENTRY_POINT(EntryPoint)
                                        CLING_BUILD_PATH "editor_libs.o" :
                                        0));
                 
-                OS_ChangeDirectory(CLING_BUILD_PATH);
-                
                 if(Linux)
                 {
                     if(!OS_FileExists(LibsFileName))
@@ -334,9 +513,9 @@ ENTRY_POINT(EntryPoint)
                         {
                             Str8ArrayAppendTo(EditorFlags, S8("-fPIC -x c++ -c "
                                                               "-DEDITOR_SLOW_COMPILE=1"));
-                            LinuxMakeBuildCommand(S8("../source/editor/editor_libs.h"), 
+                            LinuxMakeBuildCommand(S8("../code/editor/editor_libs.h"), 
                                                   S8FromCString(LibsFileName), 
-                                                  GCC, Clang, Asan, 
+                                                  GCC, Clang, Asan, Debug,
                                                   EditorFlags,
                                                   true);
                         }
@@ -346,9 +525,9 @@ ENTRY_POINT(EntryPoint)
                     {                    
                         Str8ArrayAppendTo(EditorFlags, S8("-fPIC --shared "
                                                           "-DEDITOR_SLOW_COMPILE=0"));
-                        LinuxMakeBuildCommand(S8("../source/editor/editor_app.c"), 
+                        LinuxMakeBuildCommand(S8("../code/editor/editor_app.c"), 
                                               S8("editor_app.so"),
-                                              GCC, Clang, Asan,
+                                              GCC, Clang, Asan, Debug,
                                               EditorFlags,
                                               false);
                         Str8ArrayAppend(S8FromCString(LibsFileName));
@@ -358,9 +537,9 @@ ENTRY_POINT(EntryPoint)
                     Str8ArrayPushCount(EditorFlags)
                     {
                         Str8ArrayAppendTo(EditorFlags, S8("-lX11 -lGL -lGLX"));
-                        LinuxMakeBuildCommand(S8("../source/editor/editor_platform.c"),
+                        LinuxMakeBuildCommand(S8("../code/editor/editor_platform.c"),
                                               S8("editor"),
-                                              GCC, Clang, Asan,
+                                              GCC, Clang, Asan, Debug,
                                               EditorFlags,
                                               true);
                     }
@@ -377,7 +556,7 @@ ENTRY_POINT(EntryPoint)
                                                       S8("-Fmeditor_app.map"),
                                                       S8Cat(S8("-Fo"), S8FromCString(LibsFileName)),
                                                       S8("-c /TP -LD"));
-                            WindowsBuild(S8("../source/editor/editor_libs.h"), 
+                            WindowsBuild(S8("../code/editor/editor_libs.h"), 
                                          EditorFlags,
                                          S8("/link -opt:ref -incremental:no"));
                         }
@@ -392,7 +571,7 @@ ENTRY_POINT(EntryPoint)
                             Str8ArrayAppendMultipleTo(EditorFlags,
                                                       S8("-DEDITOR_SLOW_COMPILE=0 -Fmeditor_app.map"),
                                                       S8FromCString(LibsFileName));
-                            WindowsBuild(S8("../source/editor/editor_app.c"),
+                            WindowsBuild(S8("../code/editor/editor_app.c"),
                                          EditorFlags, 
                                          S8("-LD /link /DLL /EXPORT:UpdateAndRender /OUT:editor_app.dll"));
                         }
@@ -404,7 +583,7 @@ ENTRY_POINT(EntryPoint)
                         Str8ArrayPushCount(EditorFlags)
                         {                        
                             Str8ArrayAppendTo(EditorFlags, S8("-Feeditor.exe"));
-                            WindowsBuild(S8("../source/editor/editor_platform.c"),
+                            WindowsBuild(S8("../code/editor/editor_platform.c"),
                                          EditorFlags,
                                          S8("/link -opt:ref -incremental:no user32.lib Gdi32.lib winmm.lib Opengl32.lib"));
                         }
@@ -417,8 +596,6 @@ ENTRY_POINT(EntryPoint)
                 }
             }
         }
-        
-        
     }
     
     return 0;

@@ -108,7 +108,7 @@ UI_AddBox(str8 String, s32 Flags)
             ui_box *HashBox = UI_BoxTable + Slot;
             ui_box *HashLast = 0;
             
-            // There are three scenario's
+            // There are three scenarios
             //1. We find the slot empty
             //2. We find the slot occupied
             //2.1 The key matches the slot or one from the linked list

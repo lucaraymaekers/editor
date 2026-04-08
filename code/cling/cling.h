@@ -109,12 +109,13 @@ Str8ArrayJoinFrom(str8_array *Array, u8 Char)
 {
     str8 Result = {0};
     
+    if(Array)
+{    
     u64 TotalSize = 0;
     for EachIndex(Idx, Array->Count)
     {
         TotalSize += Array->Strings[Idx].Size;
     }
-    
     
     if(Char)
     {
@@ -142,6 +143,8 @@ Str8ArrayJoinFrom(str8_array *Array, u8 Char)
     
     Result.Data = Buffer.Data;
     Result.Size = BufferIndex;
+    }
+
     
     return Result;
 }

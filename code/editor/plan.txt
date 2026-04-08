@@ -17,6 +17,8 @@
 
 - ui: Assert when adding the same box twice.
 
+- panels: Go for megastruct instead, panel has kind (e.g., text) 
+
 - cling: On windows get cling to run ./cling_temp.exe even when "norebuild" since that will be the most up-to-date version of the program.
 
 - Marker in arena's to not have to clear to 0 from freshly allocated pages.
