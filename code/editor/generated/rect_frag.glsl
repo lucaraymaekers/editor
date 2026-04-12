@@ -8,16 +8,16 @@
 #define f32 float
 #define b32 int
 
-in v2  VS_Pos;
-in v4  VS_Dest;
-in v2  VS_TexCoord;
-in v2  VS_Center;
-in v2  VS_HalfSize;
-in v4  VS_Color;
+in v2 VS_Pos;
+in v4 VS_Dest;
+in v2 VS_TexCoord;
+in v2 VS_Center;
+in v2 VS_HalfSize;
+in v4 VS_Color;
 
-in f32 VS_CornerRadius;
-in f32 VS_BorderThickness;
-in f32 VS_Softness;
+flat in f32 VS_CornerRadius;
+flat in f32 VS_BorderThickness;
+flat in f32 VS_Softness;
 flat in f32 VS_HasTexture;
 
 uniform sampler2D Texture;

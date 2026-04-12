@@ -365,7 +365,7 @@ UI_State->AppendToParent = true;
 UI_PushBackgroundColor(Color_Background);
 UI_PushTextColor(Color_ButtonText);
 UI_PushBorderColor(Color_ButtonBorder);
-UI_PushSoftness(.5f);
+UI_PushSoftness(0.f);
 UI_PushBorderThickness(2.f);
     UI_PushCornerRadii(V4F32(0.f));
 UI_PushLayoutAxis(Axis2_X);

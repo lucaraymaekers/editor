@@ -192,7 +192,7 @@ global_variable v4 Color_ButtonText = {U32ToV4Arg(0xff000000)};
 
 #define UI_SizePx(Value, Strictness) UI_Size(UI_SizeKind_Pixels, Value, Strictness)
 #define UI_SizeText(Value, Strictness) UI_Size(UI_SizeKind_TextContent, Value, Strictness)
-#define UI_SizeEm(Value, Strictness) UI_Size(UI_SizeKind_Pixels, Value*HeightPx, Strictness)
+#define UI_SizeEm(_Value, Strictness) UI_Size(UI_SizeKind_Pixels, ((_Value)*UI_State->HeightPxTop->Value), Strictness)
 #define UI_SizeParent(Value, Strictness) UI_Size(UI_SizeKind_PercentOfParent, Value, Strictness)
 #define UI_SizeChildren(Strictness) UI_Size(UI_SizeKind_ChildrenSum, 0.f, Strictness)
 

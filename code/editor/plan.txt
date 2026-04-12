@@ -7,6 +7,9 @@
     - Idea: Always load/to Save.Buffer so that we have enough space to eventually get it out.
   - We could use an arena for permanent memory so that the platform knows exactly how much memory to write to disk to speed up load/save times.  But in the end we might end up being using all that memory or more so does it really matter?
 
+- Investigate why the rounding is needed with DrawRectChar() and how we could have found the bug. 
+- Bug: some borders of the buttons are not exactly 1px like they should be.
+
 - PlatformLog & AppLog which have FrameIdx attached.
 - Cycle panels
 

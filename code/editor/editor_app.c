@@ -1192,7 +1192,8 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
             InitFont(&App->Font, FontPath);
             App->PreviousHeightPx = DefaultHeightPx + 1.0f;
             App->HeightPx = DefaultHeightPx;
-                    
+        App->FrameIdx = 0;
+        
             // Nil read only structs 
             {        
                 arena *Arena = ArenaAlloc(.Size = MB(1), .Offset = TB(3));
@@ -1633,7 +1634,7 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
             }
         }
         else
-        {
+            {
             Text->CurRelLine = 0;
         }
     }
@@ -1777,12 +1778,12 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
                                                              UI_BoxFlag_FloatingX|UI_BoxFlag_Clip));
                             
                             UI_BackgroundColor(Color_ButtonBackground)
+{
                             if(UI_AddBox(S8("Open"), ButtonFlags)->Clicked)
                             {
                                 LoadFileToText(Text, S8("./hello.c"));
                             }
                             
-                            UI_BackgroundColor(Color_ButtonBackground)
                             if(UI_AddBox(S8("Clear"), ButtonFlags)->Clicked)
                             {
                                 Text->Count = 0;
@@ -1791,12 +1792,12 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
                                 Text->CurRelLine = 0;
                             }
                             
-                            UI_BackgroundColor(Color_ButtonBackground)
                             if(UI_AddBox(S8("Save"), ButtonFlags)->Clicked)
                             {
                                 SaveTextToFile(Text, S8("./hello.c"));
                             }
-                            
+                            }
+
                             UI_SemanticWidth(UI_SizeParent(1.f, 0.f))
                                 UI_AddBox(S8("spacer"), UI_BoxFlag_Clip);
                             
@@ -1807,7 +1808,6 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
                                 UI_SemanticWidth(UI_SizeText(2.f, 1.f))
                                     UI_TextColor(Color_Black)
                                     UI_FontKind(FontKind_Icon) 
-                                    
                                     if(UI_AddBox(S8("b##close"), ButtonFlags)->Clicked)
                                 {
                                     ShouldClosePanel = true;
@@ -1900,7 +1900,6 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
                 UI_AddBox(Str8Fmt("Active->tActive = %.2f", Active->tActive), Flags);
                 UI_AddBox(Str8Fmt("Hot->tHot = %.2f", Hot->tHot), Flags);
                 UI_AddBox(Str8Fmt("Hot->tActive = %.2f", Hot->tActive), Flags);
-                
             }
 
             UI_ResolveLayout(Root->First);
@@ -1942,7 +1941,7 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
     // NOTE(luca): This is so that we can split our initialization code if we want.
     Memory->Initialized = true;
     
-#if 0
+#if 0 || EDITOR_STARTUP_PROFILE
     // NOTE(luca): Useful for profiling startup times.
     if(App->FrameIdx == 2)
         ShouldQuit = true;

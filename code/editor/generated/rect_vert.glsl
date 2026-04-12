@@ -15,9 +15,9 @@ out v2  VS_TexCoord;
 out v2  VS_Center;
 out v2  VS_HalfSize;
 out v4  VS_Color;
-out f32 VS_CornerRadius;
-out f32 VS_BorderThickness;
-out f32 VS_Softness;
+flat out f32 VS_CornerRadius;
+flat out f32 VS_BorderThickness;
+flat out f32 VS_Softness;
 flat out f32 VS_HasTexture;
 
 //- Generated code start

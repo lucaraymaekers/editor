@@ -1,4 +1,5 @@
-
+// TODO(luca): Intrinsics.
+#include <math.h>
 //~ Functions
 
 internal void
@@ -13,12 +14,12 @@ RenderBuildAtlas(arena *Arena,
     {
         Atlas->FirstCodepoint = ' ';
         // NOTE(luca): 2 bytes =>small alphabets.
-        Atlas->CodepointsCount = ((0xFFFF - 1) - Atlas->FirstCodepoint);
+        Atlas->CodepointsCount = ((2048 - 1) - Atlas->FirstCodepoint);
         Atlas->IconsFirstCodepoint = 'a';
         Atlas->IconsCodepointsCount = 2;
         
-        Atlas->Width = KB(1);
-        Atlas->Height = KB(2);
+        Atlas->Width = 1024;
+                    Atlas->Height = 1024;
         u64 Size = (u64)(Atlas->Width*Atlas->Height);
         
         Arena->Pos = 0;
@@ -107,16 +108,14 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
         rune CharIdx = Codepoint - Atlas->FirstCodepoint;
         stbtt_packedchar *PackedChar = &Atlas->PackedChars[CharIdx];
         stbtt_aligned_quad *Quad = &Atlas->AlignedQuads[CharIdx];
-        f32 Width = (PackedChar->x1 - PackedChar->x0);
-        f32 Height = (PackedChar->y1 - PackedChar->y0);
+        f32 Width = floorf(PackedChar->x1 - PackedChar->x0);
+        f32 Height = floorf(PackedChar->y1 - PackedChar->y0);
         {    
-            v2 Min = Pos;
-            // TODO(luca): Looks off, maybe rounding is incorrect, investigate...
-            Min.X += (PackedChar->xoff);
             f32 Baseline = GetBaseline(Atlas->Font, Atlas->FontScale);
             f32 Descent = (f32)Atlas->Font->Descent*Atlas->FontScale;
-            Min.Y += (PackedChar->yoff) + Baseline + Descent;
             
+            v2 Min = V2(floorf(Pos.X + PackedChar->xoff), 
+                        floorf(Pos.Y + PackedChar->yoff + Baseline + Descent));
             v2 Max = V2(Min.X + Width, Min.Y + Height);
             
             Result = DrawRect(Dest, Color, 0.f, 0.f, 0.f);

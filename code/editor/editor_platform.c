@@ -141,7 +141,6 @@ ReplayToggleLooping(platform_replay *Replay, app_memory *Memory)
         
             Replay->IsLooping = false;
     }
-
         }
 
 internal void
@@ -161,6 +160,13 @@ ReplayStepNext(platform_replay *Replay)
 }
 
 #define DebugButton() UI_BackgroundColor(Color_ButtonBackground) UI_BorderThickness(1.f)
+
+internal void
+DebugSpacer(void)
+{
+    UI_SemanticHeight(UI_SizeEm(.2f, 1.f))
+        UI_AddBox(S8(""), UI_BoxFlag_Clip);
+}
 
 internal v4
 GetDisabledColorCondition(b32 Condition)
@@ -494,23 +500,11 @@ GetDisabledColorCondition(b32 Condition)
                             }
                             else if(AltShift)
                             {
-                                ReplayLoadMemory(&Replay, &AppMemory);
-                                Replay.IsStepping = false;
-                                Replay.IsLooping = false;
+                                ReplayStep(&Replay, &AppMemory);
+                                Replay.IsSkipping = true;
+                                Replay.StepTarget = 0;
                             }
-                                else if(AltControl)
-                            {
-                                // TODO(luca): Add to UI instead
-                                    ReplaySlot = ((ReplaySlot == (MaxReplaySlots - 1)) ? (0) : (ReplaySlot + 1));
-                                    Log("Slot: %lu\n", ReplaySlot);
-                                }
-                                else if(AltControlShift)
-                                {
-                                    ReplaySlot = ((ReplaySlot == 0) ? (MaxReplaySlots - 1) : (ReplaySlot - 1));
-                                    Log("Slot: %lu\n", ReplaySlot);
-                                }
-                                
-                            } break;
+                                } break;
                             
                             case 's':
                             {
@@ -622,7 +616,9 @@ GetDisabledColorCondition(b32 Condition)
                                                 if(!Replay.IsStepping) Replay.IsLooping = false;
                                             }
                                         }
-                                                                            
+                                        
+                                        DebugSpacer();
+                                        
                                         DebugButton()
                                             UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
                                             if(UI_AddBox(S8("Step"), ButtonFlags)->Clicked)
@@ -647,7 +643,7 @@ GetDisabledColorCondition(b32 Condition)
                                         
                                         DebugButton()
                                             UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
-                                            if(UI_AddBox(S8("Set step target"), ButtonFlags)->Clicked)
+                                            if(UI_AddBox(S8("Set target"), ButtonFlags)->Clicked)
                                         {
                                                 Replay.StepTarget = Replay.StepIdx;
                                         }
@@ -656,10 +652,51 @@ GetDisabledColorCondition(b32 Condition)
                                             UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
                                         if(UI_AddBox(S8("Load record"), ButtonFlags)->Clicked)
                                         {
-                                            ReplayLoadMemory(&Replay, &AppMemory);
-                                            Replay.IsStepping = false;
-                                            Replay.IsLooping = false;
+                                            if(Replay.RecordingSize)
+                                            {
+                                                ReplayLoadMemory(&Replay, &AppMemory);
+}
                                         }
+                                        
+                                        DebugSpacer();
+                                        
+                                        DebugButton()
+                                            if(UI_AddBox(S8("Load from disk"), ButtonFlags)->Clicked)
+                                        {
+                                            char *FileName = PathFromExe(FrameArena, Str8Fmt("replay_%lu.edr", ReplaySlot));
+                                            
+                                            str8 ReplayBuffer = OS_ReadEntireFileIntoMemory(FileName);
+                                            
+                                            Assert(ReplayBuffer.Size < ReplayMaxBufferSize);
+                                            
+                                            if(ReplayBuffer.Size)
+{                                            
+                                                MemoryCopy(Replay.Buffer, ReplayBuffer.Data, ReplayBuffer.Size);
+                                            Replay.RecordingSize = ReplayBuffer.Size;
+                                            Replay.StepIdx = 0;
+                                            Replay.StepTarget = 0;
+                                            ReplayLoadMemory(&Replay, &AppMemory);
+                                            }
+                                            
+                                            OS_FreeFileMemory(ReplayBuffer);
+                                            
+                                        }
+                                        
+                                        DebugButton()
+                                            UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
+                                            if(UI_AddBox(S8("Save to disk"), ButtonFlags)->Clicked)
+                                        {
+                                            if(Replay.RecordingSize)
+{
+                                            char *FileName = PathFromExe(FrameArena, Str8Fmt("replay_%lu.edr", ReplaySlot));
+                                            str8 ReplayBuffer = {0};
+                                            ReplayBuffer.Data = Replay.Buffer;
+                                            ReplayBuffer.Size = Replay.RecordingSize;
+                                            OS_WriteEntireFile(FileName, ReplayBuffer);
+}
+                                        }
+                                        
+                                        DebugSpacer();
                                         
                                         if(GlobalDebuggerIsAttached)
 {
@@ -667,9 +704,25 @@ GetDisabledColorCondition(b32 Condition)
                                             if(UI_AddBox(S8("DebugBreak"), ButtonFlags)->Clicked)
                                         {
                                             DebugBreak();
-                                        }
+                                            }
+                                            
+                                            DebugSpacer();
                                                                             }
-
+                                        
+                                        DebugButton()
+                                            if(UI_AddBox(S8("Prev slot"), ButtonFlags)->Clicked)
+                                        {
+                                            ReplaySlot = ((ReplaySlot == 0) ? (MaxReplaySlots - 1) : (ReplaySlot - 1));
+                                        }
+                                        
+                                        DebugButton()
+                                            if(UI_AddBox(S8("Next slot"), ButtonFlags)->Clicked)
+                                        {
+                                            ReplaySlot = ((ReplaySlot == (MaxReplaySlots - 1)) ? (0) : (ReplaySlot + 1));
+                                        }
+                                        
+                                        DebugSpacer();
+                                        
                                         if(DebugReplayToggleButton(S8("Logging"), Logging, false)->Clicked)
                                         {
                                             Logging = !Logging;
@@ -710,6 +763,7 @@ GetDisabledColorCondition(b32 Condition)
                                         UI_AddBox(Str8Fmt("idx:    %-4lu###StepIdx", Replay.StepIdx), Flags);
                                         UI_AddBox(Str8Fmt("target: %-4lu###StepTarget", Replay.StepTarget), Flags);
                                         UI_AddBox(Str8Fmt("count:  %-4lu###StepsCount", Replay.StepsCount), Flags);
+                                        UI_AddBox(Str8Fmt("Slot: %lu###Slot", ReplaySlot), Flags);
                                 }
                         }
 }
@@ -763,6 +817,15 @@ GetDisabledColorCondition(b32 Condition)
                         {
                             Replay.StepTarget = (Replay.StepIdx + 1)%Replay.StepsCount;
                             Assert(Replay.IsStepping);
+                        }
+                        
+                        if(Replay.IsSkipping)
+                        {
+                            if(Replay.StepTarget < Replay.StepIdx)
+                            {
+                                ReplayLoadMemory(&Replay, &AppMemory);
+                                Replay.StepIdx = 0;
+                            }
                         }
                         
                         if(Replay.IsStepping)

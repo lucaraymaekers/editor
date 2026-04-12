@@ -1035,7 +1035,6 @@ P_UpdateImage(P_context Context, app_offscreen_buffer *Buffer)
     linux_x11_context *Linux = (linux_x11_context *)Context;
 	if(Linux)
 	{
-        
         if(!Linux->OpenGLMode)
         {
             XPutImage(Linux->DisplayHandle,
