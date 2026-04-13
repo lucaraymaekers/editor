@@ -1,0 +1,250 @@
+Colors:
+{
+    { Frost0   0xff8fbcbb }
+    { Frost1   0xff88c0d0 }
+    { Frost2   0xff81a1c1 }
+    { Frost3   0xff5e81ac }
+    { Snow0    0xffeceff4 }
+    { Snow1    0xffe5e9f0 }
+    { Snow2    0xffd8dee9 }
+    { Night0   0xff4c566a }
+    { Night1   0xff434c5e }
+    { Night2   0xff3b4252 }
+    { Night3   0xff2e3440 }
+    { Red      0xffbf616a }
+    { Orange   0xffd08770 }
+    { Yellow   0xffebcb8b }
+    { Green    0xffa3be8c }
+    { Magenta  0xffb48ead }
+    { Cyan     0xff81a1c1 }
+    { Blue     0xff5e81ac }
+    { Black    0xff000000 }
+}
+
+UI_BoxFlags:
+{
+    None,
+    DrawBackground,
+    DrawBorders,
+    DrawDebugBorder,
+    DrawShadow,
+    DrawDisplayString,
+    CenterTextHorizontally,
+    CenterTextVertically,
+    MouseClickability,
+    FloatingX,
+    FloatingY,
+    Clip,
+}
+
+// TODO(luca): Metaprogram
+UI_LayoutStacks:
+{
+    { v4 BackgroundColor }
+    { v4 TextColor }
+    { v4 BorderColor }
+    { f32 BorderThickness }
+    { f32 Softness }
+    { v4 CornerRadii }
+    { axis2 LayoutAxis }
+    { ui_size SemanticWidth }
+    { ui_size SemanticHeight }
+    { f32 HeightPx }
+    { font_kind FontKind }
+}
+
+/*
+
+->generate this struct
+
+typedef struct v4_stack_node v4_stack_node;
+struct v4_stack_node
+{
+    v4_stack_node *Prev;
+    v4 Value;
+};
+
+-> generate these properties
+
+v4_stack_node *BackgroundColorTop;
+    ...
+
+
+internal void UI_PushSoftness(f32 Softness)  { UI_StackPush(f32, Softness); }
+internal void UI_PopSoftness()               { UI_StackPop(Softness); }
+UI_Softness(Value) DeferLoop(UI_PushSoftness(Value), UI_PopSoftness)
+
+*/
+
+
+//- Rect VS 
+RectVSAttributes:
+{
+    { I_Dest,            4 }
+    { I_TexSrc,          4 }
+    { I_Color0,          4 }
+    { I_Color1,          4 }
+    { I_Color2,          4 }
+    { I_Color3,          4 }
+    { I_CornerRadii,     4 }
+    { I_BorderThickness, 1 }
+    { I_Softness,        1 }
+    { I_HasTexture,      1 }
+}
+
+
+RectVSPreCode:
+```
+#version 330 core
+
+#define v2 vec2
+#define v3 vec3
+#define v4 vec4 
+#define f32 float
+#define b32 int
+
+uniform v2 Viewport;
+
+out v2  VS_Pos;
+out v4  VS_Dest;
+out v2  VS_TexCoord;
+out v2  VS_Center;
+out v2  VS_HalfSize;
+out v4  VS_Color;
+flat out f32 VS_CornerRadius;
+flat out f32 VS_BorderThickness;
+flat out f32 VS_Softness;
+flat out f32 VS_HasTexture;
+```
+
+RectVSPostCode:
+```
+void main()
+{
+    v4 Colors[] = v4[](I_Color0, I_Color1, I_Color2, I_Color3);
+    v2 Vertices[] = v2[](v2(-1.0, +1.0), v2(+1.0, +1.0), v2(-1.0, -1.0), v2(+1.0, -1.0));
+    
+    v2 PixelPos, HalfSize, Center, ClipPos;
+    {    
+        v2 Min = I_Dest.xy;
+        v2 Max = I_Dest.zw;
+        
+        v2 PosInQuad = (Vertices[gl_VertexID] + 1.0) * 0.5;
+        PixelPos = mix(Min, Max, PosInQuad);
+        
+        ClipPos = (PixelPos / Viewport) * 2.0 - 1.0;
+        ClipPos.y = -ClipPos.y;
+        
+        HalfSize = (Max - Min)/2.0;
+        Center = Min + HalfSize;
+    }
+    
+    v2 Min = I_TexSrc.xy;
+    v2 Max = I_TexSrc.zw;
+    
+    v2 BL = v2(Min.x, Max.y);
+    v2 BR = v2(Max.x, Max.y);
+    v2 TL = v2(Min.x, Min.y);
+    v2 TR = v2(Max.x, Min.y);
+    v2 TexCoords[] = v2[](BL, BR, TL, TR);
+    
+    v2 TexCoord = TexCoords[gl_VertexID];
+    
+    VS_Center = Center;
+    VS_HalfSize = HalfSize;
+    VS_Pos = PixelPos - Center;
+    VS_Dest = I_Dest;
+    VS_TexCoord = TexCoord;
+    VS_Color = Colors[gl_VertexID];
+    VS_CornerRadius = I_CornerRadii[gl_VertexID];
+    VS_BorderThickness = I_BorderThickness;
+    VS_Softness = I_Softness;
+    VS_HasTexture = I_HasTexture;
+    
+    gl_Position = v4(ClipPos, 0.0, 1.0);
+}
+```
+
+RectPSCode:
+```
+#version 330 core
+
+#define Pi32 3.1415926535897
+#define v2 vec2
+#define v3 vec3
+#define v4 vec4 
+#define f32 float
+#define b32 int
+
+in v2 VS_Pos;
+in v4 VS_Dest;
+in v2 VS_TexCoord;
+in v2 VS_Center;
+in v2 VS_HalfSize;
+in v4 VS_Color;
+
+flat in f32 VS_CornerRadius;
+flat in f32 VS_BorderThickness;
+flat in f32 VS_Softness;
+flat in f32 VS_HasTexture;
+
+uniform sampler2D Texture;
+
+out v4 FragColor;
+
+v3
+HSV2RGB(v3 Color)
+{
+    v4 K = v4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
+    v3 p = abs(fract(Color.xxx + K.xyz) * 6.0 - K.www);
+    return Color.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), Color.y);
+}
+
+f32
+BoxSDF(v2 Pos, v2 HalfDim, f32 CornerRadius)
+{
+    v2 q = abs(Pos) - (HalfDim - CornerRadius);
+    
+    f32 Distance = min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - CornerRadius;
+    
+    return Distance;
+}
+
+void main()
+{
+    v4 Color = VS_Color;
+    
+    f32 tBorder = 1.0;
+    if(VS_BorderThickness > 0.0)
+    {
+        f32 sBorder = BoxSDF(VS_Pos,
+                             VS_HalfSize - v2(VS_Softness*2.0, VS_Softness*2.0) - VS_BorderThickness,
+                             max(VS_CornerRadius-VS_BorderThickness, 0.0));
+        tBorder = smoothstep(0.0, 2.0*VS_Softness, sBorder);
+    }
+    if(tBorder < 0.001f)
+    {
+        discard;
+    }
+    
+    f32 tCorner = 1.0;
+    if(VS_CornerRadius > 0.0 || VS_Softness > 0.75f)
+    {
+        f32 sCorner = BoxSDF(VS_Pos,
+                             VS_HalfSize - v2(VS_Softness*2.0, VS_Softness*2.0),
+                             VS_CornerRadius);
+        tCorner = 1.0-smoothstep(0.0, 2.0*VS_Softness, sCorner);
+    }
+    
+    if(VS_HasTexture > 0)
+    {
+        f32 Alpha = texture(Texture, VS_TexCoord).r;
+        Color.a *= Alpha;;
+    }
+    
+    Color.a *= tBorder;
+    Color.a *= tCorner;
+    
+    FragColor = Color;
+}
+```

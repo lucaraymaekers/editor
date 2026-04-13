@@ -122,8 +122,6 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 #endif
 
 //-
-#define NoOp ((void)0)
-
 #if LANG_C
 # define ZeroStruct {0}
 #elif LANG_CPP
@@ -151,10 +149,11 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 #endif
 
 #if COMPILER_MSVC
-# define ReadWriteBarrier _ReadBarrier(); _WriteBarrier();
+# define ReadWriteBarrier() _ReadBarrier(); _WriteBarrier();
 #elif COMPILER_GNU || COMPILER_CLANG
-# define ReadWriteBarrier __asm__ __volatile__ ("" : : : "memory")
+# define ReadWriteBarrier() __asm__ __volatile__ ("" : : : "memory")
 #endif
+#define NoOp() ReadWriteBarrier()
 
 #define DebugBreak() do { if(GlobalDebuggerIsAttached) { Trap(); } } while(0)
 
@@ -173,13 +172,18 @@ do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 #define StaticAssert(C, ID) global_variable u8 Glue(ID, __LINE__)[(C)?1:-1]
 
 //~ Loop macros
-#define DeferLoop(Begin, End) for(int _i_ = ((Begin), 0); !_i_; _i_ += 1, (End))
+
+#define DeferLoop_(Begin, End, c) \
+for(int Glue(_i_, c) = ((Begin), 0); !Glue(_i_, c); Glue(_i_, c) += 1, (End))
+#define DeferLoop(Begin, End) DeferLoop_(Begin, End, __COUNTER__)
+
 
 #define EachIndexType(t, Index, Count) (t Index = 0; Index < (Count); Index += 1)
 #define EachIndex(Index, Count)           EachIndexType(TypeOf((Count)), Index, Count)
 #define EachElement(Index, Array)         EachIndexType(umm, Index, ArrayCount(Array))
 #define EachInRange(Index, Range)         (TypeOf((Range).Min) Index = (Range).Min; Index < (Range).Max; Index += 1)
 #define EachNode(Index, t, First)      (t *Index = First; Index != 0; Index = Index->Next)
+#define EachCount(Count) EachIndex(Glue(_i_, __COUNTER__), Count)
 
 #define MemoryCopy(Dest, Source, Count) memmove(Dest, Source, Count)
 #define MemorySet(Dest, Value, Count)  memset(Dest, Value, Count)

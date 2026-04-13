@@ -64,13 +64,6 @@ PushStr8Array(u64 Capacity)
 _i_ == 0; \
 _i_ = _i_ + 1, Array->Count = _Count_)
 
-internal b32 
-IsWhiteSpace(u8 Char)
-{
-    b32 Result = (Char == ' ' || Char == '\t' || Char == '\n' || Char == '\r');
-    return Result;
-}
-
 internal void 
 Str8ArrayAppendTo(str8_array *Array, str8 String)
 {

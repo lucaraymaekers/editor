@@ -1,12 +1,5 @@
 NO_WARNINGS_BEGIN
 
-internal inline b32
-IsWhiteSpace(rune Character)
-{
-    return (Character == '\n' || Character == '\r' ||
-            Character == ' ' || Character == '\t');
-}
-
 internal b32
 IsDelimiter(rune Character)
 {

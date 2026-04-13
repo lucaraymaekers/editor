@@ -23,9 +23,6 @@ struct thread_context
     arena *Arena;
 };
 
-#define AtomicAddEvalU64(Pointer, Value) \
-(__sync_fetch_and_add((Pointer), (Value), __ATOMIC_SEQ_CST) + (Value));
-
 thread_static thread_context *ThreadContext;
 
 #define LaneCount() (ThreadContext->LaneCount)

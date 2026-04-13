@@ -23,13 +23,14 @@ blacklist_patterns =
 
 paths = 
 {
-    { .path = ".",              .recursive = false, .relative = true, },
+    { .path = ".",            .recursive = false, .relative = true, },
     { .path = "code",         .recursive = false, .relative = true, },
     { .path = "code/base",    .recursive = true,  .relative = true, },
     { .path = "code/lib",     .recursive = true,  .relative = true, },
     { .path = "code/shaders", .recursive = true,  .relative = true, },
     { .path = "code/cling/",  .recursive = false, .relative = true, },
-    { .path = "code/editor/", .recursive = true,  .relative = true, },
+    { .path = "code/muze/",   .recursive = true,  .relative = true, },
+    //{ .path = "code/editor/", .recursive = true,  .relative = true, },
     //{ .path = "code/computerenhance/", .recursive = true,  .relative = true, },
 };
 
@@ -69,6 +70,15 @@ commands =
         .footer_panel = false,
         .cursor_at_end = false,
     },
+    .cling = 
+    {
+        .out = "*compilation*", 
+        .linux = "cling",
+        .win = "cling.exe",
+        .save_dirty_files = true,
+        .footer_panel = false,
+        .cursor_at_end = false,
+    },
     .raddbg_kill = 
     {
         .out = "*compilation*", 
@@ -78,11 +88,13 @@ commands =
         .footer_panel = false,
         .cursor_at_end = false,
     },
+    
 };
 
 fkey_command =
 {
     .F1 = "build_editor",
     .F2 = "run_editor",
+    .F3 = "cling",
     .F5 = "raddbg_kill",
 };

@@ -50,6 +50,9 @@ Disagreements on the data might arise from the order of the mutations.
 
 We are people and objectiveness is reductive.
 
+By dividing the mutations to the state as the state and state_delta, we can evade disagreements on the state in builder code by running the delta's before any builder coder.
+Furthermore, the delta's can now be produced from anywhere in the code. (e.g., hotkey, UI button).,
+
 # Questions 
 What bout DPI?
 (Part 2)

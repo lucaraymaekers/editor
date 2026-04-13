@@ -1,3 +1,79 @@
+#include <mmsystem.h>
+#include "muze/muze_midi.h"
+
+typedef struct app_midi_notes_queue app_midi_notes_queue;
+struct app_midi_notes_queue
+{
+    app_midi_note *Notes;
+    u64 Size;
+    u64 ReadPos;
+    u64 WritePos;
+};
+
+global_variable app_midi_notes_queue *NotesQueue = 0;
+
+//~ Midi
+#define MIDI_LogIfError(Code, In) MIDI_LogIfError_(Code, In, __FILE__, __LINE__)
+
+internal b32 
+MIDI_LogIfError_(MMRESULT Code, b32 In,
+                 char *File, s32 Line)
+{
+    b32 Result = false;
+    
+    if(Code != MMSYSERR_NOERROR)
+    {
+        char *ErrorText = PushArrayZero(FrameArena, char, 256);
+        if(In) 
+        {
+            midiInGetErrorTextA(Code, ErrorText, 256);
+        }
+        else
+        {
+            midiOutGetErrorTextA(Code, ErrorText, 256);
+        }
+        
+        Log(ERROR_FMT "%s\n", File, Line, ErrorText);
+        
+        Result = true;
+    }
+    
+    return Result;
+}
+
+void CALLBACK
+MIDI_InCallback(HMIDIIN Device, UINT Msg, DWORD_PTR Instance, DWORD_PTR Param1, DWORD_PTR Param2)
+{
+    if(0) {}
+    else if(Msg == MIM_DATA)
+    {
+        u64 WritePos = (NotesQueue->WritePos % NotesQueue->Size);
+        
+        union { u32 U32[1]; u8 U8[4]; } Message = {0};
+        
+#if 0            
+        if(Param1 != 254) DebugBreak();
+#endif
+        
+        Message.U32[0] = Param1;
+        
+        u8 Status = Message.U8[0];
+        u8 Data1  = Message.U8[1];
+        u8 Data2  = Message.U8[2];
+        if(0 && Status != 0xFE)
+        {            
+            Log("Note(%lu): %u\n", WritePos, Data1);
+        }
+
+        app_midi_note *Note = NotesQueue->Notes + WritePos;
+        NotesQueue->WritePos += 1;
+        Note->Timestamp = (f32)OS_GetWallClock();
+        Note->Message = Param1;
+    }
+}
+
+//~ Helpers 
+
 typedef struct win32_context win32_context;
 struct win32_context
 {
@@ -118,10 +194,162 @@ Win32MainWindowCallback(HWND Window,
     return Result;
 }
 
+//~ API
+global_variable HMIDIIN SelectedIn = 0;
+global_variable u32 SelectedInPort = 0;
+global_variable b32 SelectedInOpened = false;
+
+global_variable HMIDIOUT SelectedOut = 0;
+global_variable u32 SelectedOutPort = 0;
+global_variable b32 SelectedOutOpened = false;
+
+PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
+{
+    platform_midi_get_devices_result Result = {0};
+    
+    u64 MaxDevicesCount = 128;
+    Result.Devices = PushArray(FrameArena, platform_midi_device, MaxDevicesCount);
+    
+    u64 OutDevicesCount = midiOutGetNumDevs();
+    for EachIndex(Idx, OutDevicesCount)
+    {    
+        platform_midi_device *Device = Result.Devices + Result.Count;
+        Result.Count += 1;
+        
+        MIDIOUTCAPS Caps;
+        MMRESULT Code = midiOutGetDevCaps(Idx, &Caps, sizeof(Caps));
+        
+        if(!MIDI_LogIfError(Code, false))
+        {
+            Device->Name = Str8Fmt("%s", Caps.szPname);
+            Device->Id = Idx;
+        }
+        
+        Device->IsOutput = true;
+    }
+    
+    u64 InDevicesCount = midiInGetNumDevs();
+    for EachIndex(Idx, InDevicesCount)
+    {        
+        platform_midi_device *Device = Result.Devices + Result.Count;
+        Result.Count += 1;
+        
+        MIDIINCAPS Caps;
+        MMRESULT Code = midiInGetDevCaps(Idx, &Caps, sizeof(Caps));
+        if(!MIDI_LogIfError(Code, true))
+        {
+            Device->Name = Str8Fmt("%s", Caps.szPname);
+            Device->Id = Idx;
+        }
+        
+        Device->IsOutput = false;
+    }
+    
+    return Result;
+}
+
+PLATFORM_MIDI_SEND(P_MIDISend) 
+{
+    Assert(Device.IsOutput);
+    
+    if(Device.Id != SelectedOutPort)
+    {
+        if(SelectedOutOpened)
+        {
+            MMRESULT Code = midiOutReset(SelectedOut);
+            MIDI_LogIfError(Code, false);
+            
+            Code = midiOutClose(SelectedOut);
+            MIDI_LogIfError(Code, false);
+            
+            SelectedOutOpened = false;
+        }
+        
+        SelectedOutPort = Device.Id;
+    }
+    
+    if(!SelectedOutOpened)
+    {
+        MMRESULT Code = midiOutOpen(&SelectedOut, Device.Id, 0, 0, CALLBACK_NULL);
+        MIDI_LogIfError(Code, false);
+        SelectedOutOpened = true;
+    }
+    
+    // TODO(luca): More checks
+    midi_message MessageEvent = {Message};
+    u8 Channel = MessageEvent.U8[0] & 0x0F;
+    Assert(Channel < 16);
+    
+    MMRESULT Code = midiOutShortMsg(SelectedOut, Message);
+    MIDI_LogIfError(Code, false);
+}
+
+PLATFORM_MIDI_LISTEN(P_MIDIListen)
+{
+    Assert(!Device.IsOutput);
+    
+    if(Device.Id != SelectedInPort)
+    {
+        if(SelectedInOpened)
+        {
+            MMRESULT Code = midiInReset(SelectedIn);
+            MIDI_LogIfError(Code, true);
+            Code = midiInClose(SelectedIn);
+            MIDI_LogIfError(Code, true);
+            
+            SelectedInOpened = false;
+        }
+        
+        SelectedInPort = Device.Id;
+    }
+    
+    if(!SelectedInOpened)
+    {
+        MMRESULT Code = midiInOpen(&SelectedIn, SelectedInPort, (DWORD_PTR)MIDI_InCallback, 0, CALLBACK_FUNCTION);
+        if(!MIDI_LogIfError(Code, true)) 
+        {
+            midiInStart(SelectedIn);
+        }
+        SelectedInOpened = true;
+    }
+}
+
+#if 0
+#define PLATFORM_MIDI_CLOSE(Name) void Name(platform_midi_device Device)
+PLATFORM_MIDI_CLOSE(P_MIDIClose) 
+{
+    {
+        if(!Device.IsOutput)
+        {    
+            if(SelectedInOpened)
+            {
+                midiInStop(SelectedIn);
+                midiInReset(SelectedIn);
+                midiInClose(SelectedIn);
+                SelectedInOpened = false;
+            }
+        }
+        else
+        {
+            if(SelectedOutOpened)
+            {
+                midiOutReset(SelectedOut);
+                midiOutClose(SelectedOut);
+                SelectedOutOpened = false;
+            }
+        }
+    }
+}
+#endif
+
 internal P_context 
 P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
 {
     P_context Result = {0};
+    
+    NotesQueue = PushStruct(Arena, app_midi_notes_queue);
+    NotesQueue->Size = KB(1);
+    NotesQueue->Notes = PushArray(Arena, app_midi_note, NotesQueue->Size);
     
     win32_context *Context = PushStruct(Arena, win32_context);
     
@@ -152,7 +380,7 @@ P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
         HWND Window = CreateWindowExA(
                                       0,
                                       WindowClass.lpszClassName,
-                                      "Handmade Hero",
+                                      "Muze",
                                       Style,
                                       0,
                                       0,
@@ -209,6 +437,15 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
 {
     win32_context *Win32 = (win32_context *)Context;
     
+    // Process MIDI notes queue
+    {
+        u64 ReadPos = (NotesQueue->ReadPos%NotesQueue->Size);
+        u64 ItemsInQueueCount = (NotesQueue->WritePos - NotesQueue->ReadPos); 
+        Input->MIDI.Count = ItemsInQueueCount;
+        Input->MIDI.Notes = NotesQueue->Notes + ReadPos;
+        NotesQueue->ReadPos += ItemsInQueueCount;
+    }
+    
     Input->PlatformWindowIsFocused = GlobalWindowIsFocused;
     
     // Clipboard handling
@@ -250,7 +487,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
             }
             else
             {
-                ErrorLog("No text data in clipboard\n");
+                //ErrorLog("No text data in clipboard\n");
             }
         }
         else
@@ -337,11 +574,36 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     b32 WasDown = ((Message.lParam & (1 << 30)) != 0);
                     b32 IsDown = ((Message.lParam & (1 << 31)) == 0);
                     
+                    // Raw input
+                    {                        
+                        if(WasDown != IsDown)
+                        {
+                            if(0) {}
+                            else if(VKCode == VK_UP)
+                            {
+                                ProcessKeyPress(&Input->ActionUp, IsDown);
+                            }
+                            else if(VKCode == VK_LEFT)
+                            {
+                                ProcessKeyPress(&Input->ActionLeft, IsDown);
+                            }
+                            else if(VKCode == VK_DOWN)
+                            {
+                                ProcessKeyPress(&Input->ActionDown, IsDown);
+                            }
+                            else if(VKCode == VK_RIGHT)
+                            {
+                                ProcessKeyPress(&Input->ActionRight, IsDown);
+                            }
+                            
+                        }
+                    }
+                    
                     if(IsDown)
                     {
                         b32 Shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
                         b32 Ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
-                        b32 Alt = (Message.lParam & (1 << 29));
+                        b32 Alt = (GetKeyState(VK_MENU) & 0x800) != 0;
                         
                         if((VKCode == VK_F4) && Alt)
                         {
@@ -366,79 +628,83 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                         if(Shift) Button->Modifiers |= PlatformKeyModifier_Shift;
                         if(Ctrl)  Button->Modifiers |= PlatformKeyModifier_Control;
                         
-                        // Try to convert to Unicode character
-                        BYTE KeyboardState[256];
-                        GetKeyboardState(KeyboardState);
-                        
-                        WCHAR UnicodeBuffer[4] = {0};
-                        int CharCount = ToUnicode(VKCode, ScanCode, KeyboardState, UnicodeBuffer, 4, 0);
-                        
-                        if(CharCount > 0)
+                        // Text input
                         {
-                            rune Codepoint = (rune)UnicodeBuffer[0];
-                            if(IsPrintable(Codepoint))
+                            // Try to convert to Unicode character
+                            BYTE KeyboardState[256];
+                            GetKeyboardState(KeyboardState);
+                            
+                            WCHAR UnicodeBuffer[4] = {0};
+                            int CharCount = ToUnicode(VKCode, ScanCode, KeyboardState, UnicodeBuffer, 4, 0);
+                            
+                            if(CharCount > 0)
                             {
-                                Button->Codepoint = Codepoint;
-                            }
-                            else if (Codepoint > 0 && IsPrintable(VKCode))
-                            {
-                                // NOTE(luca): VKCodes are uppercase by default
-                                if(IsAlpha(VKCode)) VKCode += 32;
-                                Button->Codepoint = VKCode;
+                                rune Codepoint = (rune)UnicodeBuffer[0];
+                                if(IsPrintable(Codepoint))
+                                {
+                                    Button->Codepoint = Codepoint;
+                                }
+                                else if (Codepoint > 0 && IsPrintable(VKCode))
+                                {
+                                    // NOTE(luca): VKCodes are uppercase by default
+                                    if(IsAlpha(VKCode)) VKCode += 32;
+                                    Button->Codepoint = VKCode;
+                                }
+                                else
+                                {
+                                    Button->IsSymbol = true;
+                                    if(0) {}
+                                    else if(Codepoint == '\b' || Codepoint == 127) Button->Symbol = PlatformKey_BackSpace;
+                                    else if(Codepoint == '\t') Button->Symbol = PlatformKey_Tab;
+                                    else if(Codepoint == 27) Button->Symbol = PlatformKey_Escape;
+                                    else if(Codepoint == 13) Button->Symbol = PlatformKey_Return; 
+                                    else 
+                                    {
+                                        Input->Text.Count -= 1;
+                                        // Not implemented
+                                        Log("Unhandled codepoint: %s\n", Codepoint);
+                                    };
+                                }
                             }
                             else
                             {
                                 Button->IsSymbol = true;
                                 if(0) {}
-                                else if(Codepoint == '\b' || Codepoint == 127) Button->Symbol = PlatformKey_BackSpace;
-                                else if(Codepoint == '\t') Button->Symbol = PlatformKey_Tab;
-                                else if(Codepoint == 27) Button->Symbol = PlatformKey_Escape;
-                                else if(Codepoint == 13) Button->Symbol = PlatformKey_Return; 
-                                else 
+                                else if(VKCode == VK_UP) Button->Symbol = PlatformKey_Up;
+                                else if(VKCode == VK_DOWN) Button->Symbol = PlatformKey_Down;
+                                else if(VKCode == VK_LEFT) Button->Symbol = PlatformKey_Left;
+                                else if(VKCode == VK_RIGHT) Button->Symbol = PlatformKey_Right;
+                                else if(VKCode == VK_CONTROL) Button->Symbol = PlatformKey_Control;
+                                else if(VKCode == VK_SHIFT) Button->Symbol = PlatformKey_Shift;
+                                else if(VKCode == VK_DELETE) Button->Symbol = PlatformKey_Delete;
+                                else if(VKCode == VK_MENU) Button->Symbol = PlatformKey_Alt;
+                                else if(VKCode == VK_OEM_MINUS) 
                                 {
+                                    Button->IsSymbol = false;
+                                    Button->Codepoint = L'-';
+                                }
+                                else if(VKCode == VK_OEM_COMMA)
+                                {
+                                    Button->IsSymbol = false;
+                                    Button->Codepoint = L',';
+                                }
+                                else if(IsPrintable(VKCode))
+                                {
+                                    Button->IsSymbol = false;
+                                    if(IsAlpha(VKCode)) VKCode += 32;
+                                    Button->Codepoint = VKCode;
+                                }
+                                else
+                                {
+                                    char KeyName[64] = {0};
+                                    GetKeyNameTextA(Message.lParam, KeyName, sizeof(KeyName));
+                                    Log("Unhandled key(%d): %s\n", VKCode, KeyName);
                                     Input->Text.Count -= 1;
-                                    // Not implemented
-                                    Log("Unhandled codepoint: %s\n", Codepoint);
-                                };
+                                }
                             }
                         }
-                        else
-                        {
-                            Button->IsSymbol = true;
-                            if(0) {}
-                            else if(VKCode == VK_UP) Button->Symbol = PlatformKey_Up;
-                            else if(VKCode == VK_DOWN) Button->Symbol = PlatformKey_Down;
-                            else if(VKCode == VK_LEFT) Button->Symbol = PlatformKey_Left;
-                            else if(VKCode == VK_RIGHT) Button->Symbol = PlatformKey_Right;
-                            else if(VKCode == VK_CONTROL) Button->Symbol = PlatformKey_Control;
-                            else if(VKCode == VK_SHIFT) Button->Symbol = PlatformKey_Shift;
-                            else if(VKCode == VK_DELETE) Button->Symbol = PlatformKey_Delete;
-                            else if(VKCode == VK_OEM_MINUS) 
-                            {
-                                Button->IsSymbol = false;
-                                Button->Codepoint = L'-';
-                            }
-                            else if(VKCode == VK_OEM_COMMA)
-                            {
-                                Button->IsSymbol = false;
-                                Button->Codepoint = L',';
-                            }
-                            else if(IsPrintable(VKCode))
-                            {
-                                Button->IsSymbol = false;
-                                if(IsAlpha(VKCode)) VKCode += 32;
-                                Button->Codepoint = VKCode;
-                            }
-                            else
-                            {
-                                char KeyName[64] = {0};
-                                GetKeyNameTextA(Message.lParam, KeyName, sizeof(KeyName));
-                                Log("Unhandled key(%d): %s\n", VKCode, KeyName);
-                                Input->Text.Count -= 1;
-                            }
-                        }
-                        
                     }
+                    
                 } break;
                 
                 default:
@@ -503,8 +769,6 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
         
         if(Code->LastWriteTime != WriteTime)
         {
-            Code->LastWriteTime = WriteTime;
-            
             if(Library)
             {
                 Code->Loaded = false;
@@ -518,7 +782,6 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
             b32 Result = CopyFile(Code->LibraryPath, TempDLLPath, FALSE);
             if(!Result)
             {
-                DebugBreak();
                 Win32LogIfError();
             }
             
@@ -528,20 +791,23 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
                 Code->UpdateAndRender = (update_and_render *)GetProcAddress(Library, "UpdateAndRender");
                 if(Code->UpdateAndRender)
                 {
+                    Code->LastWriteTime = WriteTime;
+                    
                     Code->Loaded = true;
-                    Memory->Reloaded = true;
                     Code->LibraryHandle = (u64)Library;
                     Log("\nLibrary reloaded.\n");
                 }
                 else
                 {
                     Code->Loaded = false;
-                    ErrorLog("Could not find UpdateAndRender.\n");
+                    ErrorLog("Could not find UpdateAndRender.");
                 }
+                Memory->Reloaded = true;
             }
             else
             {
                 Code->Loaded = false;
+                Code->LibraryHandle = 0;
                 ErrorLog("Could not open library.\n");
             }
         }

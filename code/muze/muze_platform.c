@@ -1,27 +1,27 @@
 //~ Libraries 
-#if EDITOR_INTERNAL
+#if MUZE_INTERNAL
 # define BASE_CONSOLE_APPLICATION 0
 #endif
 #include "base/base.h"
 #include "base/base.c"
 
-#include "editor/editor_libs.h"
+#include "muze/muze_libs.h"
 
-#include "editor/editor_platform.h"
+#include "muze/muze_platform.h"
 #if OS_LINUX
-# include "editor/editor_platform_linux.c"
+# include "muze/muze_platform_linux.c"
 #elif OS_WINDOWS
-# include "editor/editor_platform_windows.c"
+# include "muze/muze_platform_windows.c"
 #endif
 
 //- For rendering debug UI 
-#include "editor/generated/everything.c"
-#include "editor/editor_gl.h"
-#include "editor/editor_font.h"
-#include "editor/editor_renderer.h"
-#include "editor/editor_ui.h"
-#include "editor/editor_renderer.c"
-#include "editor/editor_ui.c"
+#include "muze/generated/everything.c"
+#include "muze/muze_gl.h"
+#include "muze/muze_font.h"
+#include "muze/muze_renderer.h"
+#include "muze/muze_ui.h"
+#include "muze/muze_renderer.c"
+#include "muze/muze_ui.c"
 
 //- Third party 
 #if OS_WINDOWS
@@ -65,10 +65,10 @@ ReplayLoadMemory(platform_replay *Replay, app_memory *Memory)
 {
     if(Replay->RecordingSize)
     {
-    MemoryCopy(Memory->Memory, Replay->Buffer, Memory->MemorySize);
+        MemoryCopy(Memory->Memory, Replay->Buffer, Memory->MemorySize);
         Replay->PlayingPos = Memory->MemorySize;
         Replay->StepIdx = 0;
-}
+    }
 }
 
 internal void
@@ -106,7 +106,7 @@ ReplayToggleLooping(platform_replay *Replay, app_memory *Memory)
     if(Replay->RecordingSize > 0)
     {
         ReplayStopRecording(Replay, Memory);
-            Replay->IsLooping = !Replay->IsLooping;
+        Replay->IsLooping = !Replay->IsLooping;
         
         if(Replay->IsLooping)
         {
@@ -115,16 +115,16 @@ ReplayToggleLooping(platform_replay *Replay, app_memory *Memory)
         
     }
 }
-            
-        internal void
-        ReplayStep(platform_replay *Replay, app_memory *Memory)
+
+internal void
+ReplayStep(platform_replay *Replay, app_memory *Memory)
 {
-            if(Replay->PlayingPos == 0)
-            {
-                ReplayLoadMemory(Replay, Memory);
+    if(Replay->PlayingPos == 0)
+    {
+        ReplayLoadMemory(Replay, Memory);
         
-            Replay->IsStepping = (Replay->RecordingSize != Replay->PlayingPos);
-            }
+        Replay->IsStepping = (Replay->RecordingSize != Replay->PlayingPos);
+    }
     else
     {
         Replay->IsStepping = true;
@@ -135,13 +135,13 @@ ReplayToggleLooping(platform_replay *Replay, app_memory *Memory)
         Replay->IsStepping = false;
     }
     
-            if(Replay->IsStepping)
+    if(Replay->IsStepping)
     {
         ReplayStopRecording(Replay, Memory);
         
-            Replay->IsLooping = false;
+        Replay->IsLooping = false;
     }
-        }
+}
 
 internal void
 ReplayStepNext(platform_replay *Replay)
@@ -180,322 +180,337 @@ GetDisabledColorCondition(b32 Condition)
     return BackgroundColor;
 }
 
-        internal ui_box *
-        DebugReplayToggleButton(str8 Name, b32 State, b32 DisabledCondition)
-        {
+internal ui_box *
+DebugReplayToggleButton(str8 Name, b32 State, b32 DisabledCondition)
+{
     ui_box *Result = 0;
     
     s32 ButtonFlags = (UI_BoxFlag_Clip |
-                            UI_BoxFlag_DrawBackground |
-                            UI_BoxFlag_DrawDisplayString |
-                            UI_BoxFlag_CenterTextVertically |
-                            UI_BoxFlag_CenterTextHorizontally| 
-                            UI_BoxFlag_DrawBorders |
-                            UI_BoxFlag_MouseClickability);
+                       UI_BoxFlag_DrawBackground |
+                       UI_BoxFlag_DrawDisplayString |
+                       UI_BoxFlag_CenterTextVertically |
+                       UI_BoxFlag_CenterTextHorizontally| 
+                       UI_BoxFlag_DrawBorders |
+                       UI_BoxFlag_MouseClickability);
     str8 Label = (!State ? 
-                   Str8Fmt(        S8Fmt "###" S8Fmt, S8Arg(Name), S8Arg(Name)) : 
+                  Str8Fmt(        S8Fmt "###" S8Fmt, S8Arg(Name), S8Arg(Name)) : 
                   Str8Fmt("Stop " S8Fmt "###" S8Fmt, S8Arg(Name), S8Arg(Name)));
     v4 BackgroundColor = (State ? Color_Red : Color_ButtonBackground);
     
     DebugButton() 
         UI_BackgroundColor(BackgroundColor)
         UI_BackgroundColor(GetDisabledColorCondition(DisabledCondition))
-{
+    {
         Result = UI_AddBox(Label, ButtonFlags);
-}
+    }
     
     return Result;
-        }
+}
 
-        //~ Entrypoint
-            
-        C_LINKAGE ENTRY_POINT(EntryPoint)
+//~ Entrypoint
+
+C_LINKAGE ENTRY_POINT(EntryPoint)
+{
+    if(LaneIndex() == 0)
+    {
+        OS_ProfileInit("S");
+        
+        u64 PlatformMemorySize = GB(4);
+        u64 AppMemorySize = GB(1);
+        
+        // NOTE(luca): Total memory also for game.
+        arena *PermanentArena = ArenaAlloc(.Size = PlatformMemorySize, .Offset = TB(2));
+        FrameArena = ArenaAlloc();
+        arena *ROArena = ArenaAlloc();
+        
+        StringsScratch = FrameArena;
+        
+        OS_ProfileAndPrint("Memory");
+        
+        b32 *Running = PushStruct(PermanentArena, b32);
+        *Running = true;
+        
+        app_offscreen_buffer Buffer = {0};
+#if MUZE_FORCE_SMALL_RESOLUTION
+        Buffer.Width = 1920/2;
+        Buffer.Height = 1080/2;
+#else
+        Buffer.Width = 1920;
+        Buffer.Height = 1080;
+#endif
+        Buffer.BytesPerPixel = 4;
+        Buffer.Pitch = Buffer.BytesPerPixel*Buffer.Width;
+        Buffer.Pixels = PushArray(PermanentArena, u8, (u64)(Buffer.Pitch*Buffer.Height));
+        
+        Buffer.Width = 1600;
+        Buffer.Height = 900;
+        
+        P_context PlatformContext = P_ContextInit(PermanentArena, &Buffer, Running);
+        
+        OS_ProfileAndPrint("Context");
+        
+        if(!PlatformContext)
         {
-            if(LaneIndex() == 0)
+            ErrorLog("Could not initialize graphical context, running in headless mode.");
+        }
+        
+        {        
+            u64 OnePastLastSlash = 0;
+#if OS_LINUX || OS_ANDROID
+            char *FileName = Params->Args[0];
+            u64 SizeOfFileName = StringLength(FileName);
+#elif OS_WINDOWS
+            char *FileName = PushArray(PermanentArena, char, 1024);
+            u64 SizeOfFileName = GetModuleFileNameA(0, FileName, 1024);
+            Win32LogIfError();
+#else
+# error "OS not supported" 
+#endif
+            for EachIndex(Idx, SizeOfFileName)
             {
-                OS_ProfileInit("S");
-                                            
-                u64 PlatformMemorySize = GB(4);
-                u64 AppMemorySize = GB(1);
-                                            
-                // NOTE(luca): Total memory also for game.
-                arena *PermanentArena = ArenaAlloc(.Size = PlatformMemorySize, .Offset = TB(2));
-                arena *FrameArena = ArenaAlloc();
-                arena *ROArena = ArenaAlloc();
-                                            
-                StringsScratch = FrameArena;
-                                            
-                OS_ProfileAndPrint("Memory");
-                                            
-                b32 *Running = PushStruct(PermanentArena, b32);
-                *Running = true;
-                                            
-                app_offscreen_buffer Buffer = {0};
-        #if EDITOR_FORCE_SMALL_RESOLUTION
-                Buffer.Width = 1920/2;
-                Buffer.Height = 1080/2;
-        #else
-                Buffer.Width = 1920;
-                Buffer.Height = 1080;
-        #endif
-                Buffer.BytesPerPixel = 4;
-                Buffer.Pitch = Buffer.BytesPerPixel*Buffer.Width;
-                Buffer.Pixels = PushArray(PermanentArena, u8, (u64)(Buffer.Pitch*Buffer.Height));
-                                            
-                P_context PlatformContext = P_ContextInit(PermanentArena, &Buffer, Running);
-                                            
-                OS_ProfileAndPrint("Context");
-                                            
-                if(!PlatformContext)
+                if(FileName[Idx] == OS_SlashChar)
                 {
-                    ErrorLog("Could not initialize graphical context, running in headless mode.");
+                    OnePastLastSlash = Idx + 1;
                 }
-                                            
-                {        
-                    u64 OnePastLastSlash = 0;
-        #if OS_LINUX || OS_ANDROID
-                    char *FileName = Params->Args[0];
-                    u64 SizeOfFileName = StringLength(FileName);
-        #elif OS_WINDOWS
-                    char *FileName = PushArray(PermanentArena, char, 1024);
-                    u64 SizeOfFileName = GetModuleFileNameA(0, FileName, 1024);
-                    Win32LogIfError();
-        #else
-        # error "OS not supported" 
-        #endif
-                    for EachIndex(Idx, SizeOfFileName)
-                    {
-                        if(FileName[Idx] == OS_SlashChar)
-                        {
-                            OnePastLastSlash = Idx + 1;
-                        }
-                    }
-                                                            
-                    ExeDirPath.Data = (u8 *)FileName;
-                    ExeDirPath.Size = OnePastLastSlash;
-                }
-                                            
-                app_memory AppMemory = {0};
-                AppMemory.MemorySize = AppMemorySize;
-                AppMemory.Memory = PushArray(PermanentArena, u8, AppMemory.MemorySize);
-                AppMemory.ThreadCtx = ThreadContext;
-                AppMemory.ExeDirPath = ExeDirPath;
-        #if EDITOR_INTERNAL
-                AppMemory.IsDebuggerAttached = GlobalDebuggerIsAttached;
-        #endif
-        #if OS_WINDOWS
-                AppMemory.PerfCountFrequency = GlobalPerfCountFrequency;
-        #endif
-                                            
-                app_input _Input[3] = {0};
-                app_input *NewInput = &_Input[0];
-                app_input *OldInput = &_Input[1];
-                app_input *ReplayInput = &_Input[2];
-                                            
-                f64 LastCounter = OS_GetWallClock();
-                f64 FlipWallClock = LastCounter;
-        #if EDITOR_FORCE_UPDATE_HZ
-                f32 GameUpdateHz = EDITOR_FORCE_UPDATE_HZ;
-        #else
-                f32 GameUpdateHz = 144.0f;
-        #endif
-                f32 TargetSecondsPerFrame = 1.0f/GameUpdateHz; 
-                                            
-                app_code Code = {0};
-                                            
-        #if OS_LINUX        
-                str8 LibraryPath = S8("editor_app.so");
-        #elif OS_WINDOWS
-                str8 LibraryPath = S8("editor_app.dll");
-        #else
-                # error "OS not supported."
-        #endif
-                Code.LibraryPath = PathFromExe(PermanentArena, LibraryPath);
-                                            
-                b32 ShowDebugUI = false;
-                u64 FrameIdx = 0;
-                f32 DebugHeightPx = 24.f;
-                gl_render_state DebugRender = {0};
-                font_atlas DebugRenderAtlas = {0};
-                font TextFont = {0};
-                font IconsFont = {0};
-                s32 GLADVersion = 0;
+            }
+            
+            ExeDirPath.Data = (u8 *)FileName;
+            ExeDirPath.Size = OnePastLastSlash;
+        }
+        
+        app_memory AppMemory = {0};
+        AppMemory.MemorySize = AppMemorySize;
+        AppMemory.Memory = PushArray(PermanentArena, u8, AppMemory.MemorySize);
+        AppMemory.ThreadCtx = ThreadContext;
+        AppMemory.ExeDirPath = ExeDirPath;
+#if MUZE_INTERNAL
+        AppMemory.IsDebuggerAttached = GlobalDebuggerIsAttached;
+#endif
+#if OS_WINDOWS
+        AppMemory.PerfCountFrequency = GlobalPerfCountFrequency;
+#endif
+        
+        AppMemory.PlatformMIDIGetDevices = P_MIDIGetDevices;
+        AppMemory.PlatformMIDISend = P_MIDISend;
+        AppMemory.PlatformMIDIListen = P_MIDIListen;
+        
+        app_input _Input[3] = {0};
+        app_input *NewInput = &_Input[0];
+        app_input *OldInput = &_Input[1];
+        app_input *ReplayInput = &_Input[2];
+        
+        f64 LastCounter = OS_GetWallClock();
+        f64 FlipWallClock = LastCounter;
+#if MUZE_FORCE_UPDATE_HZ
+        f32 GameUpdateHz = MUZE_FORCE_UPDATE_HZ;
+#else
+        f32 GameUpdateHz = 144.0f;
+#endif
+        f32 TargetSecondsPerFrame = 1.0f/GameUpdateHz; 
+        
+        app_code Code = {0};
+        
+#if OS_LINUX        
+        str8 LibraryPath = S8("muze_app.so");
+#elif OS_WINDOWS
+        str8 LibraryPath = S8("muze_app.dll");
+#else
+# error "OS not supported."
+#endif
+        Code.LibraryPath = PathFromExe(PermanentArena, LibraryPath);
+        
+        b32 ShowDebugUI = false;
+        u64 FrameIdx = 0;
+        f32 DebugHeightPx = 20.f;
+        gl_render_state DebugRender = {0};
+        font_atlas DebugRenderAtlas = {0};
+        font TextFont = {0};
+        font IconsFont = {0};
+        s32 GLADVersion = 0;
         {
-                    char *FontPath = 0;
-                    FontPath = PathFromExe(FrameArena, S8("../data/icons.ttf"));
-                InitFont(&IconsFont, FontPath);
-                    FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
-                    InitFont(&TextFont, FontPath);
-                                                            
-                    GLADVersion = gladLoaderLoadGL();
-                    RenderInit(&DebugRender);
-                    arena *FontAtlasArena = PushArena(PermanentArena, MB(150), false);
+            char *FontPath = 0;
+            FontPath = PathFromExe(FrameArena, S8("../data/icons.ttf"));
+            InitFont(&IconsFont, FontPath);
+            FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
+            InitFont(&TextFont, FontPath);
+            
+            GLADVersion = gladLoaderLoadGL();
+            RenderInit(&DebugRender);
+            arena *FontAtlasArena = PushArena(PermanentArena, MB(150), false);
             // TODO(luca): Building this atlas is slow and tanks our startup time.  So we should speed it up by using a glyph cache.
             RenderBuildAtlas(FontAtlasArena, &DebugRenderAtlas, &TextFont, &IconsFont, DebugHeightPx);
-                                                            
-                    // Init UI state
-        {            
-                    UI_State = PushStruct(PermanentArena, ui_state);
-                    UI_State->Arena = PushArena(PermanentArena, ArenaAllocDefaultSize, false);
-                    UI_State->BoxTableSize = 4096;
-                    UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
-                    UI_FrameArena = FrameArena;
-                                                            
-                    ui_box *Box = PushStruct(ROArena, ui_box);
-                    *Box = (ui_box){Box, Box, Box, Box, Box, Box, Box};
-                        UI_NilBox = Box;
-                    }
-                }
+            
+            // Init UI state
+            {            
+                UI_State = PushStruct(PermanentArena, ui_state);
+                UI_State->Arena = PushArena(PermanentArena, ArenaAllocDefaultSize, false);
+                UI_State->BoxTableSize = 4096;
+                UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
+                UI_FrameArena = FrameArena;
+                
+                ui_box *Box = PushStruct(ROArena, ui_box);
+                *Box = (ui_box){Box, Box, Box, Box, Box, Box, Box};
+                UI_NilBox = Box;
+            }
+        }
         
         OS_ProfileAndPrint("Debug UI setup");
         
-                platform_replay Replay = {0};
-                                            
-                b32 Paused = false;
-                b32 Logging = false;
-                                            
-                // NOTE(luca): 10 minutes of gameplay
-                u64 ReplayMaxRecordingFramesCount = (u64)GameUpdateHz * 60 * 10;
-                u64 ReplayMaxBufferSize = AppMemory.MemorySize + (ReplayMaxRecordingFramesCount*sizeof(app_input));
-                Replay.Buffer = PushArray(PermanentArena, u8, ReplayMaxBufferSize);
-                u64 MaxReplaySlots = 5;
-                u64 ReplaySlot = 0;
-                                            
-                OS_MarkReadonly(ROArena->Base, ROArena->Size);
-                                            
-                OS_ProfileAndPrint("Misc");
-                                            
-                OS_ProfileInit("P");
-                                            
-                while(*Running)
+        platform_replay Replay = {0};
+        
+        b32 Paused = false;
+        b32 Logging = false;
+        
+        // NOTE(luca): 10 minutes of gameplay
+        u64 ReplayMaxRecordingFramesCount = (u64)GameUpdateHz * 60 * 10;
+        u64 ReplayMaxBufferSize = AppMemory.MemorySize + (ReplayMaxRecordingFramesCount*sizeof(app_input));
+        Replay.Buffer = PushArray(PermanentArena, u8, ReplayMaxBufferSize);
+        u64 MaxReplaySlots = 5;
+        u64 ReplaySlot = 0;
+        
+        OS_MarkReadonly(ROArena->Base, ROArena->Size);
+        
+        OS_ProfileAndPrint("Misc");
+        
+        OS_ProfileInit("P");
+        
+        f64 LastWorkMSPerFrame = 0.f;
+        while(*Running)
+        {
+            Scratch(FrameArena)
+            {
+                RenderBeginFrame(FrameArena, Buffer.Width, Buffer.Height);
+                
+                OS_ProfileAndPrint("InitSetup");
+                
+                P_LoadAppCode(FrameArena, &Code, &AppMemory);
+                OS_ProfileAndPrint("Code");
+                
+                NewInput->PlatformWindowIsFocused = OldInput->PlatformWindowIsFocused;
+                b32 PlatformWindowIsFocused;
+                
+                // Input
                 {
-                    Scratch(FrameArena)
+                    NewInput->Consumed = false;
+                    NewInput->SkipRendering = false;
+                    NewInput->MIDI.Count = 0;
+                    NewInput->Text.Count = 0;
+                    for EachElement(Idx, NewInput->Mouse.Buttons)
                     {
-                        RenderBeginFrame(FrameArena, Buffer.Width, Buffer.Height);
-                                                                            
-                        OS_ProfileAndPrint("InitSetup");
-                                                                            
-                        P_LoadAppCode(FrameArena, &Code, &AppMemory);
-                        OS_ProfileAndPrint("Code");
-                                                                            
-                        NewInput->PlatformWindowIsFocused = OldInput->PlatformWindowIsFocused;
-                        b32 PlatformWindowIsFocused;
-                                                                            
-                        // Input
+                        NewInput->Mouse.Buttons[Idx].EndedDown = OldInput->Mouse.Buttons[Idx].EndedDown;
+                        NewInput->Mouse.Buttons[Idx].HalfTransitionCount = 0;
+                        NewInput->Mouse.Buttons[Idx].Modifiers = 0;
+                    }
+                    for EachElement(Idx, NewInput->GameButtons)
+                    {
+                        NewInput->GameButtons[Idx].EndedDown = OldInput->GameButtons[Idx].EndedDown;
+                        NewInput->GameButtons[Idx].HalfTransitionCount = 0;
+                        NewInput->GameButtons[Idx].Modifiers = 0;
+                    }
+                    NewInput->dtForFrame = TargetSecondsPerFrame;
+                    NewInput->PlatformCursor = OldInput->PlatformCursor;
+                    NewInput->PlatformSetClipboard = OldInput->PlatformSetClipboard;
+                    
+                    NewInput->PlatformClipboard = OldInput->PlatformClipboard;
+                    NewInput->PlatformSetClipboard = OldInput->PlatformSetClipboard;
+                    NewInput->Mouse.X = OldInput->Mouse.X;
+                    NewInput->Mouse.Y = OldInput->Mouse.Y;
+                    NewInput->Mouse.StartX = OldInput->Mouse.StartX;
+                    NewInput->Mouse.StartY = OldInput->Mouse.StartY;
+                    
+                    P_ProcessMessages(PlatformContext, NewInput, &Buffer, Running);
+                    
+                    PlatformWindowIsFocused = NewInput->PlatformWindowIsFocused;
+                    
+                    app_button_state MouseLeft = NewInput->Mouse.Buttons[PlatformMouseButton_Left];
+                    app_button_state MouseRight = NewInput->Mouse.Buttons[PlatformMouseButton_Right];
+                    
+                    b32 OnlyOnePressed = (!!MouseLeft.EndedDown ^ !!MouseRight.EndedDown); 
+                    
+                    if(OnlyOnePressed &&
+                       (WasPressed(MouseLeft) || WasPressed(MouseRight)))
+                    {                        
+                        NewInput->Mouse.StartX = NewInput->Mouse.X;
+                        NewInput->Mouse.StartY = NewInput->Mouse.Y;
+                    }
+                }
+                
+                OS_ProfileAndPrint("Messages");
+                
+#if MUZE_PLATFORM_DEBUG_UI                
+                for EachIndex(Idx, NewInput->Text.Count)
+                {
+                    app_text_button Key = NewInput->Text.Buffer[Idx];
+                    b32 Alt = (Key.Modifiers == PlatformKeyModifier_Alt);
+                    b32 AltShift = (Key.Modifiers == (PlatformKeyModifier_Alt|
+                                                      PlatformKeyModifier_Shift));
+                    b32 AltControl = (Key.Modifiers == (PlatformKeyModifier_Alt|
+                                                        PlatformKeyModifier_Control));
+                    b32 AltControlShift = (Key.Modifiers == (PlatformKeyModifier_Alt|
+                                                             PlatformKeyModifier_Control|
+                                                             PlatformKeyModifier_Shift));
+                    
+                    switch(ToLowercase((u8)Key.Codepoint))
+                    {
+                        case 'b':
+                        {
+                            if(0) {}
+                            else if(AltShift)
                             {
-                                NewInput->Consumed = false;
-                                NewInput->SkipRendering = false;
-                                NewInput->Text.Count = 0;
-                                for EachElement(Idx, NewInput->Mouse.Buttons)
-                                {
-                                    NewInput->Mouse.Buttons[Idx].EndedDown = OldInput->Mouse.Buttons[Idx].EndedDown;
-                                    NewInput->Mouse.Buttons[Idx].HalfTransitionCount = 0;
-                                    NewInput->Mouse.Buttons[Idx].Modifiers = 0;
-                                }
-                                for EachElement(Idx, NewInput->GameButtons)
-                                {
-                                    NewInput->GameButtons[Idx].EndedDown = OldInput->GameButtons[Idx].EndedDown;
-                                    NewInput->GameButtons[Idx].HalfTransitionCount = 0;
-                                    NewInput->GameButtons[Idx].Modifiers = 0;
-                                }
-                                NewInput->dtForFrame = TargetSecondsPerFrame;
-                                NewInput->PlatformCursor = OldInput->PlatformCursor;
-                                NewInput->PlatformSetClipboard = OldInput->PlatformSetClipboard;
-                                                                                                                                                                                            
-                                NewInput->PlatformClipboard = OldInput->PlatformClipboard;
-                                NewInput->PlatformSetClipboard = OldInput->PlatformSetClipboard;
-                            NewInput->Mouse.X = OldInput->Mouse.X;
-                            NewInput->Mouse.Y = OldInput->Mouse.Y;
-                            NewInput->Mouse.StartX = OldInput->Mouse.StartX;
-                            NewInput->Mouse.StartY = OldInput->Mouse.StartY;
-                                                                                            
-                            P_ProcessMessages(PlatformContext, NewInput, &Buffer, Running);
-                                                                                            
-                            PlatformWindowIsFocused = NewInput->PlatformWindowIsFocused;
-                                                                                            
-                            if(WasPressed(NewInput->Mouse.Buttons[PlatformMouseButton_Left]))
-                            {                        
-                                NewInput->Mouse.StartX = NewInput->Mouse.X;
-                                NewInput->Mouse.StartY = NewInput->Mouse.Y;
+                                DebugBreak();
                             }
                         }
-                                                                            
-                        OS_ProfileAndPrint("Messages");
-            
-        #if EDITOR_PLATFORM_DEBUG_UI                
-                            for EachIndex(Idx, NewInput->Text.Count)
+                        
+                        case 'p':
+                        {
+                            if(0) {}
+                            else if(Alt)
                             {
-                                app_text_button Key = NewInput->Text.Buffer[Idx];
-                            b32 Alt = (Key.Modifiers == PlatformKeyModifier_Alt);
-                            b32 AltShift = (Key.Modifiers == (PlatformKeyModifier_Alt|
-                                                                            PlatformKeyModifier_Shift));
-                            b32 AltControl = (Key.Modifiers == (PlatformKeyModifier_Alt|
-                                                                                PlatformKeyModifier_Control));
-                            b32 AltControlShift = (Key.Modifiers == (PlatformKeyModifier_Alt|
-                                                                                            PlatformKeyModifier_Control|
-                                                                                            PlatformKeyModifier_Shift));
-                                                                                            
-                                switch(ToLowercase((u8)Key.Codepoint))
-                                {
-                                case 'b':
-                                {
-                                    if(0) {}
-                                    else if(AltShift)
-                                    {
-                                        DebugBreak();
-                                    }
-                                }
-                                                                                                            
-                                case 'p':
-                                    {
-                                        if(0) {}
-                                        else if(Alt)
-                                        {
-                                            Paused = !Paused;
-                                            Log("%s\n", (Paused) ? "Paused" : "Unpaused");
-                                        }
-                                        else if(AltShift)
-                                        {
-                                            GlobalIsProfiling = !GlobalIsProfiling;
-                                        }
-                                    } break;
-                                                                                                            
-                                case 'd':
-                                {
-                                    if(0) {}
-                                    else if(Alt)
-                                    {
-                                        ShowDebugUI = !ShowDebugUI;
-                                    }
-                                } break;
-                                                                                                                            
-                                    case 'g': 
-                                    {
-                                        if(0) {}
-                                        else if(Alt)
-        {
-                                        Logging = !Logging;
-        }
-                                    } break;
-                                                                                                                            
-                                    case 'r':
-                                    {
-                                            if(0) {}
-                                        if(Alt)
-                                        { 
-                                        ReplayToggleRecording(&Replay, &AppMemory, true);
-                                            }
-                                            else if(AltShift)
-                                            {
-                                        ReplayToggleRecording(&Replay, &AppMemory, false);
-                                            }
-                                    } break;
-                                                                                                                            
-                                    case 'l':
-                                    {
-                                        if(0) {}
-                                        if(Alt)
-                                        {
+                                Paused = !Paused;
+                                Log("%s\n", (Paused) ? "Paused" : "Unpaused");
+                            }
+                            else if(AltShift)
+                            {
+                                GlobalIsProfiling = !GlobalIsProfiling;
+                            }
+                        } break;
+                        
+                        case 'd':
+                        {
+                            if(0) {}
+                            else if(Alt)
+                            {
+                                ShowDebugUI = !ShowDebugUI;
+                            }
+                        } break;
+                        
+                        case 'g': 
+                        {
+                            if(0) {}
+                            else if(Alt)
+                            {
+                                Logging = !Logging;
+                            }
+                        } break;
+                        
+                        case 'r':
+                        {
+                            if(0) {}
+                            if(Alt)
+                            { 
+                                ReplayToggleRecording(&Replay, &AppMemory, true);
+                            }
+                            else if(AltShift)
+                            {
+                                ReplayToggleRecording(&Replay, &AppMemory, false);
+                            }
+                        } break;
+                        
+                        case 'l':
+                        {
+                            if(0) {}
+                            if(Alt)
+                            {
                                 ReplayToggleLooping(&Replay, &AppMemory);
                             }
                             else if(AltShift)
@@ -504,29 +519,29 @@ GetDisabledColorCondition(b32 Condition)
                                 Replay.IsSkipping = true;
                                 Replay.StepTarget = 0;
                             }
-                                } break;
-                            
-                            case 's':
-                            {
-                                if(0) {}
-                                else if(Alt)
+                        } break;
+                        
+                        case 's':
+                        {
+                            if(0) {}
+                            else if(Alt)
                             {
                                 ReplayStep(&Replay, &AppMemory);
                                 if(Replay.StepsCount)
-{
-                                Replay.StepTarget = (Replay.StepIdx + 1)%Replay.StepsCount;
-}
-                                }
-                                else if(AltControl)
                                 {
+                                    Replay.StepTarget = (Replay.StepIdx + 1)%Replay.StepsCount;
+                                }
+                            }
+                            else if(AltControl)
+                            {
                                 Replay.IsStepping = !Replay.IsStepping;
                             }
-                            } break;
-                            
-                            default: break;
+                        } break;
+                        
+                        default: break;
                     }
                 }
-                #endif
+#endif
                 
                 if(ShowDebugUI)
                 {
@@ -541,7 +556,7 @@ GetDisabledColorCondition(b32 Condition)
                     UI_State->Atlas = &DebugRenderAtlas;
                     UI_State->FrameIdx = FrameIdx;
                     UI_State->Input = NewInput;
-                     if(UI_IsActive(UI_NilBox))
+                    if(UI_IsActive(UI_NilBox))
                     {
                         UI_State->Hot = UI_KeyNull();
                     }
@@ -549,7 +564,7 @@ GetDisabledColorCondition(b32 Condition)
                     if(!Paused)
                     {
                         // NOTE(luca): When paused we cannot show this because it will turn the screen to black.
-                    DrawRect(Root->Rec, V4(0.f, 0.f, 0.f, 0.1f), 0.f, 0.f, 0.f);
+                        DrawRect(Root->Rec, V4(0.f, 0.f, 0.f, 0.1f), 0.f, 0.f, 0.f);
                     }
                     
                     UI_DefaultState(Root, DebugHeightPx);
@@ -570,27 +585,27 @@ GetDisabledColorCondition(b32 Condition)
                         // key bind information on 300ms hover?
                         
                         // When done start doing serialization. (+ (de)compression?)
-                            UI_BackgroundColor(V4(V3Arg(Color_Background), .8f))
-
-{                        
-                        UI_LayoutAxis(Axis2_X)
-                            UI_SemanticWidth(UI_SizeChildren(1.f))
-                            UI_SemanticHeight(UI_SizeChildren(1.f))
+                        UI_BackgroundColor(V4(V3Arg(Color_Background), .8f))
+                            
+                        {                        
+                            UI_LayoutAxis(Axis2_X)
+                                UI_SemanticWidth(UI_SizeChildren(1.f))
+                                UI_SemanticHeight(UI_SizeChildren(1.f))
                                 UI_AddBox(S8(""), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
-    {                         
-                            UI_Push()
+                            {                         
+                                UI_Push()
                                     UI_LayoutAxis(Axis2_Y)
                                     UI_SemanticHeight(UI_SizeChildren(1.f))
-                                UI_SemanticWidth(UI_SizeChildren(1.f))
-    {
+                                    UI_SemanticWidth(UI_SizeChildren(1.f))
+                                {
                                     UI_AddBox(S8(""), UI_BoxFlag_Clip);
-                            UI_Push()
+                                    UI_Push()
                                         UI_SemanticWidth(UI_SizePx(200.f, 1.f))
                                         UI_SemanticHeight(UI_SizeText(2.f, 1.f))
                                     {
-                                                                            
+                                        
                                         UI_SemanticWidth(UI_SizeText(2.f, 1.f))
-                                        DebugButton() UI_FontKind(FontKind_Icon)
+                                            DebugButton() UI_FontKind(FontKind_Icon)
                                             if(UI_AddBox(S8("b"), ButtonFlags)->Clicked)
                                         {
                                             ShowDebugUI = false;
@@ -608,9 +623,9 @@ GetDisabledColorCondition(b32 Condition)
                                             ReplayToggleLooping(&Replay, &AppMemory);
                                         }
                                         
-                                            if(DebugReplayToggleButton(S8("Stepping"), Replay.IsStepping, RecordingIsEmpty)->Clicked)
-                                {
-                                    if(Replay.RecordingSize && Replay.StepsCount > 0)
+                                        if(DebugReplayToggleButton(S8("Stepping"), Replay.IsStepping, RecordingIsEmpty)->Clicked)
+                                        {
+                                            if(Replay.RecordingSize && Replay.StepsCount > 0)
                                             {
                                                 Replay.IsStepping = !Replay.IsStepping;
                                                 if(!Replay.IsStepping) Replay.IsLooping = false;
@@ -635,27 +650,27 @@ GetDisabledColorCondition(b32 Condition)
                                             if(UI_AddBox(S8("Skip"), ButtonFlags)->Clicked)
                                         {
                                             if(Replay.RecordingSize)
-{
-                                            ReplayStep(&Replay, &AppMemory);
-                                            Replay.IsSkipping = true;
-}
+                                            {
+                                                ReplayStep(&Replay, &AppMemory);
+                                                Replay.IsSkipping = true;
+                                            }
                                         }
                                         
                                         DebugButton()
                                             UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
                                             if(UI_AddBox(S8("Set target"), ButtonFlags)->Clicked)
                                         {
-                                                Replay.StepTarget = Replay.StepIdx;
+                                            Replay.StepTarget = Replay.StepIdx;
                                         }
                                         
                                         DebugButton()
                                             UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
-                                        if(UI_AddBox(S8("Load record"), ButtonFlags)->Clicked)
+                                            if(UI_AddBox(S8("Load record"), ButtonFlags)->Clicked)
                                         {
                                             if(Replay.RecordingSize)
                                             {
                                                 ReplayLoadMemory(&Replay, &AppMemory);
-}
+                                            }
                                         }
                                         
                                         DebugSpacer();
@@ -670,12 +685,12 @@ GetDisabledColorCondition(b32 Condition)
                                             Assert(ReplayBuffer.Size < ReplayMaxBufferSize);
                                             
                                             if(ReplayBuffer.Size)
-{                                            
+                                            {                                            
                                                 MemoryCopy(Replay.Buffer, ReplayBuffer.Data, ReplayBuffer.Size);
-                                            Replay.RecordingSize = ReplayBuffer.Size;
-                                            Replay.StepIdx = 0;
-                                            Replay.StepTarget = 0;
-                                            ReplayLoadMemory(&Replay, &AppMemory);
+                                                Replay.RecordingSize = ReplayBuffer.Size;
+                                                Replay.StepIdx = 0;
+                                                Replay.StepTarget = 0;
+                                                ReplayLoadMemory(&Replay, &AppMemory);
                                             }
                                             
                                             OS_FreeFileMemory(ReplayBuffer);
@@ -687,27 +702,27 @@ GetDisabledColorCondition(b32 Condition)
                                             if(UI_AddBox(S8("Save to disk"), ButtonFlags)->Clicked)
                                         {
                                             if(Replay.RecordingSize)
-{
-                                            char *FileName = PathFromExe(FrameArena, Str8Fmt("replay_%lu.edr", ReplaySlot));
-                                            str8 ReplayBuffer = {0};
-                                            ReplayBuffer.Data = Replay.Buffer;
-                                            ReplayBuffer.Size = Replay.RecordingSize;
-                                            OS_WriteEntireFile(FileName, ReplayBuffer);
-}
+                                            {
+                                                char *FileName = PathFromExe(FrameArena, Str8Fmt("replay_%lu.edr", ReplaySlot));
+                                                str8 ReplayBuffer = {0};
+                                                ReplayBuffer.Data = Replay.Buffer;
+                                                ReplayBuffer.Size = Replay.RecordingSize;
+                                                OS_WriteEntireFile(FileName, ReplayBuffer);
+                                            }
                                         }
                                         
                                         DebugSpacer();
                                         
                                         if(GlobalDebuggerIsAttached)
-{
-                                        DebugButton()
-                                            if(UI_AddBox(S8("DebugBreak"), ButtonFlags)->Clicked)
                                         {
-                                            DebugBreak();
+                                            DebugButton()
+                                                if(UI_AddBox(S8("DebugBreak"), ButtonFlags)->Clicked)
+                                            {
+                                                DebugBreak();
                                             }
                                             
                                             DebugSpacer();
-                                                                            }
+                                        }
                                         
                                         DebugButton()
                                             if(UI_AddBox(S8("Prev slot"), ButtonFlags)->Clicked)
@@ -733,29 +748,28 @@ GetDisabledColorCondition(b32 Condition)
                                         {
                                             Paused = !Paused;
                                         }
-    
+                                        
                                         if(DebugReplayToggleButton(S8("Profiling"), GlobalIsProfiling, false)->Clicked)
-    {                                    
+                                        {                                    
                                             GlobalIsProfiling = !GlobalIsProfiling;
-    }
                                         }
-                                                                    
+                                    }
+                                    
                                     UI_AddBox(S8(""), UI_BoxFlag_Clip);
-                                        UI_Push()
+                                    UI_Push()
                                         UI_SemanticWidth(UI_SizeText(2.f, 1.f))
                                         UI_SemanticHeight(UI_SizeText(2.f, 1.f))
                                     {
-                                        f64 WorkMSPerFrame = OS_MSElapsed(LastCounter, OS_GetWallClock());
-                                        UI_AddBox(Str8Fmt("cpu: %.2fms/f###cpu frame time", WorkMSPerFrame), Flags);
-    
-    {                                    
-                                        str8 StateName = S8("App");
-                                        if(Replay.IsStepping) StateName = S8("Stepping");
-                                        if(Replay.IsLooping) StateName = S8("Looping");
-                                        if(Replay.IsRecording) StateName = S8("Recording");
-                                        if(Paused) StateName = S8("Paused");
+                                        UI_AddBox(Str8Fmt("cpu: %.2fms/f###cpu frame time", LastWorkMSPerFrame), Flags);
+                                        
+                                        {                                    
+                                            str8 StateName = S8("App");
+                                            if(Replay.IsStepping) StateName = S8("Stepping");
+                                            if(Replay.IsLooping) StateName = S8("Looping");
+                                            if(Replay.IsRecording) StateName = S8("Recording");
+                                            if(Paused) StateName = S8("Paused");
                                             UI_AddBox(Str8Fmt("[" S8Fmt "]###state", S8Arg(StateName)), Flags);
-                                    }
+                                        }
                                         
                                         u64 LastStepIdx = (Replay.StepsCount > 0 ? Replay.StepsCount - 1 : 0); 
                                         // TODO(luca): UI Header
@@ -764,11 +778,11 @@ GetDisabledColorCondition(b32 Condition)
                                         UI_AddBox(Str8Fmt("target: %-4lu###StepTarget", Replay.StepTarget), Flags);
                                         UI_AddBox(Str8Fmt("count:  %-4lu###StepsCount", Replay.StepsCount), Flags);
                                         UI_AddBox(Str8Fmt("Slot: %lu###Slot", ReplaySlot), Flags);
+                                    }
                                 }
+                            }
                         }
-}
-}
-
+                        
                         UI_ResolveLayout(Root->First);
                         
                         if(!UI_IsActive(UI_NilBox) || !UI_IsHot(UI_NilBox))
@@ -797,15 +811,15 @@ GetDisabledColorCondition(b32 Condition)
                 
                 OS_ProfileAndPrint("Debug UI");
                 
-                    if(!Paused)
+                if(!Paused)
                 {
                     if(Replay.RecordingSize)
-{                        
-                    Replay.StepsCount = (Replay.RecordingSize - AppMemory.MemorySize)/sizeof(app_input);
+                    {                        
+                        Replay.StepsCount = (Replay.RecordingSize - AppMemory.MemorySize)/sizeof(app_input);
                     }
-
-                // Playback
-                {
+                    
+                    // Playback
+                    {
                         if(Replay.IsRecording)
                         {
                             MemoryCopy((u8 *)Replay.Buffer + Replay.RecordingSize, NewInput, sizeof(*ReplayInput));
@@ -836,12 +850,12 @@ GetDisabledColorCondition(b32 Condition)
                                 ReplayLoadMemory(&Replay, &AppMemory);
                             }
                             else
-{                                
+                            {                                
                                 HasReachedStepTarget = (Replay.StepIdx == Replay.StepTarget);
                                 if(!HasReachedStepTarget)
-{
+                                {
                                     Replay.StepIdx = (Replay.StepIdx + 1)%Replay.StepsCount;
-}
+                                }
                             }
                             
                             // NOTE(luca): We are "pausing" the application by not passing zeroed inputs while the step target is reached. 
@@ -864,13 +878,13 @@ GetDisabledColorCondition(b32 Condition)
                                 }
                             }
                         }
-                        }
+                    }
                     
                     AppMemory.IsProfiling = GlobalIsProfiling;
                     
                     app_input *AppInput = (Replay.IsStepping ? ReplayInput : NewInput);
-{
-                    // NOTE(luca): Need to be overwritten. Since they reflect the platform state but the the window border is drawn by the app based on the input.
+                    {
+                        // NOTE(luca): Need to be overwritten. Since they reflect the platform state but the the window border is drawn by the app based on the input.
                         AppInput->PlatformIsRecording = Replay.IsRecording;
                         AppInput->PlatformIsStepping = Replay.IsStepping;
                         AppInput->PlatformWindowIsFocused = PlatformWindowIsFocused;
@@ -881,7 +895,7 @@ GetDisabledColorCondition(b32 Condition)
                     // NOTE(luca): Since UpdateAndRender can take some time, there could have been a signal sent to INT the app.
                     ReadWriteBarrier();
                     *Running = *Running && !ShouldQuit;
-}
+                }
                 
                 OS_ProfileAndPrint("UpdateAndRender");
                 
@@ -891,13 +905,14 @@ GetDisabledColorCondition(b32 Condition)
                 {
                     // TODO(luca): Would be nice if we could be non blocking in the case where the debug UI wants to be shown but the rendering of the app happens offscreen.
                     RenderDrawAllRectangles(&DebugRender, V2S32(Buffer.Width, Buffer.Height), &DebugRenderAtlas);
-                P_UpdateImage(PlatformContext, &Buffer);
+                    P_UpdateImage(PlatformContext, &Buffer);
                 }
-
+                
                 OS_ProfileAndPrint("UpdateImage");
                 
                 f64 WorkCounter = OS_GetWallClock();
                 f64 WorkMSPerFrame = OS_MSElapsed(LastCounter, WorkCounter);
+                LastWorkMSPerFrame = WorkMSPerFrame;
                 
                 // Sleep
                 // TODO(luca): Think about framerate.
@@ -935,7 +950,7 @@ GetDisabledColorCondition(b32 Condition)
                     }
                 }
                 
-                    LastCounter = OS_GetWallClock();
+                LastCounter = OS_GetWallClock();
                 
                 NewInput->Text.Buffer[NewInput->Text.Count].Codepoint = 0;
                 
@@ -961,13 +976,12 @@ GetDisabledColorCondition(b32 Condition)
                 }
                 
                 FlipWallClock = OS_GetWallClock();
-            
-            
-            FrameIdx += 1;
+                
+                
+                FrameIdx += 1;
+            }
         }
-    }
     }
     
     return 0;
 }
-    

@@ -24,7 +24,7 @@ union v2
     f32 e[2];
     struct { f32 X, Y; };
 };
-#define V2Arg(Value) Value.X, Value.Y
+#define V2Arg(Value) (Value).X, (Value).Y
 
 typedef union v3 v3;
 union v3
@@ -32,7 +32,7 @@ union v3
     f32 e[3];
     struct { f32 X, Y, Z; };
 };
-#define V3Arg(Value) Value.X, Value.Y, Value.Z
+#define V3Arg(Value) (Value).X, (Value).Y, (Value).Z
 
 typedef union v4 v4;
 union v4
@@ -47,7 +47,7 @@ union v4
     struct { f32 X, Y, Z, W; };
     struct { f32 R, G, B, A; };
 };
-#define V4Arg(Value) Value.X, Value.Y, Value.Z, Value.W
+#define V4Arg(Value) (Value).X, (Value).Y, (Value).Z, (Value).W
 
 #define U32ToV4Arg(Value) \
 ((f32)(((Value) >> 8*2) & 0xFF)/255.0f), \
@@ -127,11 +127,11 @@ V2MulV2(v2 A, v2 B)
 }
 
 internal inline v2 
-V2(f32 A, f32 B) 
+V2(f32 X, f32 Y) 
 {
     v2 Result = {0};
-    Result.X = A;
-    Result.Y = B;
+    Result.X = X;
+    Result.Y = Y;
     return Result;
 }
 
@@ -166,12 +166,12 @@ V4(f32 X, f32 Y, f32 Z, f32 W)
 internal inline v4
 V4F32(f32 A)
 {
-        v4 Result = {0};
-        Result.X = A;
-        Result.Y = A;
-        Result.Z = A;
-        Result.W = A;
-        return Result;
+    v4 Result = {0};
+    Result.X = A;
+    Result.Y = A;
+    Result.Z = A;
+    Result.W = A;
+    return Result;
 }
 
 internal inline b32
@@ -222,7 +222,7 @@ RectFromSize(v2 TopLeft, v2 Size)
 {
     v4 Result = {0};
     Result.Min = TopLeft;
-    Result.Max = V2AddV2(TopLeft, Size);
+    Result.Max = V2AddV2(Result.Min, Size);
     return Result;
 }
 
@@ -294,6 +294,16 @@ RectIntersect(v4 A, v4 B)
     Result.Min.Y = Max(A.Min.Y, B.Min.Y);
     Result.Max.X = Min(A.Max.X, B.Max.X);
     Result.Max.Y = Min(A.Max.Y, B.Max.Y);
+    return Result;
+}
+
+internal inline b32
+RectOverlap(v4 A, v4 B)
+{
+    b32 Result = !(A.Max.X < B.Min.X ||
+                   A.Max.Y < B.Min.Y ||
+                   A.Min.X > B.Max.X ||
+                   A.Min.Y > B.Max.Y);
     return Result;
 }
 

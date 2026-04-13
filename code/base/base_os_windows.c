@@ -152,7 +152,7 @@ OS_PrintFormat(char *Format, ...)
     vsprintf((char *)LogBuffer, Format, Args);
     OutputDebugStringA((char *)LogBuffer);
 #else
-    vprintf(Format, Args);
+    vfprintf(stderr, Format, Args);
 #endif
 }
 

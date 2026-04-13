@@ -1,0 +1,33 @@
+# Midi
+Musical Instrument Digital Interface.
+Sounds are synthetic.
+
+Series of events with some timing information. 
+
+Each MIDI event has information for a "channel".
+Maximum 16.
+
+Tracks are events ocurringing in parallel. Whose events can be mapped ot other channels.
+
+Messages are 7 bits.
+If MSB we got varying length encoding.
+
+The last IDs are saved.  Based on the MSB being set you can  set all subsequent ID with the same ID.
+
+NoteOn with velocity of 0 = NoteOff.
+
+UTF8
+
+# Resources
+- https://fgiesen.wordpress.com/2010/12/14/ring-buffers-and-queues/
+- Basic MIDI Input/Output Programming 
+- https://www.ccarh.org/courses/253/lab/midiprog/
+- MSDN MIDI funtions
+- (youtube) javidx9 -  Programming MIDI: https://www.youtube.com/watchv=040BKtnDdg0
+
+
+# Questions
+Where does MIDI latency come from.
+Actual memory bandwidth or processing power?
+Are there other formats that you can use than MIDI for sending events to the keyboard.
+Why do you even need a NoteOff :(

@@ -17,7 +17,9 @@ NO_WARNINGS_BEGIN
 NO_WARNINGS_END
 
 //~ Globals
-static MD_Arena *GlobalMDArena = 0;
+global_variable MD_Arena *GlobalMDArena = 0;
+global_variable b32 Windows = false;
+global_variable b32 Linux = false;
 
 //~ Functions
 internal void
@@ -59,7 +61,7 @@ WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags)
     Str8ArrayAppend(S8("cl"));
     Str8ArrayAppend(S8("-MTd -Gm- -nologo -GR- -EHa- -Oi -FC -Z7"));
     Str8ArrayAppend(S8("-Zc:strictStrings-"));
-    Str8ArrayAppend(S8("-WX -W4 -wd4459 -wd4456 -wd4201 -wd4100 -wd4101 -wd4189 -wd4505 -wd4996 -wd4389 -wd4244 -wd5287 -wd4063 -wd4127"));
+    Str8ArrayAppend(S8("-WX -W4 -wd4459 -wd4201 -wd4100 -wd4101 -wd4189 -wd4505 -wd4996 -wd4389 -wd4244 -wd5287 -wd4063 -wd4127"));
     
     Str8ArrayAppend(Str8ArrayJoinFrom(ExtraCompilerFlags, ' '));
     Str8ArrayAppend(Source);
@@ -131,8 +133,71 @@ LinuxMakeBuildCommand(str8 Source,
     {
         RunCommand();
     }
-    
 }
+
+internal void
+MuzeBuildCommand(str8 Source, 
+                 str8 OutputName, 
+                 b32 GCC, b32 Clang, b32 Asan, b32 Debug,
+                 str8_array *ExtraFlags,
+                 str8 ExtraLinkerFlags,
+                 str8 ExtraSource,
+                 b32 IsDLL, b32 IsObject)
+{
+    if(0) {}
+    else if(Linux)
+    {
+        if(0) {}
+        else if(IsObject)
+        {
+            Str8ArrayAppendTo(ExtraFlags, S8("-fPIC -x c++ -c"));
+            OutputName = Str8Fmt(S8Fmt ".o", S8Arg(OutputName));
+        }
+        else if(IsDLL)
+        {
+            Str8ArrayAppendTo(ExtraFlags, S8("-fPIC --shared"));
+            OutputName = Str8Fmt(S8Fmt ".so", S8Arg(OutputName));
+        }
+        
+        Str8ArrayAppendTo(ExtraFlags, ExtraLinkerFlags);
+        LinuxMakeBuildCommand(Source, OutputName, GCC, Clang, Asan, Debug, ExtraFlags, false);
+        Str8ArrayAppend(ExtraSource);
+        RunCommand();
+    }
+    else if(Windows)
+    {
+        if(0) {}
+        else if(IsObject)
+        {
+            Str8ArrayAppendTo(ExtraFlags, S8("-c /TP"));
+            Str8ArrayAppendTo(ExtraFlags, Str8Fmt("-Fo" S8Fmt ".obj", S8Arg(OutputName)));
+        }
+        else if(IsDLL)
+        {
+            Str8ArrayAppendTo(ExtraFlags, S8("/LD"));
+            ExtraLinkerFlags = Str8Fmt(S8Fmt " /DLL /OUT:" S8Fmt ".dll",
+                                       S8Arg(ExtraLinkerFlags), S8Arg(OutputName));
+        }
+        else
+        {
+            Str8ArrayAppendTo(ExtraFlags, Str8Fmt("-Fe" S8Fmt ".exe", S8Arg(OutputName)));
+        }
+        
+        ExtraLinkerFlags = Str8Fmt("/link -opt:ref -incremental:no " S8Fmt, S8Arg(ExtraLinkerFlags));
+        
+        Str8ArrayAppendTo(ExtraFlags, Str8Fmt("-Fm" S8Fmt ".map", S8Arg(OutputName)));
+        Str8ArrayAppendTo(ExtraFlags, ExtraSource);
+        WindowsBuild(Source, ExtraFlags, ExtraLinkerFlags);
+    }
+}
+
+internal void 
+LogBuildMode(str8 Name, b32 Debug)
+{
+    Log("[" S8Fmt " (" S8Fmt ")]\n", 
+        S8Arg(Name), S8Arg(Debug ? S8("debug") : S8("release")));
+}
+
 
 ENTRY_POINT(EntryPoint)
 {
@@ -146,14 +211,12 @@ ENTRY_POINT(EntryPoint)
         }
         
         // Targets
-        b32 Editor = true;
-        
+        b32 Editor = false;
         b32 HaversineProcessor = false;
         b32 HaversineGenerator = false;
         b32 Sim86 = false;
+        b32 Muze = true;
         
-        b32 Windows = false;
-        b32 Linux = false;
 #if OS_WINDOWS
         Windows = true;
 #elif OS_LINUX
@@ -163,7 +226,6 @@ ENTRY_POINT(EntryPoint)
         //- Targets 
         b32 Asan = false;
         b32 Debug = true;
-        b32 Personal = false;
         //- TODO(luca): 
         b32 Clean = false;
         b32 Clang = true;
@@ -176,7 +238,7 @@ ENTRY_POINT(EntryPoint)
         
         if(HaversineGenerator)
         {
-            Log("[haversine generator]\n");
+            LogBuildMode(S8("Haversine generator"), Debug);
             
             // Haversine generator metaprogram
             {
@@ -314,7 +376,7 @@ ENTRY_POINT(EntryPoint)
         
         if(HaversineProcessor)
         {
-            Log("[haversine processor]\n");
+            LogBuildMode(S8("Haversine processor"), Debug);
             
             if(Linux)
             {            
@@ -334,7 +396,7 @@ ENTRY_POINT(EntryPoint)
         
         if(Sim86)
         {
-            Log("[sim86]\n");
+            LogBuildMode(S8("sim86"), Debug);
             
             if(Linux)
             {            
@@ -351,11 +413,9 @@ ENTRY_POINT(EntryPoint)
             }
         }
         
-        //~ Editor 
-        
         if(Editor)
         {            
-            Log("[editor (" S8Fmt ")]\n", S8Arg(Debug ? S8("debug") : S8("release")));
+            LogBuildMode(S8("editor"), Debug);
             
             // Metaprogram
             {
@@ -485,19 +545,17 @@ ENTRY_POINT(EntryPoint)
                     WriteStreamToFile(VSStream, "../code/editor/generated/rect_vert.glsl");
                     WriteStreamToFile(PSStream, "../code/editor/generated/rect_frag.glsl");
                 }
-                
             }
             
             // Editor build
             {
-                str8_array *EditorFlags = PushStr8Array(256);
-                Str8ArrayAppendTo(EditorFlags, S8("-I" CLING_CODE_PATH));
+                str8_array *CommonMuzeFlags = PushStr8Array(256);
+                Str8ArrayAppendTo(CommonMuzeFlags, S8("-I" CLING_CODE_PATH));
+                
                 if(OS_FileExists(CLING_CODE_PATH "base/base_build.h"))
                 {
-                    Personal = true;
-                    Str8ArrayAppendTo(EditorFlags, S8("-DEDITOR_PERSONAL=1"));
+                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DBASE_PERSONAL=1"));
                 }
-                
                 
                 char *LibsFileName = (Windows ? 
                                       CLING_BUILD_PATH "editor_libs.obj" :
@@ -505,101 +563,276 @@ ENTRY_POINT(EntryPoint)
                                        CLING_BUILD_PATH "editor_libs.o" :
                                        0));
                 
-                if(Linux)
+                if(!OS_FileExists(LibsFileName))
                 {
-                    if(!OS_FileExists(LibsFileName))
+                    str8 ExtraLinkerFlags = {0};
+                    Str8ArrayPushCount(CommonMuzeFlags)
                     {
-                        Str8ArrayPushCount(EditorFlags)
-                        {
-                            Str8ArrayAppendTo(EditorFlags, S8("-fPIC -x c++ -c "
-                                                              "-DEDITOR_SLOW_COMPILE=1"));
-                            LinuxMakeBuildCommand(S8("../code/editor/editor_libs.h"), 
-                                                  S8FromCString(LibsFileName), 
-                                                  GCC, Clang, Asan, Debug,
-                                                  EditorFlags,
-                                                  true);
-                        }
-                    }
-                    
-                    Str8ArrayPushCount(EditorFlags)
-                    {                    
-                        Str8ArrayAppendTo(EditorFlags, S8("-fPIC --shared "
-                                                          "-DEDITOR_SLOW_COMPILE=0"));
-                        LinuxMakeBuildCommand(S8("../code/editor/editor_app.c"), 
-                                              S8("editor_app.so"),
-                                              GCC, Clang, Asan, Debug,
-                                              EditorFlags,
-                                              false);
-                        Str8ArrayAppend(S8FromCString(LibsFileName));
-                        RunCommand();
-                    }
-                    
-                    Str8ArrayPushCount(EditorFlags)
-                    {
-                        Str8ArrayAppendTo(EditorFlags, S8("-lX11 -lGL -lGLX "
-                                                                            "-DEDITOR_SLOW_COMPILE=0"));
+                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=1"));
                         
-                        LinuxMakeBuildCommand(S8("../code/editor/editor_platform.c"),
-                                              S8("editor"),
-                                              GCC, Clang, Asan, Debug,
-                                              EditorFlags,
-                                              false);
-                        Str8ArrayAppend(S8FromCString(LibsFileName));
-                        RunCommand();
+                        MuzeBuildCommand(S8("../code/editor/editor_libs.h"), 
+                                         S8("editor_libs"), 
+                                         GCC, Clang, Asan, Debug,
+                                         CommonMuzeFlags, ExtraLinkerFlags,
+                                         S8(""),
+                                         false, true);
                     }
                 }
                 
-                if(Windows)
+                Str8ArrayPushCount(CommonMuzeFlags)
                 {
-                    if(!OS_FileExists(LibsFileName))
+                    str8 ExtraLinkerFlags  = {0};
+                    
+                    if(Windows)
                     {
-                        Str8ArrayPushCount(EditorFlags)
-                        {                        
-                            Str8ArrayAppendMultipleTo(EditorFlags, 
-                                                      S8("-DEDITOR_SLOW_COMPILE=1"),
-                                                      S8("-Fmeditor_app.map"),
-                                                      S8Cat(S8("-Fo"), S8FromCString(LibsFileName)),
-                                                      S8("-c /TP -LD"));
-                            WindowsBuild(S8("../code/editor/editor_libs.h"), 
-                                         EditorFlags,
-                                         S8("/link -opt:ref -incremental:no"));
-                        }
+                        
+                        ExtraLinkerFlags = S8("/EXPORT:UpdateAndRender");
                     }
                     
-                    // Build app dll
-                    {        
-                        str8 Byte = PushS8(GlobalClingArena, 1);
-                        //OS_WriteEntireFile("lock.tmp", Byte);
-                        Str8ArrayPushCount(EditorFlags)
-                        {
-                            Str8ArrayAppendMultipleTo(EditorFlags,
-                                                      S8("-DEDITOR_SLOW_COMPILE=0 -Fmeditor_app.map"),
-                                                      S8FromCString(LibsFileName));
-                            WindowsBuild(S8("../code/editor/editor_app.c"),
-                                         EditorFlags, 
-                                         S8("-LD /link /DLL /EXPORT:UpdateAndRender /OUT:editor_app.dll"));
-                        }
-                        //OS_DeleteFile("lock.tmp", Byte);
+                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=0"));
+                    
+                    MuzeBuildCommand(S8("../code/editor/editor_app.c"), 
+                                     S8("editor_app"),
+                                     GCC, Clang, Asan, Debug,
+                                     CommonMuzeFlags, ExtraLinkerFlags,
+                                     S8FromCString(LibsFileName),
+                                     true, false);
+                }
+                
+                Str8ArrayPushCount(CommonMuzeFlags)
+                {
+                    str8 ExtraLinkerFlags = {0};
+                    
+                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=0"));
+                    
+                    if(0) {}
+                    else if(Linux)
+                    {
+                        ExtraLinkerFlags = S8("-lX11 -lGL -lGLX");
+                    }
+                    else if(Windows)
+                    {
+                        ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
                     }
                     
-                    // Build platform exe
-                    {
-                        Str8ArrayPushCount(EditorFlags)
-                        {                        
-                            Str8ArrayAppendTo(EditorFlags, S8("-Feeditor.exe"));
-                            WindowsBuild(S8("../code/editor/editor_platform.c"),
-                                         EditorFlags,
-                                         S8("/link -opt:ref -incremental:no user32.lib Gdi32.lib winmm.lib Opengl32.lib"));
-                        }
-                    }
-                    
-                    if(0)
-                    {
-                        Cng_RunCommand(S8("cmd /c pause"));
-                    }
+                    MuzeBuildCommand(S8("../code/editor/editor_platform.c"),
+                                     S8("editor"),
+                                     GCC, Clang, Asan, Debug,
+                                     CommonMuzeFlags, ExtraLinkerFlags,
+                                     S8FromCString(LibsFileName), 
+                                     false, false);
                 }
             }
         }
+        
+        if(Muze)
+        {
+            LogBuildMode(S8("muze"), Debug);
+            
+            // Metaprogram
+            {
+                Log("Generating code...\n");
+                
+                GlobalMDArena = MD_ArenaAlloc();
+                MD_String8 FileName = MD_S8Lit("../code/muze/tables.mdesk");
+                MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FileName);
+                
+                // Print metadesk errors
+                for(MD_Message *Message = Parse.errors.first;
+                    Message != 0;
+                    Message = Message->next)
+                {
+                    MD_CodeLoc code_loc = MD_CodeLocFromNode(Message->node);
+                    MD_PrintMessage(stdout, code_loc, Message->kind, Message->string);
+                }
+                if(Parse.errors.max_message_kind < MD_MessageKind_Error)
+                {
+                    MD_Node *Root = Parse.node->first_child;
+                    
+                    MD_String8List VSStream = {0};
+                    MD_String8List PSStream = {0};
+                    MD_String8List CStream = {0};
+                    
+                    // Colors
+                    {
+                        MD_Node *ColorsTable = MD_FirstNodeWithString(Root, MD_S8Lit("Colors"), 0);
+                        
+                        DeferLoop(MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors begin\n")),
+                                  MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors end\n")))
+                        {                            
+                            for(MD_EachNode(Node, ColorsTable->first_child))
+                            {
+                                MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
+                                MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
+                                MD_S8ListPushFmt(GlobalMDArena, &CStream, "const u32 ColorU32_%S = %S;\n", ColorName->string, ColorValue->string);
+                            }
+                            
+                            for(MD_EachNode(Node, ColorsTable->first_child))
+                            {
+                                MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
+                                MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
+                                MD_S8ListPushFmt(GlobalMDArena, &CStream, "v4 Color_%S = {U32ToV4Arg(%S)};\n", ColorName->string, ColorValue->string);
+                                
+                            }
+                        }
+                    }
+                    
+                    // Rect shader attributes
+                    {                
+                        MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSAttributes"), 0);
+                        
+                        MD_Node *ShaderPreTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPreCode"), 0);
+                        MD_Node *ShaderPostTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPostCode"), 0);
+                        MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPreTable->first_child->string);
+                        
+                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code start\n"),
+                                  MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code end\n"))
+                        {                        
+                            MD_Node *RectPSCodeTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectPSCode"), 0);
+                            MD_S8ListPush(GlobalMDArena, &PSStream, RectPSCodeTable->first_child->string);
+                            
+                            DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream,
+                                                       "s32 RectVSAttribOffsets[] =\n{\n"),
+                                      MD_S8ListPushFmt(GlobalMDArena, &CStream, "};\n"))
+                            {                        
+                                s32 Index = 0;
+                                for(MD_EachNode(Node, Table->first_child))
+                                {
+                                    MD_Node *Name = MD_NodeAtIndex(Node->first_child, 0);
+                                    MD_Node *Size = MD_NodeAtIndex(Node->first_child, 1);
+                                    
+                                    MD_String8 TypeName = MD_S8Lit("null");
+                                    
+                                    if(0) {}
+                                    else if(MD_S8Match(Size->string, MD_S8Lit("1"), 0)) TypeName = MD_S8Lit("f32");
+                                    else if(MD_S8Match(Size->string, MD_S8Lit("4"), 0)) TypeName = MD_S8Lit("v4");
+                                    else InvalidPath();
+                                    
+                                    MD_S8ListPushFmt(GlobalMDArena, &VSStream, 
+                                                     "layout (location = %2d) in %3S %S;\n", 
+                                                     Index, TypeName, Name->string);
+                                    MD_S8ListPushFmt(GlobalMDArena, &CStream,
+                                                     "%S,\n", Size->string);
+                                    
+                                    Index += 1;
+                                }
+                            }
+                        }
+                        
+                        MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPostTable->first_child->string);
+                    }
+                    
+                    // UI Box flags
+                    {
+                        MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("UI_BoxFlags"), 0);
+                        
+                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream, 
+                                                   "enum ui_box_flag\n{\n"),
+                                  MD_S8ListPushFmt(GlobalMDArena, &CStream, 
+                                                   "};\n"
+                                                   "typedef enum ui_box_flag ui_box_flag;\n"))
+                        {                        
+                            u64 MaxWidth = 0;
+                            for(MD_EachNode(Node, Table->first_child))
+                            {
+                                MaxWidth = Max(Node->string.size, MaxWidth);
+                            }
+                            
+                            s32 Index = 0;
+                            s32 Value = 0;
+                            
+                            for(MD_EachNode(Node, Table->first_child))
+                            {
+                                if(Index > 0) Value = 1;
+                                MD_S8ListPushFmt(GlobalMDArena, &CStream, 
+                                                 "UI_BoxFlag_%-*S = (%d << %d),\n",
+                                                 MaxWidth, Node->string, Value, Index);
+                                
+                                Index += 1;
+                            }
+                        }
+                    }
+                    
+                    WriteStreamToFile(CStream, "../code/muze/generated/everything.c");
+                    WriteStreamToFile(VSStream, "../code/muze/generated/rect_vert.glsl");
+                    WriteStreamToFile(PSStream, "../code/muze/generated/rect_frag.glsl");
+                }
+            }
+            
+            // Compile
+            {            
+                str8_array *CommonMuzeFlags = PushStr8Array(256);
+                Str8ArrayAppendTo(CommonMuzeFlags, S8("-I" CLING_CODE_PATH));
+                
+                if(OS_FileExists(CLING_CODE_PATH "base/base_build.h"))
+                {
+                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DBASE_PERSONAL=1"));
+                }
+                
+                char *LibsFileName = (Windows ? 
+                                      CLING_BUILD_PATH "muze_libs.obj" :
+                                      (Linux ?
+                                       CLING_BUILD_PATH "muze_libs.o" :
+                                       0));
+                
+                if(!OS_FileExists(LibsFileName))
+                {
+                    Str8ArrayPushCount(CommonMuzeFlags)
+                    {
+                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=1"));
+                        
+                        MuzeBuildCommand(S8("../code/muze/muze_libs.h"), 
+                                         S8("muze_libs"), 
+                                         GCC, Clang, Asan, Debug,
+                                         CommonMuzeFlags, S8(""), S8(""),
+                                         false, true);
+                    }
+                }
+                
+                Str8ArrayPushCount(CommonMuzeFlags)
+                {
+                    str8 ExtraLinkerFlags  = {0};
+                    
+                    if(Windows)
+                    {
+                        ExtraLinkerFlags = S8("/EXPORT:UpdateAndRender winmm.lib");
+                    }
+                    
+                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=0"));
+                    
+                    MuzeBuildCommand(S8("../code/muze/muze_app.c"), 
+                                     S8("muze_app"),
+                                     GCC, Clang, Asan, Debug,
+                                     CommonMuzeFlags, ExtraLinkerFlags, S8FromCString(LibsFileName),
+                                     true, false);
+                }
+                
+                Str8ArrayPushCount(CommonMuzeFlags)
+                {
+                    str8 ExtraLinkerFlags = {0};
+                    
+                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=0"));
+                    
+                    if(0) {}
+                    else if(Linux)
+                    {
+                        ExtraLinkerFlags = S8("-lX11 -lGL -lGLX");
+                    }
+                    else if(Windows)
+                    {
+                        ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
+                    }
+                    
+                    MuzeBuildCommand(S8("../code/muze/muze_platform.c"),
+                                     S8("muze"),
+                                     GCC, Clang, Asan, Debug,
+                                     CommonMuzeFlags, ExtraLinkerFlags, S8FromCString(LibsFileName), 
+                                     false, false);
+                }
+            }
+        }
+        
+        Log("Done.\n");
     }
     
     return 0;

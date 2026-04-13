@@ -42,6 +42,14 @@ IsAlpha(u8 Char)
     return Result;
 }
 
+
+internal b32
+IsWhiteSpace(u8 Char)
+{
+    b32 Result = (Char == ' ' || Char == '\n' || Char == '\r' || Char == '\t');
+    return Result;
+}
+
 internal u8
 ToLowercase(u8 Char)
 {

@@ -1,0 +1,67 @@
+# Muze (planned) features 
+- Snap BPM to bass notes 
+
+- Elongate & Shrink notes to their nearest musical length
+  - When unsure, multiple possibilites make the user decide.
+  - Snap timestamp to be on beat
+
+- Pattern match a selection a notes to make them uniform 
+- Expand selection based on pattern.
+
+- Metronome & sound output
+
+- Multiple voices
+  - Add a voice to a selection
+
+- Take selection
+  - Align only first note.
+
+- Trim the recordstart to the first note played.
+
+- Visualize BPM as you adjust it.
+  (where the bars would go)
+
+- Harmony visualizer/picker 
+  // Show a possible next chord progression (based on previous chords from the selected chord)
+
+- Command tree with undo&redo.
+  - Read up on StarfreakClone article
+
+- Lists of patterns you can choose from
+  e.g., for accompaniments. arpeggio's etc.
+
+# TODO
+- Sheet music lines 
+- Sheet music show more than one octave
+  - Raise an octave for selection
+- Scroll the roll and sheet with xdelta.
+
+# UI
+- UI vertical list that has same width for all children 
+- Show only selected notes.
+
+- UI slider for things settings
+- UI checkbox for buttons like "record", "play" etc. ?
+
+- Save / Load records
+  - UI lister to select one
+- UI lister for instruments
+- UI lister for commands
+
+- UI lister logic
+  - SizeParent from ChildrenSum
+  - UI_BoxFlag_FillFreeWidth, UI_BoxFlag_FillFreeHeight
+
+- MIDI from input struct so that hot reload works.
+
+# Other
+- Get all note timestamps in record time. 
+  
+
+- Nickname for MIDI devices.
+
+- codebase: Change to snake case for everything except types.
+
+# Archived
+x Platform layer MIDI API
+ x Trim silence
