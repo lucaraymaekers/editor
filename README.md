@@ -1,7 +1,7 @@
 # Editor
 
 Editor is my personal codebase written from scratch in C using very few libraries.
-It runs on Linux and Windows with nice debug features such as code profiling, hot reloading, loop editing, saving/loading replays and state to/from disk. 
+It runs on Linux and Windows (OpenGL) with nice debug features such as code profiling, hot reloading, loop editing, saving/loading replays and state to/from disk. 
 
 ### Demo's
 

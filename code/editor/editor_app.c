@@ -916,21 +916,23 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
     f32 PanelBorderSize = 2.f;
     
     v2 Pos = FreeRegion.Min;
-    v2 Size = {0};
     
     f32 ParentSize = (Parent->Region.Max.e[Axis] - Parent->Region.Min.e[Axis]);
     f32 OtherSize = (FreeRegion.Max.e[OtherAxis] - FreeRegion.Min.e[OtherAxis]);
     
-    Size.e[Axis] = (!IsNilPanel(Parent) ?
-                    (Panel->ParentPct*ParentSize) :
-                    (FreeRegion.Max.e[Axis] - FreeRegion.Min.e[Axis]));
-    Size.e[OtherAxis] = OtherSize;
-    
     
     if(!IsNilPanel(Panel))
-    {       
-        Panel->Region = RectFromSize(Pos, Size);
+        {       
+{
+        v2 Size = {0};
+        Size.e[Axis] = (!IsNilPanel(Parent) ?
+                        (Panel->ParentPct*ParentSize) :
+                        (FreeRegion.Max.e[Axis] - FreeRegion.Min.e[Axis]));
+        Size.e[OtherAxis] = OtherSize;
         
+        Panel->Region = RectFromSize(Pos, Size);
+        }
+
         if(!IsNilPanel(Panel->First))
         {
             PanelGetRegionAndInput(Panel->First, Panel->Region);
@@ -986,8 +988,6 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
         {
             v4 BorderColor = Color_Red;
             f32 BorderSize = 8.f;
-            
-            v2 MouseP = V2S32(PanelInput->Mouse.X, PanelInput->Mouse.Y);
             
             v4 Border = Panel->Region;
             
@@ -1379,9 +1379,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             u64 Cursor = Text->Cursor;
                             
-                            for EachIndex(Idx, Input->PlatformClipboard.Size)
+                            for EachIndex(CharIdx, Input->PlatformClipboard.Size)
                             {
-                                AppendChar(Text, (rune)Clip.Data[Idx]);
+                                AppendChar(Text, (rune)Clip.Data[CharIdx]);
                             }
                             
                             Text->Cursor = Text->Trail = Cursor + Input->PlatformClipboard.Size;
@@ -1538,7 +1538,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     case PlatformKey_PageUp:
                     {
-                        for EachIndex(Idx, Text->Lines) 
+                        for EachCount(Text->Lines) 
                         {
                             MoveUp(Text, Shift);
                         }
@@ -1546,7 +1546,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     case PlatformKey_PageDown:
                     {
-                        for EachIndex(Idx, Text->Lines)
+                        for EachCount(Text->Lines)
                         {
                             MoveDown(Text, Shift);
                         }
