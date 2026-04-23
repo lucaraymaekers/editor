@@ -1,5 +1,19 @@
-# Muze (planned) features 
-- Snap BPM to bass notes 
+# Now
+- Commands
+  - Undo?
+- Lister
+
+# Next
+- Better scrolling
+  - Autoscroll when playing
+  - Scroll to End/Beginning
+- Sheet music show more than one octave
+  - Raise an octave for selection
+- Delete notes
+- Pedal/sustain per voice
+
+# Future 
+- File picker
 
 - Elongate & Shrink notes to their nearest musical length
   - When unsure, multiple possibilites make the user decide.
@@ -9,6 +23,8 @@
 - Expand selection based on pattern.
 
 - Metronome & sound output
+- Stretch/Shrink BPM 
+- Convert TimeSig?
 
 - Multiple voices
   - Add a voice to a selection
@@ -30,14 +46,7 @@
 - Lists of patterns you can choose from
   e.g., for accompaniments. arpeggio's etc.
 
-# TODO
-- Sheet music lines 
-- Sheet music show more than one octave
-  - Raise an octave for selection
-- Scroll the roll and sheet with xdelta.
-
 # UI
-- UI vertical list that has same width for all children 
 - Show only selected notes.
 
 - UI slider for things settings
@@ -56,12 +65,22 @@
 
 # Other
 - Get all note timestamps in record time. 
-  
-
 - Nickname for MIDI devices.
-
-- codebase: Change to snake case for everything except types.
 
 # Archived
 x Platform layer MIDI API
- x Trim silence
+  x Trim silence
+x UI vertical list that has same width for all children 
+x Snap BPM to bass notes 
+x Sheet music lines 
+x Scroll the roll and sheet with xdelta.
+x sf2 and TSF
+x multiple panes
+x Notes to linked list
+x In defense of linked lists
+x Pedal
+  x update trim
+  x visual in pianoroll 
+x Sound on Windows
+x TSF improvements
+  x Have a nil tsf value / handle tsf 0

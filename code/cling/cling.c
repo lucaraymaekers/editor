@@ -18,8 +18,8 @@ NO_WARNINGS_END
 
 //~ Globals
 global_variable MD_Arena *GlobalMDArena = 0;
-global_variable b32 Windows = false;
-global_variable b32 Linux = false;
+global_variable b32 OSWindows = false;
+global_variable b32 OSLinux = false;
 
 //~ Functions
 internal void
@@ -47,11 +47,9 @@ HexToByte(u8 Char)
 }
 
 internal void 
-WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags)
+WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags, 
+             b32 Debug, b32 Asan)
 {
-    arena *Arena = GlobalClingArena;
-    str8 Output = PushS8(Arena, KB(2)); 
-    
     str8_array *Command = PushStr8Array(256);
     SetSelectedArray(Command);
     
@@ -60,6 +58,10 @@ WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags)
     
     Str8ArrayAppend(S8("cl"));
     Str8ArrayAppend(S8("-MTd -Gm- -nologo -GR- -EHa- -Oi -FC -Z7"));
+    if(!Debug)
+    {
+        Str8ArrayAppend(S8("-O2"));
+    }
     Str8ArrayAppend(S8("-Zc:strictStrings-"));
     Str8ArrayAppend(S8("-WX -W4 -wd4459 -wd4201 -wd4100 -wd4101 -wd4189 -wd4505 -wd4996 -wd4389 -wd4244 -wd5287 -wd4063 -wd4127"));
     
@@ -71,11 +73,11 @@ WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags)
 }
 
 internal void
-LinuxMakeBuildCommand(str8 Source, 
-                      str8 OutputName, 
-                      b32 GCC, b32 Clang, b32 Asan, b32 Debug,
-                      str8_array *ExtraFlags,
-                      b32 Run)
+LinuxBuildCommand(str8 Source, 
+                  str8 OutputName, 
+                  b32 GCC, b32 Clang, b32 Asan, b32 Debug,
+                  str8_array *ExtraFlags,
+                  b32 Run)
 {
     Log(S8Fmt "\n", S8Arg(Cng_GetBaseFileName(Source)));
     
@@ -85,7 +87,8 @@ LinuxMakeBuildCommand(str8 Source,
     // NOTE(luca): These are almost all c++ flags.
     str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
     // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
-    str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-missing-field-initializers -Wno-pointer-arith -Wno-switch "
+    str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wswitch -Wshadow " 
+                                 "-Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-missing-field-initializers -Wno-pointer-arith "
                                  "-Wno-unused-parameter "
                                  "-Wno-unused-variable "
                                  "-Wno-unused-function "
@@ -136,16 +139,16 @@ LinuxMakeBuildCommand(str8 Source,
 }
 
 internal void
-MuzeBuildCommand(str8 Source, 
-                 str8 OutputName, 
-                 b32 GCC, b32 Clang, b32 Asan, b32 Debug,
-                 str8_array *ExtraFlags,
-                 str8 ExtraLinkerFlags,
-                 str8 ExtraSource,
-                 b32 IsDLL, b32 IsObject)
+BuildAndRun(str8 Source, 
+            str8 OutputName, 
+            b32 GCC, b32 Clang, b32 Asan, b32 Debug,
+            str8_array *ExtraFlags,
+            str8 ExtraLinkerFlags,
+            str8 ExtraSource,
+            b32 IsDLL, b32 IsObject)
 {
     if(0) {}
-    else if(Linux)
+    else if(OSLinux)
     {
         if(0) {}
         else if(IsObject)
@@ -160,11 +163,11 @@ MuzeBuildCommand(str8 Source,
         }
         
         Str8ArrayAppendTo(ExtraFlags, ExtraLinkerFlags);
-        LinuxMakeBuildCommand(Source, OutputName, GCC, Clang, Asan, Debug, ExtraFlags, false);
+        LinuxBuildCommand(Source, OutputName, GCC, Clang, Asan, Debug, ExtraFlags, false);
         Str8ArrayAppend(ExtraSource);
         RunCommand();
     }
-    else if(Windows)
+    else if(OSWindows)
     {
         if(0) {}
         else if(IsObject)
@@ -187,7 +190,7 @@ MuzeBuildCommand(str8 Source,
         
         Str8ArrayAppendTo(ExtraFlags, Str8Fmt("-Fm" S8Fmt ".map", S8Arg(OutputName)));
         Str8ArrayAppendTo(ExtraFlags, ExtraSource);
-        WindowsBuild(Source, ExtraFlags, ExtraLinkerFlags);
+        WindowsBuild(Source, ExtraFlags, ExtraLinkerFlags, Debug, Asan);
     }
 }
 
@@ -199,18 +202,226 @@ LogBuildMode(str8 Name, b32 Debug)
 }
 
 
+internal void
+ApplicationBuild(str8 ExeName, str8 AppName, str8 AppSource, str8 WindowName,
+                 b32 GCC, b32 Clang, b32 Asan, b32 Debug)
+{
+    LogBuildMode(ExeName,  Debug);
+    
+    // Metaprogram
+    {
+        Log("Generating code...\n");
+        
+        GlobalMDArena = MD_ArenaAlloc();
+        MD_String8 FileName = MD_S8Lit("../code/rl/rl_tables.mdesk");
+        MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FileName);
+        
+        // Print metadesk errors
+        for(MD_Message *Message = Parse.errors.first;
+            Message != 0;
+            Message = Message->next)
+        {
+            MD_CodeLoc code_loc = MD_CodeLocFromNode(Message->node);
+            MD_PrintMessage(stdout, code_loc, Message->kind, Message->string);
+        }
+        if(Parse.errors.max_message_kind < MD_MessageKind_Error)
+        {
+            MD_Node *Root = Parse.node->first_child;
+            
+            MD_String8List VSStream = {0};
+            MD_String8List PSStream = {0};
+            MD_String8List CStream = {0};
+            
+            // Colors
+            {
+                MD_Node *ColorsTable = MD_FirstNodeWithString(Root, MD_S8Lit("Colors"), 0);
+                
+                DeferLoop(MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors begin\n")),
+                          MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors end\n")))
+                {                            
+                    for(MD_EachNode(Node, ColorsTable->first_child))
+                    {
+                        MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
+                        MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
+                        MD_S8ListPushFmt(GlobalMDArena, &CStream, "const u32 ColorU32_%S = %S;\n", ColorName->string, ColorValue->string);
+                    }
+                    
+                    for(MD_EachNode(Node, ColorsTable->first_child))
+                    {
+                        MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
+                        MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
+                        MD_S8ListPushFmt(GlobalMDArena, &CStream, "v4 Color_%S = {U32ToV4Arg(%S)};\n", ColorName->string, ColorValue->string);
+                        
+                    }
+                }
+            }
+            
+            // Rect shader attributes
+            {                
+                MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSAttributes"), 0);
+                
+                MD_Node *ShaderPreTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPreCode"), 0);
+                MD_Node *ShaderPostTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPostCode"), 0);
+                MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPreTable->first_child->string);
+                
+                DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code start\n"),
+                          MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code end\n"))
+                {                        
+                    MD_Node *RectPSCodeTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectPSCode"), 0);
+                    MD_S8ListPush(GlobalMDArena, &PSStream, RectPSCodeTable->first_child->string);
+                    
+                    DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream,
+                                               "s32 RectVSAttribOffsets[] =\n{\n"),
+                              MD_S8ListPushFmt(GlobalMDArena, &CStream, "};\n"))
+                    {                        
+                        s32 Index = 0;
+                        for(MD_EachNode(Node, Table->first_child))
+                        {
+                            MD_Node *Name = MD_NodeAtIndex(Node->first_child, 0);
+                            MD_Node *Size = MD_NodeAtIndex(Node->first_child, 1);
+                            
+                            MD_String8 TypeName = MD_S8Lit("null");
+                            
+                            if(0) {}
+                            else if(MD_S8Match(Size->string, MD_S8Lit("1"), 0)) TypeName = MD_S8Lit("f32");
+                            else if(MD_S8Match(Size->string, MD_S8Lit("4"), 0)) TypeName = MD_S8Lit("v4");
+                            else InvalidPath();
+                            
+                            MD_S8ListPushFmt(GlobalMDArena, &VSStream, 
+                                             "layout (location = %2d) in %3S %S;\n", 
+                                             Index, TypeName, Name->string);
+                            MD_S8ListPushFmt(GlobalMDArena, &CStream,
+                                             "%S,\n", Size->string);
+                            
+                            Index += 1;
+                        }
+                    }
+                }
+                
+                MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPostTable->first_child->string);
+            }
+            
+            // UI Box flags
+            {
+                MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("UI_BoxFlags"), 0);
+                
+                DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream, 
+                                           "enum ui_box_flag\n{\n"),
+                          MD_S8ListPushFmt(GlobalMDArena, &CStream, 
+                                           "};\n"
+                                           "typedef enum ui_box_flag ui_box_flag;\n"))
+                {                        
+                    u64 MaxWidth = 0;
+                    for(MD_EachNode(Node, Table->first_child))
+                    {
+                        MaxWidth = Max(Node->string.size, MaxWidth);
+                    }
+                    
+                    s32 Index = 0;
+                    s32 Value = 0;
+                    
+                    for(MD_EachNode(Node, Table->first_child))
+                    {
+                        if(Index > 0) Value = 1;
+                        MD_S8ListPushFmt(GlobalMDArena, &CStream, 
+                                         "UI_BoxFlag_%-*S = (%d << %d),\n",
+                                         MaxWidth, Node->string, Value, Index);
+                        
+                        Index += 1;
+                    }
+                }
+            }
+            
+            WriteStreamToFile(CStream, "../code/rl/generated/everything.c");
+            WriteStreamToFile(VSStream, "../code/rl/generated/rect_vert.glsl");
+            WriteStreamToFile(PSStream, "../code/rl/generated/rect_frag.glsl");
+        }
+    }
+    
+    // Compile
+    {            
+        str8_array *CommonFlags = PushStr8Array(256);
+        Str8ArrayAppendTo(CommonFlags, 
+                          Str8Fmt("-I" CLING_CODE_PATH " "
+                                  "-DRL_PLATFORM_APP_NAME=" S8Fmt " "
+                                  "-DRL_PLATFORM_WINDOW_NAME=" S8Fmt,
+                                  S8Arg(AppName), S8Arg(WindowName)));
+        
+        char *LibsFileName = (OSWindows ? 
+                              CLING_BUILD_PATH "rl_libs.obj" :
+                              (OSLinux ?
+                               CLING_BUILD_PATH "rl_libs.o" :
+                               0));
+        
+        if(!OS_FileExists(LibsFileName))
+        {
+            Str8ArrayPushCount(CommonFlags)
+            {
+                Str8ArrayAppendTo(CommonFlags, S8("-DRL_LIBS_IMPLEMENTATION=1"));
+                
+                BuildAndRun(S8("../code/rl/rl_libs.h"), 
+                            S8("rl_libs"), 
+                            GCC, Clang, Asan, Debug,
+                            CommonFlags, S8(""), S8(""),
+                            false, true);
+            }
+        }
+        
+        Str8ArrayPushCount(CommonFlags)
+        {
+            str8 ExtraLinkerFlags = {0};
+            Str8ArrayAppendTo(CommonFlags, S8("-DRL_LIBS_IMPLEMENTATION=0"));
+            
+            if(OSWindows)
+            {
+                ExtraLinkerFlags = S8("winmm.lib");
+            }
+            
+            BuildAndRun(AppSource, 
+                        AppName,
+                        GCC, Clang, Asan, Debug,
+                        CommonFlags, ExtraLinkerFlags, S8FromCString(LibsFileName),
+                        true, false);
+        }
+        
+        Str8ArrayPushCount(CommonFlags)
+        {
+            str8 ExtraLinkerFlags = {0};
+            Str8ArrayAppendTo(CommonFlags, Str8Fmt("-DRL_LIBS_IMPLEMENTATION=0"));
+            
+            if(0) {}
+            else if(OSLinux)
+            {
+                ExtraLinkerFlags = S8("-lasound -lX11 -lGL -lGLX");
+            }
+            else if(OSWindows)
+            {
+                ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
+            }
+            
+            BuildAndRun(S8("../code/rl/rl_platform.c"),
+                        ExeName,
+                        GCC, Clang, Asan, Debug,
+                        CommonFlags, ExtraLinkerFlags, S8FromCString(LibsFileName), 
+                        false, false);
+        }
+        
+    }
+}
+
 ENTRY_POINT(EntryPoint)
 {
     if(LaneIndex() == 0)
     {
         Cng_InitAndRebuildSelf(Params->ArgsCount, Params->Args, Params->Env);
         
+        // Change to build directory
         {        
             str8 Path = Cng_PathFromExe(Params->Args[0], S8(CLING_BUILD_PATH));
             OS_ChangeDirectory((char *)Path.Data);
         }
         
-        // Targets
+        //- Targets
         b32 Editor = false;
         b32 HaversineProcessor = false;
         b32 HaversineGenerator = false;
@@ -218,21 +429,21 @@ ENTRY_POINT(EntryPoint)
         b32 Muze = true;
         
 #if OS_WINDOWS
-        Windows = true;
+        OSWindows = true;
 #elif OS_LINUX
-        Linux = true;
+        OSLinux = true;
 #endif
         
-        //- Targets 
+        //- Build parameters 
         b32 Asan = false;
         b32 Debug = true;
         //- TODO(luca): 
         b32 Clean = false;
         b32 Clang = true;
         b32 GCC = false;
+        // NOTE(luca): Do not compile libs in separate .o
         b32 Slow = false;
         b32 Wine = false;
-        //-
         
         //~ Computer enhance
         
@@ -285,11 +496,9 @@ ENTRY_POINT(EntryPoint)
                                     
                                     MD_S8ListPushFmt(GlobalMDArena, &Stream, " Flag_%S = (1 << %d),\n", 
                                                      MemberNode->string, MemberCount);
-                                    MemberCount++;
+                                    MemberCount += 1;
                                 }
                             }
-                            
-                            
                         }
                         
                         if(MD_NodeHasTag(Node, MD_S8Lit("table_gen_data"), 0))
@@ -363,11 +572,11 @@ ENTRY_POINT(EntryPoint)
                 str8_array *ExtraFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
                 
-                LinuxMakeBuildCommand(S8("../code/computerenhance/haversine_generator/haversine_generator.c"), 
-                                      S8("haversine_generator"),
-                                      GCC, Clang, Asan, Debug,
-                                      ExtraFlags,
-                                      false);
+                LinuxBuildCommand(S8("../code/computerenhance/haversine_generator/haversine_generator.c"), 
+                                  S8("haversine_generator"),
+                                  GCC, Clang, Asan, Debug,
+                                  ExtraFlags,
+                                  false);
                 
                 RunCommand();
                 
@@ -378,17 +587,17 @@ ENTRY_POINT(EntryPoint)
         {
             LogBuildMode(S8("Haversine processor"), Debug);
             
-            if(Linux)
+            if(OSLinux)
             {            
                 str8_array *ExtraFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH
                                                  " -std=c++11"));
                 
-                LinuxMakeBuildCommand(S8("../code/computerenhance/haversine_processor/haversine_processor.c"), 
-                                      S8("haversine_processor"),
-                                      GCC, Clang, Asan, Debug,
-                                      ExtraFlags,
-                                      false);
+                LinuxBuildCommand(S8("../code/computerenhance/haversine_processor/haversine_processor.c"), 
+                                  S8("haversine_processor"),
+                                  GCC, Clang, Asan, Debug,
+                                  ExtraFlags,
+                                  false);
                 
                 RunCommand();
             }
@@ -398,438 +607,35 @@ ENTRY_POINT(EntryPoint)
         {
             LogBuildMode(S8("sim86"), Debug);
             
-            if(Linux)
+            if(OSLinux)
             {            
                 str8_array *ExtraFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
                 
-                LinuxMakeBuildCommand(S8("../code/computerenhance/sim86/sim86.cpp"), 
-                                      S8("sim86"),
-                                      GCC, Clang, Asan, Debug,
-                                      ExtraFlags,
-                                      false);
+                LinuxBuildCommand(S8("../code/computerenhance/sim86/sim86.cpp"), 
+                                  S8("sim86"),
+                                  GCC, Clang, Asan, Debug,
+                                  ExtraFlags,
+                                  false);
                 
                 RunCommand();
             }
         }
         
+        //~ Editor
+        
         if(Editor)
-        {            
-            LogBuildMode(S8("editor"), Debug);
-            
-            // Metaprogram
-            {
-                Log("Generating code...\n");
-                
-                GlobalMDArena = MD_ArenaAlloc();
-                MD_String8 FileName = MD_S8Lit("../code/editor/tables.mdesk");
-                MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FileName);
-                
-                // Print metadesk errors
-                for(MD_Message *Message = Parse.errors.first;
-                    Message != 0;
-                    Message = Message->next)
-                {
-                    MD_CodeLoc code_loc = MD_CodeLocFromNode(Message->node);
-                    MD_PrintMessage(stdout, code_loc, Message->kind, Message->string);
-                }
-                if(Parse.errors.max_message_kind < MD_MessageKind_Error)
-                {
-                    MD_Node *Root = Parse.node->first_child;
-                    
-                    MD_String8List VSStream = {0};
-                    MD_String8List PSStream = {0};
-                    MD_String8List CStream = {0};
-                    
-                    // Colors
-                    {
-                        MD_Node *ColorsTable = MD_FirstNodeWithString(Root, MD_S8Lit("Colors"), 0);
-                        
-                        DeferLoop(MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors begin\n")),
-                                  MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors end\n")))
-                        {                            
-                            for(MD_EachNode(Node, ColorsTable->first_child))
-                            {
-                                MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
-                                MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
-                                MD_S8ListPushFmt(GlobalMDArena, &CStream, "const u32 ColorU32_%S = %S;\n", ColorName->string, ColorValue->string);
-                            }
-                            
-                            for(MD_EachNode(Node, ColorsTable->first_child))
-                            {
-                                MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
-                                MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
-                                MD_S8ListPushFmt(GlobalMDArena, &CStream, "v4 Color_%S = {U32ToV4Arg(%S)};\n", ColorName->string, ColorValue->string);
-                                
-                            }
-                        }
-                    }
-                    
-                    // Rect shader attributes
-                    {                
-                        MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSAttributes"), 0);
-                        
-                        MD_Node *ShaderPreTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPreCode"), 0);
-                        MD_Node *ShaderPostTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPostCode"), 0);
-                        MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPreTable->first_child->string);
-                        
-                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code start\n"),
-                                  MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code end\n"))
-                        {                        
-                            MD_Node *RectPSCodeTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectPSCode"), 0);
-                            MD_S8ListPush(GlobalMDArena, &PSStream, RectPSCodeTable->first_child->string);
-                            
-                            DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream,
-                                                       "s32 RectVSAttribOffsets[] =\n{\n"),
-                                      MD_S8ListPushFmt(GlobalMDArena, &CStream, "};\n"))
-                            {                        
-                                s32 Index = 0;
-                                for(MD_EachNode(Node, Table->first_child))
-                                {
-                                    MD_Node *Name = MD_NodeAtIndex(Node->first_child, 0);
-                                    MD_Node *Size = MD_NodeAtIndex(Node->first_child, 1);
-                                    
-                                    MD_String8 TypeName = MD_S8Lit("null");
-                                    
-                                    if(0) {}
-                                    else if(MD_S8Match(Size->string, MD_S8Lit("1"), 0)) TypeName = MD_S8Lit("f32");
-                                    else if(MD_S8Match(Size->string, MD_S8Lit("4"), 0)) TypeName = MD_S8Lit("v4");
-                                    else InvalidPath();
-                                    
-                                    MD_S8ListPushFmt(GlobalMDArena, &VSStream, 
-                                                     "layout (location = %2d) in %3S %S;\n", 
-                                                     Index, TypeName, Name->string);
-                                    MD_S8ListPushFmt(GlobalMDArena, &CStream,
-                                                     "%S,\n", Size->string);
-                                    
-                                    Index += 1;
-                                }
-                            }
-                        }
-                        
-                        MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPostTable->first_child->string);
-                    }
-                    
-                    // UI Box flags
-                    {
-                        MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("UI_BoxFlags"), 0);
-                        
-                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream, 
-                                                   "enum ui_box_flag\n{\n"),
-                                  MD_S8ListPushFmt(GlobalMDArena, &CStream, 
-                                                   "};\n"
-                                                   "typedef enum ui_box_flag ui_box_flag;\n"))
-                        {                        
-                            u64 MaxWidth = 0;
-                            for(MD_EachNode(Node, Table->first_child))
-                            {
-                                MaxWidth = Max(Node->string.size, MaxWidth);
-                            }
-                            
-                            s32 Index = 0;
-                            s32 Value = 0;
-                            
-                            for(MD_EachNode(Node, Table->first_child))
-                            {
-                                if(Index > 0) Value = 1;
-                                MD_S8ListPushFmt(GlobalMDArena, &CStream, 
-                                                 "UI_BoxFlag_%-*S = (%d << %d),\n",
-                                                 MaxWidth, Node->string, Value, Index);
-                                
-                                Index += 1;
-                            }
-                        }
-                    }
-                    
-                    WriteStreamToFile(CStream, "../code/editor/generated/everything.c");
-                    WriteStreamToFile(VSStream, "../code/editor/generated/rect_vert.glsl");
-                    WriteStreamToFile(PSStream, "../code/editor/generated/rect_frag.glsl");
-                }
-            }
-            
-            // Editor build
-            {
-                str8_array *CommonMuzeFlags = PushStr8Array(256);
-                Str8ArrayAppendTo(CommonMuzeFlags, S8("-I" CLING_CODE_PATH));
-                
-                if(OS_FileExists(CLING_CODE_PATH "base/base_build.h"))
-                {
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DBASE_PERSONAL=1"));
-                }
-                
-                char *LibsFileName = (Windows ? 
-                                      CLING_BUILD_PATH "editor_libs.obj" :
-                                      (Linux ?
-                                       CLING_BUILD_PATH "editor_libs.o" :
-                                       0));
-                
-                if(!OS_FileExists(LibsFileName))
-                {
-                    str8 ExtraLinkerFlags = {0};
-                    Str8ArrayPushCount(CommonMuzeFlags)
-                    {
-                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=1"));
-                        
-                        MuzeBuildCommand(S8("../code/editor/editor_libs.h"), 
-                                         S8("editor_libs"), 
-                                         GCC, Clang, Asan, Debug,
-                                         CommonMuzeFlags, ExtraLinkerFlags,
-                                         S8(""),
-                                         false, true);
-                    }
-                }
-                
-                Str8ArrayPushCount(CommonMuzeFlags)
-                {
-                    str8 ExtraLinkerFlags  = {0};
-                    
-                    if(Windows)
-                    {
-                        
-                        ExtraLinkerFlags = S8("/EXPORT:UpdateAndRender");
-                    }
-                    
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=0"));
-                    
-                    MuzeBuildCommand(S8("../code/editor/editor_app.c"), 
-                                     S8("editor_app"),
-                                     GCC, Clang, Asan, Debug,
-                                     CommonMuzeFlags, ExtraLinkerFlags,
-                                     S8FromCString(LibsFileName),
-                                     true, false);
-                }
-                
-                Str8ArrayPushCount(CommonMuzeFlags)
-                {
-                    str8 ExtraLinkerFlags = {0};
-                    
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=0"));
-                    
-                    if(0) {}
-                    else if(Linux)
-                    {
-                        ExtraLinkerFlags = S8("-lX11 -lGL -lGLX");
-                    }
-                    else if(Windows)
-                    {
-                        ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
-                    }
-                    
-                    MuzeBuildCommand(S8("../code/editor/editor_platform.c"),
-                                     S8("editor"),
-                                     GCC, Clang, Asan, Debug,
-                                     CommonMuzeFlags, ExtraLinkerFlags,
-                                     S8FromCString(LibsFileName), 
-                                     false, false);
-                }
-            }
+        {
+            ApplicationBuild(S8("editor"), S8("editor_app"), S8("../code/editor/editor_app.c"), S8("Editor"),
+                             GCC, Clang, Asan, Debug);
         }
+        
+        //~ Muze
         
         if(Muze)
         {
-            LogBuildMode(S8("muze"), Debug);
-            
-            // Metaprogram
-            {
-                Log("Generating code...\n");
-                
-                GlobalMDArena = MD_ArenaAlloc();
-                MD_String8 FileName = MD_S8Lit("../code/muze/tables.mdesk");
-                MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FileName);
-                
-                // Print metadesk errors
-                for(MD_Message *Message = Parse.errors.first;
-                    Message != 0;
-                    Message = Message->next)
-                {
-                    MD_CodeLoc code_loc = MD_CodeLocFromNode(Message->node);
-                    MD_PrintMessage(stdout, code_loc, Message->kind, Message->string);
-                }
-                if(Parse.errors.max_message_kind < MD_MessageKind_Error)
-                {
-                    MD_Node *Root = Parse.node->first_child;
-                    
-                    MD_String8List VSStream = {0};
-                    MD_String8List PSStream = {0};
-                    MD_String8List CStream = {0};
-                    
-                    // Colors
-                    {
-                        MD_Node *ColorsTable = MD_FirstNodeWithString(Root, MD_S8Lit("Colors"), 0);
-                        
-                        DeferLoop(MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors begin\n")),
-                                  MD_S8ListPush(GlobalMDArena, &CStream, MD_S8Lit("//- Colors end\n")))
-                        {                            
-                            for(MD_EachNode(Node, ColorsTable->first_child))
-                            {
-                                MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
-                                MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
-                                MD_S8ListPushFmt(GlobalMDArena, &CStream, "const u32 ColorU32_%S = %S;\n", ColorName->string, ColorValue->string);
-                            }
-                            
-                            for(MD_EachNode(Node, ColorsTable->first_child))
-                            {
-                                MD_Node *ColorName = MD_NodeAtIndex(Node->first_child, 0);
-                                MD_Node *ColorValue = MD_NodeAtIndex(Node->first_child, 1);
-                                MD_S8ListPushFmt(GlobalMDArena, &CStream, "v4 Color_%S = {U32ToV4Arg(%S)};\n", ColorName->string, ColorValue->string);
-                                
-                            }
-                        }
-                    }
-                    
-                    // Rect shader attributes
-                    {                
-                        MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSAttributes"), 0);
-                        
-                        MD_Node *ShaderPreTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPreCode"), 0);
-                        MD_Node *ShaderPostTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectVSPostCode"), 0);
-                        MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPreTable->first_child->string);
-                        
-                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code start\n"),
-                                  MD_S8ListPushFmt(GlobalMDArena, &VSStream, "\n//- Generated code end\n"))
-                        {                        
-                            MD_Node *RectPSCodeTable = MD_FirstNodeWithString(Root, MD_S8Lit("RectPSCode"), 0);
-                            MD_S8ListPush(GlobalMDArena, &PSStream, RectPSCodeTable->first_child->string);
-                            
-                            DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream,
-                                                       "s32 RectVSAttribOffsets[] =\n{\n"),
-                                      MD_S8ListPushFmt(GlobalMDArena, &CStream, "};\n"))
-                            {                        
-                                s32 Index = 0;
-                                for(MD_EachNode(Node, Table->first_child))
-                                {
-                                    MD_Node *Name = MD_NodeAtIndex(Node->first_child, 0);
-                                    MD_Node *Size = MD_NodeAtIndex(Node->first_child, 1);
-                                    
-                                    MD_String8 TypeName = MD_S8Lit("null");
-                                    
-                                    if(0) {}
-                                    else if(MD_S8Match(Size->string, MD_S8Lit("1"), 0)) TypeName = MD_S8Lit("f32");
-                                    else if(MD_S8Match(Size->string, MD_S8Lit("4"), 0)) TypeName = MD_S8Lit("v4");
-                                    else InvalidPath();
-                                    
-                                    MD_S8ListPushFmt(GlobalMDArena, &VSStream, 
-                                                     "layout (location = %2d) in %3S %S;\n", 
-                                                     Index, TypeName, Name->string);
-                                    MD_S8ListPushFmt(GlobalMDArena, &CStream,
-                                                     "%S,\n", Size->string);
-                                    
-                                    Index += 1;
-                                }
-                            }
-                        }
-                        
-                        MD_S8ListPush(GlobalMDArena, &VSStream, ShaderPostTable->first_child->string);
-                    }
-                    
-                    // UI Box flags
-                    {
-                        MD_Node *Table = MD_FirstNodeWithString(Root, MD_S8Lit("UI_BoxFlags"), 0);
-                        
-                        DeferLoop(MD_S8ListPushFmt(GlobalMDArena, &CStream, 
-                                                   "enum ui_box_flag\n{\n"),
-                                  MD_S8ListPushFmt(GlobalMDArena, &CStream, 
-                                                   "};\n"
-                                                   "typedef enum ui_box_flag ui_box_flag;\n"))
-                        {                        
-                            u64 MaxWidth = 0;
-                            for(MD_EachNode(Node, Table->first_child))
-                            {
-                                MaxWidth = Max(Node->string.size, MaxWidth);
-                            }
-                            
-                            s32 Index = 0;
-                            s32 Value = 0;
-                            
-                            for(MD_EachNode(Node, Table->first_child))
-                            {
-                                if(Index > 0) Value = 1;
-                                MD_S8ListPushFmt(GlobalMDArena, &CStream, 
-                                                 "UI_BoxFlag_%-*S = (%d << %d),\n",
-                                                 MaxWidth, Node->string, Value, Index);
-                                
-                                Index += 1;
-                            }
-                        }
-                    }
-                    
-                    WriteStreamToFile(CStream, "../code/muze/generated/everything.c");
-                    WriteStreamToFile(VSStream, "../code/muze/generated/rect_vert.glsl");
-                    WriteStreamToFile(PSStream, "../code/muze/generated/rect_frag.glsl");
-                }
-            }
-            
-            // Compile
-            {            
-                str8_array *CommonMuzeFlags = PushStr8Array(256);
-                Str8ArrayAppendTo(CommonMuzeFlags, S8("-I" CLING_CODE_PATH));
-                
-                if(OS_FileExists(CLING_CODE_PATH "base/base_build.h"))
-                {
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DBASE_PERSONAL=1"));
-                }
-                
-                char *LibsFileName = (Windows ? 
-                                      CLING_BUILD_PATH "muze_libs.obj" :
-                                      (Linux ?
-                                       CLING_BUILD_PATH "muze_libs.o" :
-                                       0));
-                
-                if(!OS_FileExists(LibsFileName))
-                {
-                    Str8ArrayPushCount(CommonMuzeFlags)
-                    {
-                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=1"));
-                        
-                        MuzeBuildCommand(S8("../code/muze/muze_libs.h"), 
-                                         S8("muze_libs"), 
-                                         GCC, Clang, Asan, Debug,
-                                         CommonMuzeFlags, S8(""), S8(""),
-                                         false, true);
-                    }
-                }
-                
-                Str8ArrayPushCount(CommonMuzeFlags)
-                {
-                    str8 ExtraLinkerFlags  = {0};
-                    
-                    if(Windows)
-                    {
-                        ExtraLinkerFlags = S8("/EXPORT:UpdateAndRender winmm.lib");
-                    }
-                    
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=0"));
-                    
-                    MuzeBuildCommand(S8("../code/muze/muze_app.c"), 
-                                     S8("muze_app"),
-                                     GCC, Clang, Asan, Debug,
-                                     CommonMuzeFlags, ExtraLinkerFlags, S8FromCString(LibsFileName),
-                                     true, false);
-                }
-                
-                Str8ArrayPushCount(CommonMuzeFlags)
-                {
-                    str8 ExtraLinkerFlags = {0};
-                    
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=0"));
-                    
-                    if(0) {}
-                    else if(Linux)
-                    {
-                        ExtraLinkerFlags = S8("-lX11 -lGL -lGLX");
-                    }
-                    else if(Windows)
-                    {
-                        ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
-                    }
-                    
-                    MuzeBuildCommand(S8("../code/muze/muze_platform.c"),
-                                     S8("muze"),
-                                     GCC, Clang, Asan, Debug,
-                                     CommonMuzeFlags, ExtraLinkerFlags, S8FromCString(LibsFileName), 
-                                     false, false);
-                }
-            }
+            ApplicationBuild(S8("muze"), S8("muze_app"), S8("../code/muze/muze_app.c"), S8("Muze"),
+                             GCC, Clang, Asan, Debug);
         }
         
         Log("Done.\n");

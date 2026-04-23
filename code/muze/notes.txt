@@ -1,3 +1,8 @@
+# In defense of linked lists: https://www.dgtlgrove.com/p/in-defense-of-linked-lists
+To mitigate performance degradation when we are memory bound you can point nodes to chunks of data.
+An arena backing a linked list can back other types as well.
+Pointers remain stable.
+
 # Midi
 Musical Instrument Digital Interface.
 Sounds are synthetic.

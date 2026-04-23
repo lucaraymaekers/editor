@@ -75,24 +75,7 @@ Why would you not identify your spacers?
 
 One alternative approach might be to systematically generate spacer IDs, but this has the familiar issues of uniquely identifying one particular call in a frame across multiple frames
 
-## Misc
-The Design of Everyday Things by Don Norman
-
-What this means is that any given layout is nested within another (or, alternatively, it’s the root layout).
-
-Mathis was right that specifying pixel coordinates is cumbersome.
-
-Check out which skills ryan feels like are rotting.
-
-Check out all the code snippets against the raddbg codebase.
-
 Please ryan use videos instead of gifs.
-
-Try this out.
-For example, if I want to make a button appear embossed when it is hovered by the user, I can render a gradient that fades from semi-transparent white on the top vertices to full-transparency on the bottom vertices. To make the same button appear debossed, I can render gradients that fade from a semi-transparent black to full-transparency to emulate shadows on the edge of the button, to make it appear “pressed”:
-
-https://dqfft.github.io/DirectWrite-quick-start/
-https://mr4th.com/blog/reference-dynamic-linking
 
 # Queues by Fabian Giesen at HSC
 https://www.youtube.com/watch?v=__Vvk027i4s&list=PL-IPpPzBYXBE10zoFwi5SKeYCMWTLgPCF

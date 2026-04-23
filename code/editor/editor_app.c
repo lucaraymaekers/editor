@@ -2,21 +2,29 @@
 #define BASE_NO_ENTRYPOINT 1
 #include "base/base.h"
 #include "base/base.c"
-#include "editor/generated/everything.c"
-#include "editor/editor_platform.h"
-#include "editor/editor_libs.h"
-#include "editor/editor_font.h"
-#include "editor/editor_random.h"
-#include "editor/editor_gl.h"
-#include "editor/editor_renderer.h"
+#include "rl/generated/everything.c"
+#include "rl/rl_platform.h"
+#include "rl/rl_libs.h"
+#include "rl/rl_font.h"
+#include "rl/rl_random.h"
+#include "rl/rl_gl.h"
+#include "rl/rl_renderer.h"
+#include "rl/rl_ui.h"
 #include "editor/editor_app.h"
-#include "editor/editor_ui.h"
+NO_WARNINGS_BEGIN
 #include "editor/editor_lexer.h"
 #include "editor/editor_parser.h"
 #include "editor/editor_lexer.c"
 #include "editor/editor_parser.c"
-#include "editor/editor_renderer.c"
-#include "editor/editor_ui.c"
+NO_WARNINGS_END
+#include "rl/rl_renderer.c"
+#include "rl/rl_ui.c"
+#include "rl/rl_widgets.c"
+
+#if OS_WINDOWS
+# pragma comment(linker, "/export:GetAudioSamples")
+# pragma comment(linker, "/export:UpdateAndRender")
+#endif
 
 //- Globals
 global_variable panel *NilPanel = 0;
@@ -500,7 +508,10 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
                 }
             }
             
-            b32 VisualizeWhitespace = true;
+            b32 VisualizeWhitespace = false;
+#if EDITOR_INTERNAL
+												VisualizeWhitespace = true;
+#endif
             
             if(IsWhiteSpace((u8)Char) && VisualizeWhitespace)
             {
@@ -916,20 +927,22 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
     f32 PanelBorderSize = 2.f;
     
     v2 Pos = FreeRegion.Min;
-    v2 Size = {0};
     
     f32 ParentSize = (Parent->Region.Max.e[Axis] - Parent->Region.Min.e[Axis]);
     f32 OtherSize = (FreeRegion.Max.e[OtherAxis] - FreeRegion.Min.e[OtherAxis]);
     
-    Size.e[Axis] = (!IsNilPanel(Parent) ?
-                    (Panel->ParentPct*ParentSize) :
-                    (FreeRegion.Max.e[Axis] - FreeRegion.Min.e[Axis]));
-    Size.e[OtherAxis] = OtherSize;
-    
     
     if(!IsNilPanel(Panel))
     {       
-        Panel->Region = RectFromSize(Pos, Size);
+        {
+            v2 Size = {0};
+            Size.e[Axis] = (!IsNilPanel(Parent) ?
+                            (Panel->ParentPct*ParentSize) :
+                            (FreeRegion.Max.e[Axis] - FreeRegion.Min.e[Axis]));
+            Size.e[OtherAxis] = OtherSize;
+            
+            Panel->Region = RectFromSize(Pos, Size);
+        }
         
         if(!IsNilPanel(Panel->First))
         {
@@ -986,8 +999,6 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
         {
             v4 BorderColor = Color_Red;
             f32 BorderSize = 8.f;
-            
-            v2 MouseP = V2S32(PanelInput->Mouse.X, PanelInput->Mouse.Y);
             
             v4 Border = Panel->Region;
             
@@ -1379,9 +1390,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             u64 Cursor = Text->Cursor;
                             
-                            for EachIndex(Idx, Input->PlatformClipboard.Size)
+                            for EachIndex(CharIdx, Input->PlatformClipboard.Size)
                             {
-                                AppendChar(Text, (rune)Clip.Data[Idx]);
+                                AppendChar(Text, (rune)Clip.Data[CharIdx]);
                             }
                             
                             Text->Cursor = Text->Trail = Cursor + Input->PlatformClipboard.Size;
@@ -1413,6 +1424,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
                 switch(Key.Symbol)
                 {
+                    default: break;
+                    
                     case PlatformKey_Return: 
                     {
                         DeleteSelection(Text);
@@ -1538,7 +1551,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     case PlatformKey_PageUp:
                     {
-                        for EachIndex(Idx, Text->Lines) 
+                        for EachCount(Text->Lines) 
                         {
                             MoveUp(Text, Shift);
                         }
@@ -1546,7 +1559,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     case PlatformKey_PageDown:
                     {
-                        for EachIndex(Idx, Text->Lines)
+                        for EachCount(Text->Lines)
                         {
                             MoveDown(Text, Shift);
                         }
@@ -1682,7 +1695,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             UI_State->Hot = UI_KeyNull();
         }
         
-        UI_FrameArena = FrameArena;
+        UI_State->FrameArena = FrameArena;
     }
     
     // Draw rectangles 
@@ -1749,7 +1762,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                          UI_BoxFlag_DrawDisplayString |
                          UI_BoxFlag_CenterTextVertically |
                          UI_BoxFlag_CenterTextHorizontally);
-            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickability);
+            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickable);
             
             // NOTE(luca): Adding an extra parent like this makes it easy to override defaults
             UI_LayoutAxis(Axis2_Y) 
@@ -1778,12 +1791,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             UI_BackgroundColor(Color_ButtonBackground)
                             {
-                                if(UI_AddBox(S8("Open"), ButtonFlags)->Clicked)
+                                if(UI_Button(S8("Open")))
                                 {
                                     LoadFileToText(Text, S8("./hello.c"));
                                 }
                                 
-                                if(UI_AddBox(S8("Clear"), ButtonFlags)->Clicked)
+                                if(UI_Button(S8("Clear")))
                                 {
                                     Text->Count = 0;
                                     Text->Cursor = 0;
@@ -1791,7 +1804,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     Text->CurRelLine = 0;
                                 }
                                 
-                                if(UI_AddBox(S8("Save"), ButtonFlags)->Clicked)
+                                if(UI_Button(S8("Save")))
                                 {
                                     SaveTextToFile(Text, S8("./hello.c"));
                                 }
@@ -1883,7 +1896,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                          UI_BoxFlag_DrawBackground |
                          UI_BoxFlag_DrawDisplayString |
                          UI_BoxFlag_CenterTextVertically);
-            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickability);
+            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickable);
             
             UI_LayoutAxis(Axis2_Y)
                 UI_SemanticFull()
@@ -1952,4 +1965,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
     }
     
     return ShouldQuit;
+}
+
+GET_AUDIO_SAMPLES(GetAudioSamples)
+{
+    // Stub
 }

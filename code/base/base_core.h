@@ -80,7 +80,7 @@
 #endif
 
 #if defined(COMPILER_MSVC)
-#  if defined(__cplusplus)
+#  if LANG_CPP
 // NOTE(luca): Decay to numeric type.
 #    define TypeOf(x) decltype((x)+0)
 #  else
@@ -153,22 +153,22 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 #elif COMPILER_GNU || COMPILER_CLANG
 # define ReadWriteBarrier() __asm__ __volatile__ ("" : : : "memory")
 #endif
-#define NoOp() ReadWriteBarrier()
+#define NoOp() do { int Glue(X, __COUNTER__) = 3; } while(0)
 
 #define DebugBreak() do { if(GlobalDebuggerIsAttached) { Trap(); } } while(0)
 
 #define Var(Name) Glue(Name, __LINE__)
-#define DoOnce local_persist s32 Var(X) = 0; Var(X) += 1; if(Var(X) < 2)
-#define DebugBreakOnce() do { DoOnce { DebugBreak(); }; } while(0);
+#define DoOnce() local_persist s32 Var(X) = 0; Var(X) += 1; if(Var(X) < 2)
+#define DebugBreakOnce() do { DoOnce() { DebugBreak(); }; } while(0);
 
 #define DebugBreakMsg(Format, ...) do { ErrorLog(Format, ##__VA_ARGS__); DebugBreak(); } while(0)
 #define TrapMsg(Format, ...) do { ErrorLog(Format, ##__VA_ARGS__); Trap(); } while(0)
 #define AssertMsg(Expression, Format, ...) \
-do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
+do { if(!(Expression)) DebugBreakMsg(Format, ##__VA_ARGS__); } while(0)
 #define Assert(Expression) AssertMsg(Expression, "Hit assertion")
 
 #define NotImplemented() DebugBreakMsg("Not Implemented!")
-#define InvalidPath()    TrapMsg("Invalid Path!")
+#define InvalidPath()    DebugBreakMsg("Invalid Path!")
 #define StaticAssert(C, ID) global_variable u8 Glue(ID, __LINE__)[(C)?1:-1]
 
 //~ Loop macros
@@ -177,6 +177,9 @@ do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
 for(int Glue(_i_, c) = ((Begin), 0); !Glue(_i_, c); Glue(_i_, c) += 1, (End))
 #define DeferLoop(Begin, End) DeferLoop_(Begin, End, __COUNTER__)
 
+#define ScopeToggle(Value) DeferLoop(Value = !Value, Value = !Value)
+#define ScopeOff(Value) if(Value) ScopeToggle(Value)
+#define ScopeOn(Value) if(!Value) ScopeToggle(Value)
 
 #define EachIndexType(t, Index, Count) (t Index = 0; Index < (Count); Index += 1)
 #define EachIndex(Index, Count)           EachIndexType(TypeOf((Count)), Index, Count)
@@ -364,6 +367,7 @@ typedef s32 rune; // utf8 codepoint
 
 typedef float f32;
 typedef double f64;
+typedef unsigned int uint;
 
 #define U8Max 0xff
 #define U16Max 0xffff

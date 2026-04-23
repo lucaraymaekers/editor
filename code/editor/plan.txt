@@ -1,20 +1,6 @@
 - WalkNode
-- Recursive walker for panels.
 
-- Platorm replay improvements
-  - Forward/Backward 1 frame
-  - Multiple slots
-  - Save/Load replay to/from file
-  - Select a starting state 
-  - Overwrite a recording buffer partially.
-    - Idea: Always load/to Save.Buffer so that we have enough space to eventually get it out.
-  - We could use an arena for permanent memory so that the platform knows exactly how much memory to write to disk to speed up load/save times.  But in the end we might end up being using all that memory or more so does it really matter?
-
-- Investigate why the rounding is needed with DrawRectChar() and how we could have found the bug. 
-- Bug: some borders of the buttons are not exactly 1px like they should be.
-
-- PlatformLog & AppLog which have FrameIdx attached.
-- Cycle panels
+- Swap panel columns (ctrl-2)
 
 - Fat panel struct instead of text panel nodes.
 
@@ -25,9 +11,6 @@
 
 - albedo sample 
 
-- Speed up atlas creation.
-- Glyph cache for faster atlas creating
-
 - text: Undo/Redo
 - text: Have text be clipped at pixel level and not rectangle level
 
@@ -36,16 +19,10 @@
   - when hovering over an item
   - when clicking
 
-- ui: Assert when adding the same box twice.
-
 - panels: Go for megastruct instead, panel has kind (e.g., text) 
 
-- cling: On windows get cling to run ./cling_temp.exe even when "norebuild" since that will be the most up-to-date version of the program.
+- ui: tabs
 
-- Marker in arena's to not have to clear to 0 from freshly allocated pages.
-
-- platform: linux: release clipboard when exiting
- 
 - text: when selecting with mouse, do not scroll
 - text: When selecting to the side of the text do select as well.
 - text: Virtual whitespace
@@ -62,37 +39,6 @@
   ? Poisoning should take care of everything, do the rest manually,  since we are using arena's it's not that much work
   - We should only be pushing once on PermanentArena.
     And be able to push onto PermanentArena when !Memory->Initialized
-
-- platform: keyboard input (pressing & holding, vs text)
-  - easier query of keys & modifiers.
-  - to have key binds. (WasPressed(Control, 'c')
-- platform: linux: investigate startup time.
-  - choosing visual config ~40ms
-  - atlas = 90ms
-- platform: window resizing
-- platform: sleep when idle
-- platform: custom borders and titlebar
-
-- unified logs
-  - with date, system, level and stacktraces
-- Cmdline hash table
-
-- ui: Implement properties from https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language
-- ui: inset elements
-- ui: panels
-  - rotate columns
-  - tabs
-- ui: windows
-
-- tick() function?
-
-- win32: repaint and resizing.
-  - 24:36
-
-- shader:
-  - group draw calls with those that need the same texture and those that don't without changing draw order (because foreground&background) 
-  - find a way to push a texture for a number of rectangles
-  - then pop when not adding characters anymore
 
 # Archived
 x Ryan's layout algorithm
@@ -156,3 +102,4 @@ x platform: clipboard: use bool instead of second buffer `PlatftormSetClipboard`
 x text: multiple buffers
 x Smooth smooth animations
 x replay: Separate renderer such that we can also render some debug UI from the platform. (Overlay debug info)
+x Recursive walker for panels.

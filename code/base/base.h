@@ -1,7 +1,7 @@
 #if !defined(BASE_H)
 #define BASE_H
 
-#if defined(BASE_PERSONAL)
+#if __has_include("base_build.h")
 # include "base_build.h"
 #endif
 

@@ -18,6 +18,13 @@ struct range_u64
     u64 Max;
 };
 
+typedef union v2s32 v2s32;
+union v2s32
+{
+    s32 e[2];
+    struct { s32 X, Y; };
+};
+
 typedef union v2 v2;
 union v2
 {
@@ -229,8 +236,7 @@ RectFromSize(v2 TopLeft, v2 Size)
 internal inline v2
 SizeFromRect(v4 Rec)
 {
-    v2 Result = V2(Rec.Max.X - Rec.Min.X,
-                   Rec.Max.Y - Rec.Min.Y);
+    v2 Result = V2SubV2(Rec.Max, Rec.Min);
     return Result;
 }
 

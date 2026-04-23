@@ -58,6 +58,8 @@ ArenaPush(arena *Arena, u64 Size, u64 Alignment, b32 Zero)
     return Result;
 }
 
+internal void ArenaSetPos(arena *Arena, u64 Pos) { Arena->Pos = Pos; }
+
 internal u64 
 BeginScratch(arena *Arena)
 {

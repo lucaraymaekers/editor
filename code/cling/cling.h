@@ -4,6 +4,8 @@
 - Cgn_RunCommand should take a str8_array instead of str8 since that seems to be the more common case
 - Provide a path to execute a command asynchronously and check later if it has completed.
 - Instead of passing argument "norebuild" set an environment variable
+
+- On Windows find a truly self-hosting solution.
 */
 
 //~ Libraries

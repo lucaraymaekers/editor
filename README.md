@@ -1,15 +1,15 @@
 # Editor
 
 Editor is my personal codebase written from scratch in C using very few libraries.
-It runs on Linux and Windows with nice debug features such as code profiling, hot reloading, loop editing, saving/loading replays and state to/from disk. 
+It runs on Linux and Windows (OpenGL) with nice debug features such as code profiling, hot reloading, loop editing, saving/loading replays and state to/from disk. 
 
 ### Demo's
 
-A "midi editor".
-![Watch the demo](https://github.com/lucaraymaekers/editor/blob/main/data/showcase_muze_260423.gif)
+Muze, my music composition software.
+![Watch the demo](https://github.com/lucaraymaekers/editor/blob/main/data/muze/showcase_260423.gif)
 
-A "text editor".
-![Watch the demo](https://github.com/lucaraymaekers/editor/blob/main/data/showcase_editor_260404.gif)
+Editor, text editing playground.
+![Watch the demo](https://github.com/lucaraymaekers/editor/blob/main/data/editor/showcase_260404.gif)
 
 ### Building 
 This will ultimately run "cling", a self-hosted C build script that is also acts as the metaprogram when required.

@@ -1,7 +1,11 @@
 /* date = December 6th 2025 2:11 pm */
 
+
+
 #if !defined(ARENAS_H)
 #define ARENAS_H
+
+// TODO(luca): Marker to not have to clear to 0 from freshly allocated pages (OS cleared them).
 
 typedef struct arena arena;
 struct arena
@@ -33,11 +37,14 @@ struct arena_alloc_params
 
 #define ArenaAlloc(...) ArenaAlloc_(StructCast(arena_alloc_params){.DefaultSize = ArenaAllocDefaultSize, ##__VA_ARGS__})
 internal arena *ArenaAlloc_(arena_alloc_params Params);
-internal void  *ArenaPush(arena *Arena, u64 Size, u64 Alignment, b32 Zero);
+internal void *ArenaPush(arena *Arena, u64 Size, u64 Alignment, b32 Zero);
+internal void ArenaSetPos(arena *Arena, u64 Pos);
 internal u64 BeginScratch(arena *Arena);
 internal void EndScratch(arena *Arena, u64 BackPos);
 
-#define Scratch(Arena) for(u64 _J_ = BeginScratch((Arena)), _I_ = 0; !_I_; _I_ += 1, (EndScratch(Arena, _J_)))
+#define Scratch(Arena) for(u64 _J_ = BeginScratch((Arena)), _I_ = 0; \
+!_I_; \
+_I_ += 1, (EndScratch(Arena, _J_)))
 
 #define PushArray(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), false)
 #define PushStruct(Arena, t) PushArray(Arena, t, 1)

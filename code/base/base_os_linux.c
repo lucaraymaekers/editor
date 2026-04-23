@@ -214,7 +214,7 @@ ENTRY_POINT(ThreadInitEntryPoint)
 }
 
 internal void
-LinuxSigHandler(int Signal, siginfo_t *Info, void *Arg)
+LinuxSigHandler(int Signal, siginfo_t *SigInfo, void *Arg)
 {
     Log("\nSignal received: %s (%d). The process is terminating.\n", strsignal(Signal), Signal);
 #if !ANDROID
