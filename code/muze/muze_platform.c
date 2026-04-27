@@ -301,7 +301,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         f64 LastCounter = OS_GetWallClock();
         f64 FlipWallClock = LastCounter;
-#if MUZE_FORCE_UPDATE_HZ
+#if defined(MUZE_FORCE_UPDATE_HZ)
         f32 GameUpdateHz = MUZE_FORCE_UPDATE_HZ;
 #else
         f32 GameUpdateHz = 144.0f;
@@ -325,7 +325,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         snd_pcm_hw_params_t *SoundHandleParams = 0;
         snd_pcm_status_t *SoundHandleStatus = 0;
         
-        snd_pcm_open(&SoundHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+        snd_pcm_open(&SoundHandle, "default", SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK);
         
         snd_pcm_hw_params_alloca(&SoundHandleParams);
         snd_pcm_hw_params_any(SoundHandle, SoundHandleParams);
@@ -352,25 +352,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         u64 SamplesCount = (u64)roundf(3.f*(f32)SampleRate*TargetSecondsPerFrame);
         s16 *Samples = PushArrayZero(FrameArena, s16, SamplesCount);
-        
-        f32 nfreq = (Pi32 * 2.f) / (f32)SampleRate;
-        f32 Volume   = (1 << 15) * .5f;
-        f32 Pitch  = 440.f;
-        f32 ctr = 0.0;
-        
-#if 0        
-        for(;;) 
-        {
-            for(uint Idx = 0; Idx < SamplesCount; Idx += 2) 
-            {
-                s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
-                ctr += 1.f;
-                Samples[Idx + 0] = Samples[Idx + 1] = SampleValue;
-            }
-            snd_pcm_writei(SoundHandle, Samples, SamplesCount/ChannelsCount);
-        }
-#endif
-        
 #endif
         
         app_code Code = {0};
@@ -961,9 +942,13 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     ReadWriteBarrier();
                     *Running = *Running && !ShouldQuit;
                     
-                    umm SamplesToWrite = (umm)(2.f*TargetSecondsPerFrame*(f32)SampleRate);
+                    OS_ProfileAndPrint("Update and render");
+                    
+                    umm SamplesToWrite = (umm)(3.f*TargetSecondsPerFrame*(f32)SampleRate);
                     
                     Code.GetAudioSamples(ThreadContext, Samples, SamplesToWrite);
+                    
+                    OS_ProfileAndPrint("Get samples");
                     
 #if OS_LINUX
                     snd_pcm_sframes_t AvailableFrames = 0;
@@ -972,18 +957,30 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     AvailableFrames = snd_pcm_avail_update(SoundHandle);
                     snd_pcm_delay(SoundHandle, &DelayFrames);
                     
-                    printf("Avail: %ld, Delay: %ld, ToWrite: %zu\n",
+                    
+                    
+                    Log("Avail: %ld, "
+                        "Delay: %ld, "
+                        "ToWrite: %zu, "
+                        "WriteTime: %.4f\n",
                            AvailableFrames, 
                            DelayFrames, 
-                           SamplesToWrite);
+                        SamplesToWrite,
+                        (f32)SamplesToWrite/(f32)SampleRate);
                     
+                    
+                    OS_ProfileAndPrint("Sound setup");
+
+#if 0                    
                     snd_pcm_sframes_t FramesWritten = snd_pcm_writei(SoundHandle, Samples, SamplesToWrite);
+                    OS_ProfileAndPrint("Sound playback");
                     
                     if(FramesWritten < 0)
                     {
                         snd_pcm_recover(SoundHandle, (int)FramesWritten, ALSA_RECOVER_SILENT);
-                        //snd_pcm_writei(SoundHandle, Samples, SamplesToWrite);
                     }
+                    #endif
+
                     #endif
                     
                 }

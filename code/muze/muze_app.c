@@ -1637,11 +1637,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             GlobalTSF = tsf_load_memory(File.Data, (int)File.Size);
             Assert(GlobalTSF);
             
-            tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 44100, -10);
+            tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 48000, -10);
             
-            // Start two notes before starting the audio playback
-            tsf_note_on(GlobalTSF, 0, 48, 1.0f); //C2
-            tsf_note_on(GlobalTSF, 0, 52, 1.0f); //E2
             App->TrackerForTSF = GlobalTSF;
 }
         
@@ -1716,6 +1713,22 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             App->PlayPos = 0.f;
                             App->IsPlaying = true;
                         }
+                    } break;
+                    
+                    // TODO(luca): Metaprogram
+                    case 's':
+                    {
+                        tsf_note_on(GlobalTSF, 0, 48, 1.0f);
+                    } break;
+                    
+                    case 't':
+                    {
+                        tsf_note_on(GlobalTSF, 0, 50, 1.f);
+                    } break;
+                    
+                    case 'd':
+                    {
+                        tsf_note_on(GlobalTSF, 0, 52, 1.f);
                     } break;
                     
                     case ' ':
