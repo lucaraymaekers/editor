@@ -245,7 +245,63 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         Buffer.Width = 1600;
         Buffer.Height = 900;
         
-        P_context PlatformContext = P_ContextInit(PermanentArena, &Buffer, Running);
+        P_context PlatformContext = P_Init(PermanentArena, &Buffer, Running);
+        
+#if OS_LINUX
+        uint DesiredSampleRate = 48000;
+        uint DesiredChannelsCount = 2;
+        
+        snd_pcm_uframes_t PeriodSize;
+        snd_pcm_uframes_t BufferSize;
+        uint PeriodTime;
+        uint ChannelsCount;
+        uint SampleRate;
+        
+        snd_pcm_t *SoundHandle = 0;
+        snd_pcm_hw_params_t *SoundHandleParams = 0;
+        snd_pcm_status_t *SoundHandleStatus = 0;
+        
+        snd_pcm_open(&SoundHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+        snd_pcm_set_params(SoundHandle,
+                           SND_PCM_FORMAT_S16_LE,
+                           SND_PCM_ACCESS_RW_INTERLEAVED,
+                           DesiredChannelsCount,
+                           DesiredSampleRate,
+                           1,
+                           16667);
+        
+        
+        snd_pcm_hw_params_alloca(&SoundHandleParams);
+        snd_pcm_hw_params_current(SoundHandle, SoundHandleParams);
+        snd_pcm_hw_params_get_channels(SoundHandleParams, &ChannelsCount);
+        snd_pcm_hw_params_get_rate(SoundHandleParams, &SampleRate, 0);
+        snd_pcm_hw_params_get_period_size(SoundHandleParams, &PeriodSize, 0);
+        snd_pcm_hw_params_get_period_time(SoundHandleParams, &PeriodTime, NULL);
+        snd_pcm_hw_params_get_buffer_size(SoundHandleParams, &BufferSize);
+        snd_pcm_status_malloc(&SoundHandleStatus);
+        
+        u64 SamplesCount = 1000;
+        s16 *Samples = PushArrayZero(FrameArena, s16, SamplesCount);
+        
+        f32 nfreq = (Pi32 * 2.f) / (f32)SampleRate;
+        f32 Volume   = (1 << 15) * .5f;
+        f32 Pitch  = 440.f;
+        f32 ctr = 0.0;
+
+#if 0        
+        for(;;) 
+        {
+            for(uint Idx = 0; Idx < SamplesCount; Idx += 2) 
+            {
+                s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
+                    ctr += 1.f;
+                Samples[Idx + 0] = Samples[Idx + 1] = SampleValue;
+            }
+            snd_pcm_writei(SoundHandle, Samples, SamplesCount/ChannelsCount);
+        }
+        #endif
+
+#endif
         
         OS_ProfileAndPrint("Context");
         
@@ -895,6 +951,40 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     // NOTE(luca): Since UpdateAndRender can take some time, there could have been a signal sent to INT the app.
                     ReadWriteBarrier();
                     *Running = *Running && !ShouldQuit;
+                    
+                    s32 SamplesToWrite = (s32)(TargetSecondsPerFrame*(f32)SampleRate);
+                    
+                    Code.GetAudioSamples(ThreadContext, Samples, SamplesToWrite);
+                    
+#if OS_LINUX
+                    
+                    snd_pcm_sframes_t AvailableFrames = 0;
+                    snd_pcm_sframes_t DelayFrames;
+                    
+                    //snd_pcm_avail_update(SoundHandle);
+                    AvailableFrames = snd_pcm_avail(SoundHandle);
+                    snd_pcm_delay(SoundHandle, &DelayFrames);
+                    
+                    //printf("PeriodSize: %lu, PeriodTime: %d, BufferSize: %lu\n", PeriodSize, PeriodTime, PCMBufferSize);
+                    printf("BeingWritten: %lu, Avail: %ld, Delay: %ld, ToWrite: %d\n", BufferSize - (u32)AvailableFrames, 
+                           AvailableFrames, 
+                           DelayFrames, 
+                           (s32)SamplesToWrite);
+                    
+                    snd_pcm_sframes_t FramesWritten = snd_pcm_writei(SoundHandle, Samples, SamplesCount);
+                    
+                    if(FramesWritten < 0)
+                    {
+#if 1
+                        // NOTE(luca): Disabled, so I can hear the failing
+                        snd_pcm_recover(SoundHandle, (int)FramesWritten, ALSA_RECOVER_SILENT);
+#endif
+                        
+                    }
+                    
+                    #endif
+                    
+                    
                 }
                 
                 OS_ProfileAndPrint("UpdateAndRender");

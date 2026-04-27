@@ -8,20 +8,29 @@
 #include <mmsystem.h>
 #endif
 
+#define TSF_IMPLEMENTATION
+NO_WARNINGS_BEGIN
+#include "lib/tsf.h"
+NO_WARNINGS_END
+
 #include "muze/generated/everything.c"
+
 #include "muze/muze_platform.h"
 #include "muze/muze_libs.h"
 #include "muze/muze_font.h"
 #include "muze/muze_random.h"
 #include "muze/muze_gl.h"
 #include "muze/muze_renderer.h"
-#include "muze/muze_app.h"
 #include "muze/muze_ui.h"
-#include "muze/muze_renderer.c"
-#include "muze/muze_ui.c"
+#include "muze/muze_app.h"
 #include "muze/muze_midi.h"
 
+#include "muze/muze_renderer.c"
+#include "muze/muze_ui.c"
+
 //~ Globals
+global_variable tsf *GlobalTSF = 0;
+
 // TODO(luca): Metaprogram
 typedef enum note_pitch note_pitch;
 enum note_pitch
@@ -1593,9 +1602,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
     if(!Memory->Initialized)
     {
         MuzeInit(App);
+        
         // NOTE(luca): Hardcoded for my windows setup
         char *FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
         InitFont(&App->Font, FontPath);
+        
         App->PreviousHeightPx = DefaultHeightPx + 1.0f;
         App->HeightPx = DefaultHeightPx;
         App->FrameIdx = 0;
@@ -1619,6 +1630,30 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         RenderInit(&App->Render);
         
+        // Sound
+        {
+            char *Path = PathFromExe(FrameArena, S8("../data/sounds.sf2"));
+            str8 File = OS_ReadEntireFileIntoMemory(Path);
+            GlobalTSF = tsf_load_memory(File.Data, (int)File.Size);
+            Assert(GlobalTSF);
+            
+            tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 44100, -10);
+            
+            // Start two notes before starting the audio playback
+            tsf_note_on(GlobalTSF, 0, 48, 1.0f); //C2
+            tsf_note_on(GlobalTSF, 0, 52, 1.0f); //E2
+            App->TrackerForTSF = GlobalTSF;
+}
+        
+        // UI
+{
+                UI_State = PushStructZero(App->UIArena, ui_state);
+                UI_State->Arena = App->UIArena;
+                UI_State->BoxTableSize = 4096;
+                UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
+            App->TrackerForUI_State = UI_State;
+        }
+        
         // Panels
         { 
             // TODO(luca): Invert axis on group.
@@ -1633,15 +1668,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     PanelAdd(1.f);
                 }
             }
+            
+            App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
         }
-        
-        App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
         
         OS_ProfileAndPrint("Memory Init");
     }
     
     UI_NilBox = App->TrackerForUI_NilBox;
+    UI_State = App->TrackerForUI_State;
     NilPanel = App->TrackerForNilPanel;
+    GlobalTSF = App->TrackerForTSF;
     
     StringsScratch = FrameArena;
     
@@ -1837,15 +1874,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     // UI Setup
     {    
-        UI_State = PushStruct(PermanentArena, ui_state);
-        if(!Memory->Initialized)
-        {
-            MemoryZero(UI_State);
-            UI_State->Arena = App->UIArena;
-            UI_State->BoxTableSize = 4096;
-            UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
-        }
-        
         UI_State->Atlas = &App->FontAtlas;
         UI_State->FrameIdx = App->FrameIdx;
         UI_State->Input = Input;
@@ -2193,9 +2221,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 }
             }
         }
-        
-        OS_ProfileAndPrint("UI");
     }
+        OS_ProfileAndPrint("UI");
     
     // Window borders
     {
@@ -2390,4 +2417,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
 #endif
     
     return ShouldQuit;
+}
+
+GET_AUDIO_SAMPLES(GetAudioSamples)
+{
+	tsf_render_short(GlobalTSF, (short*)Buffer, FrameCount, 0);
 }

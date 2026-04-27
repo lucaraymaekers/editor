@@ -164,7 +164,7 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 #define DebugBreakMsg(Format, ...) do { ErrorLog(Format, ##__VA_ARGS__); DebugBreak(); } while(0)
 #define TrapMsg(Format, ...) do { ErrorLog(Format, ##__VA_ARGS__); Trap(); } while(0)
 #define AssertMsg(Expression, Format, ...) \
-do { if(!(Expression)) TrapMsg(Format, ##__VA_ARGS__); } while(0)
+do { if(!(Expression)) DebugBreakMsg(Format, ##__VA_ARGS__); } while(0)
 #define Assert(Expression) AssertMsg(Expression, "Hit assertion")
 
 #define NotImplemented() DebugBreakMsg("Not Implemented!")
@@ -364,6 +364,7 @@ typedef s32 rune; // utf8 codepoint
 
 typedef float f32;
 typedef double f64;
+typedef unsigned int uint;
 
 #define U8Max 0xff
 #define U16Max 0xffff

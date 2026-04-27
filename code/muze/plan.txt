@@ -1,3 +1,8 @@
+# Now
+multiple panes
+sf2
+
+
 # Muze (planned) features 
 - Snap BPM to bass notes 
 

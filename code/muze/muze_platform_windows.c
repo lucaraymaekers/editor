@@ -343,7 +343,7 @@ PLATFORM_MIDI_CLOSE(P_MIDIClose)
 #endif
 
 internal P_context 
-P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
+P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
 {
     P_context Result = {0};
     

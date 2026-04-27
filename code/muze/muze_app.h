@@ -4,8 +4,6 @@
 #define MUZE_APP_H
 
 //~ Types
-typedef struct ui_box ui_box;
-
 typedef struct app_text app_text; 
 struct app_text
 {
@@ -154,7 +152,9 @@ struct app_state
     
     // Nils
     ui_box *TrackerForUI_NilBox;
+    ui_state *TrackerForUI_State;
     panel *TrackerForNilPanel;
+    tsf *TrackerForTSF;
 };
 
 //~ Globals

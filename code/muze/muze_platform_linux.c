@@ -1,4 +1,10 @@
 #include "base/base.h"
+
+//- ALSA 
+#define ALSA_RECOVER_SILENT true
+
+#include <alsa/asoundlib.h>
+
 //- OpenGL 
 #include "lib/gl_core_3_3_debug.h"
 #include <GL/glx.h>
@@ -197,7 +203,7 @@ PLATFORM_MIDI_LISTEN(P_MIDIListen)
 }
 
 internal P_context
-P_ContextInit(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
+P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
 {
     OS_ProfileInit("S_L");
     
@@ -1125,18 +1131,29 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
         if(Library)
         {
             // Load code from library
+            Code->Loaded = false;
             Code->UpdateAndRender = (update_and_render *)dlsym(Library, "UpdateAndRender");
+            Code->GetAudioSamples = (get_audio_samples *)dlsym(Library, "GetAudioSamples");
+            
             if(Code->UpdateAndRender)
             {
                 Code->Loaded = true;
+            }
+            
+            if(Code->GetAudioSamples)
+            {
+                Code->Loaded = (Code->Loaded && true);
+            }
+            
+            if(Code->Loaded)
+            {
                 Memory->Reloaded = true;
                 Code->LibraryHandle = (u64)Library;
                 Log("\nLibrary reloaded.\n");
             }
-            else
+                else
             {
-                Code->Loaded = false;
-                ErrorLog("Could not find UpdateAndRender.");
+                ErrorLog("Could not load functions.");
             }
         }
         else

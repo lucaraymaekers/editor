@@ -608,7 +608,7 @@ ENTRY_POINT(EntryPoint)
                     if(0) {}
                     else if(Linux)
                     {
-                        ExtraLinkerFlags = S8("-lX11 -lGL -lGLX");
+                        ExtraLinkerFlags = S8("-lasound -lX11 -lGL -lGLX");
                     }
                     else if(Windows)
                     {
@@ -816,7 +816,7 @@ ENTRY_POINT(EntryPoint)
                     if(0) {}
                     else if(Linux)
                     {
-                        ExtraLinkerFlags = S8("-lX11 -lGL -lGLX");
+                        ExtraLinkerFlags = S8("-lasound -lX11 -lGL -lGLX");
                     }
                     else if(Windows)
                     {
