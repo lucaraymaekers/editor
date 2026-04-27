@@ -185,10 +185,12 @@ LinuxShowCursor(linux_x11_context *Linux, b32 Entered)
 }
 
 
-//~ Platform API
+//~ MIDI API
+#if 0
 PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
 {
     platform_midi_get_devices_result Result = {0};
+    
     return Result;
 }
 
@@ -201,7 +203,245 @@ PLATFORM_MIDI_LISTEN(P_MIDIListen)
 {
     
 }
+#else
+#include <alsa/asoundlib.h>
+#include <stdlib.h>
+#include <string.h>
 
+typedef struct midi_alsa_state
+{
+    snd_seq_t *Seq;
+    
+    int ClientID;
+    int OutPort;
+    int InPort;
+    
+    b32 OutputConnected;
+    b32 InputConnected;
+    
+    u64 OutputDeviceId;
+    u64 InputDeviceId;
+} midi_alsa_state;
+
+static midi_alsa_state MidiState = {0};
+
+// -----------------------------------------------------------------------------
+// INIT (implicit inside API calls)
+// -----------------------------------------------------------------------------
+
+static void P_MIDIInitOnce(void)
+{
+    if (MidiState.Seq)
+        return;
+    
+    snd_seq_open(&MidiState.Seq, "default", SND_SEQ_OPEN_DUPLEX, 0);
+    snd_seq_set_client_name(MidiState.Seq, "platform_midi");
+    
+    MidiState.ClientID = snd_seq_client_id(MidiState.Seq);
+    
+    MidiState.OutPort =
+        snd_seq_create_simple_port(
+                                   MidiState.Seq,
+                                   "out",
+                                   SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_SUBS_READ,
+                                   SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+    
+    MidiState.InPort =
+        snd_seq_create_simple_port(
+                                   MidiState.Seq,
+                                   "in",
+                                   SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_WRITE,
+                                   SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+}
+
+// -----------------------------------------------------------------------------
+// GET DEVICES
+// -----------------------------------------------------------------------------
+
+PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
+{
+    P_MIDIInitOnce();
+    
+    platform_midi_get_devices_result Result = {0};
+    
+    snd_seq_client_info_t *cinfo;
+    snd_seq_port_info_t *pinfo;
+    
+    snd_seq_client_info_malloc(&cinfo);
+    snd_seq_port_info_malloc(&pinfo);
+    
+    Result.Count = 0;
+    
+    snd_seq_client_info_set_client(cinfo, -1);
+    
+    while (snd_seq_query_next_client(MidiState.Seq, cinfo) >= 0)
+    {
+        int client = snd_seq_client_info_get_client(cinfo);
+        
+        snd_seq_port_info_set_client(pinfo, client);
+        snd_seq_port_info_set_port(pinfo, -1);
+        
+        while (snd_seq_query_next_port(MidiState.Seq, pinfo) >= 0)
+        {
+            unsigned int cap = snd_seq_port_info_get_capability(pinfo);
+            
+            if (cap & (SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE))
+                Result.Count++;
+        }
+    }
+    
+    Result.Devices = PushArray(FrameArena, platform_midi_device, Result.Count);
+    
+    u64 Index = 0;
+    
+    snd_seq_client_info_set_client(cinfo, -1);
+    
+    while (snd_seq_query_next_client(MidiState.Seq, cinfo) >= 0)
+    {
+        int client = snd_seq_client_info_get_client(cinfo);
+        
+        snd_seq_port_info_set_client(pinfo, client);
+        snd_seq_port_info_set_port(pinfo, -1);
+        
+        while (snd_seq_query_next_port(MidiState.Seq, pinfo) >= 0)
+        {
+            unsigned int cap = snd_seq_port_info_get_capability(pinfo);
+            
+            if (!(cap & (SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE)))
+                continue;
+            
+            platform_midi_device *D = &Result.Devices[Index++];
+            
+            D->Id = ((u64)client << 32) |
+            (u64)snd_seq_port_info_get_port(pinfo);
+            
+            {            
+                char *Name = (char *)snd_seq_port_info_get_name(pinfo);
+                u64 Size = StringLength(Name);
+                D->Name = PushS8(FrameArena, Size);
+                MemoryCopy(D->Name.Data, Name, Size);
+            }
+
+            D->IsOutput = (cap & SND_SEQ_PORT_CAP_WRITE) != 0;
+        }
+    }
+    
+    snd_seq_client_info_free(cinfo);
+    snd_seq_port_info_free(pinfo);
+    
+    return Result;
+}
+
+// -----------------------------------------------------------------------------
+// CONNECT OUTPUT (persistent)
+// -----------------------------------------------------------------------------
+
+PLATFORM_MIDI_SEND(P_MIDISend)
+{
+    P_MIDIInitOnce();
+    
+    int client = (int)(Device.Id >> 32);
+    int port   = (int)(Device.Id & 0xFFFFFFFF);
+    
+    if (!MidiState.OutputConnected ||
+        MidiState.OutputDeviceId != Device.Id)
+    {
+        if (MidiState.OutputConnected)
+            snd_seq_disconnect_to(MidiState.Seq,
+                                  MidiState.OutPort,
+                                  (int)(MidiState.OutputDeviceId >> 32),
+                                  (int)(MidiState.OutputDeviceId & 0xFFFFFFFF));
+        
+        snd_seq_connect_to(MidiState.Seq, MidiState.OutPort, client, port);
+        
+        MidiState.OutputConnected = 1;
+        MidiState.OutputDeviceId = Device.Id;
+    }
+    
+    snd_seq_event_t ev;
+    snd_seq_ev_clear(&ev);
+    
+    snd_seq_ev_set_source(&ev, MidiState.OutPort);
+    snd_seq_ev_set_subs(&ev);
+    snd_seq_ev_set_direct(&ev);
+    
+    u8 status = (Message & 0xFF);
+    u8 data1  = (Message >> 8) & 0xFF;
+    u8 data2  = (Message >> 16) & 0xFF;
+    
+    if ((status & 0xF0) == 0xC0 || (status & 0xF0) == 0xD0)
+    {
+        snd_seq_ev_set_pgmchange(&ev,
+                                 status & 0x0F,
+                                 data1);
+    }
+    else
+    {
+        snd_seq_ev_set_noteon(&ev,
+                              status & 0x0F,
+                              data1,
+                              data2);
+    }
+    
+    snd_seq_event_output_direct(MidiState.Seq, &ev);
+}
+
+// -----------------------------------------------------------------------------
+// CONNECT INPUT (persistent)
+// -----------------------------------------------------------------------------
+
+PLATFORM_MIDI_LISTEN(P_MIDIListen)
+{
+    P_MIDIInitOnce();
+    
+    int client = (int)(Device.Id >> 32);
+    int port   = (int)(Device.Id & 0xFFFFFFFF);
+    
+    if (!MidiState.InputConnected ||
+        MidiState.InputDeviceId != Device.Id)
+    {
+        if (MidiState.InputConnected)
+            snd_seq_disconnect_from(MidiState.Seq,
+                                    MidiState.InPort,
+                                    (int)(MidiState.InputDeviceId >> 32),
+                                    (int)(MidiState.InputDeviceId & 0xFFFFFFFF));
+        
+        snd_seq_connect_from(MidiState.Seq, MidiState.InPort, client, port);
+        
+        MidiState.InputConnected = 1;
+        MidiState.InputDeviceId = Device.Id;
+    }
+    
+    snd_seq_event_t *ev = NULL;
+    
+    while (0)
+    {
+        snd_seq_event_input(MidiState.Seq, &ev);
+        if (!ev) continue;
+        
+        // minimal handling hook point
+        switch (ev->type)
+        {
+            case SND_SEQ_EVENT_NOTEON:
+            case SND_SEQ_EVENT_NOTEOFF:
+            {
+                u32 msg =
+                    0x90 |
+                (u32)(ev->data.note.note << 8) |
+                (u32)(ev->data.note.velocity << 16);
+                
+                // replace with your dispatcher
+                P_MIDISend((platform_midi_device){0}, msg);
+            } break;
+            
+            default:
+            break;
+        }
+    }
+}
+#endif
+
+//~ Platform API
 internal P_context
 P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
 {

@@ -267,7 +267,7 @@ struct app_memory
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) { return false; }
 
-#define GET_AUDIO_SAMPLES(Name) void Name(thread_context *Context, void *Buffer, umm FramesCount)
+#define GET_AUDIO_SAMPLES(Name) void Name(thread_context *Context, void *Buffer, s64 FramesCount)
 typedef GET_AUDIO_SAMPLES(get_audio_samples);
 GET_AUDIO_SAMPLES(GetAudioSamplesStub) {}
 
@@ -293,7 +293,6 @@ internal void      P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memor
 PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices);
 PLATFORM_MIDI_SEND(P_MIDIPlay);
 PLATFORM_MIDI_LISTEN(P_MIDIListen);
-
 
 //- Helpers 
 internal inline b32 

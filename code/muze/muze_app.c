@@ -1715,22 +1715,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         }
                     } break;
                     
-                    // TODO(luca): Metaprogram
-                    case 's':
-                    {
-                        tsf_note_on(GlobalTSF, 0, 48, 1.0f);
-                    } break;
-                    
-                    case 't':
-                    {
-                        tsf_note_on(GlobalTSF, 0, 50, 1.f);
-                    } break;
-                    
-                    case 'd':
-                    {
-                        tsf_note_on(GlobalTSF, 0, 52, 1.f);
-                    } break;
-                    
                     case ' ':
                     {
                         if(App->IsRecording)
@@ -1832,6 +1816,21 @@ UPDATE_AND_RENDER(UpdateAndRender)
     }
     local_persist f32 ScrollX    = 0.f;
     local_persist f32 ScrollVelX = 0.f;
+    
+    // Keyboard piano
+{    
+        Log("%d, %d", Input->ActionUp.EndedDown, Input->ActionUp.HalfTransitionCount);
+        if(Input->ActionUp.EndedDown && Input->ActionUp.HalfTransitionCount == 1)
+        {
+            tsf_note_on(GlobalTSF, 0, 48, 1.0f);
+        }
+        if(!Input->ActionUp.EndedDown && Input->ActionUp.HalfTransitionCount & 1)
+        {
+            tsf_note_off(GlobalTSF, 0, 48);
+        }
+        
+    }
+
     
     // Scrolling
     {    
@@ -2277,7 +2276,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = Note->Velocity;
                 Message.U8[3] = 0;
                 
+#if 0
                 Memory->PlatformMIDISend(App->Out, Message.U32[0]);
+#else
+                tsf_note_on(GlobalTSF, 0, Note->Pitch, Note->Velocity);
+#endif
             }
             
             
@@ -2293,7 +2296,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = 0;
                 Message.U8[3] = 0;
                 
+#if 0
                 Memory->PlatformMIDISend(App->Out, Message.U32[0]);
+#else
+                tsf_note_off(GlobalTSF, 0, Note->Pitch);
+#endif
             }
         }
         
@@ -2425,7 +2432,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
 #if 0 || MUZE_STARTUP_PROFILE
     // NOTE(luca): Useful for profiling startup times.
-    if(App->FrameIdx == 2)
+    if(App->FrameIdx == 3)
         ShouldQuit = true;
 #endif
     
@@ -2454,6 +2461,4 @@ GET_AUDIO_SAMPLES(GetAudioSamples)
     #else
 	tsf_render_short(GlobalTSF, Samples, (int)FramesCount, 0);
 #endif
-    
-    
 }

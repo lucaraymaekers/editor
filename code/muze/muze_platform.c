@@ -309,6 +309,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         f32 TargetSecondsPerFrame = 1.0f/GameUpdateHz; 
         
 #if OS_LINUX
+        
         uint DesiredSampleRate = 48000;
         uint DesiredChannelsCount = 2;
         
@@ -351,7 +352,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         snd_pcm_status_malloc(&SoundHandleStatus);
         
         u64 SamplesCount = (u64)roundf(3.f*(f32)SampleRate*TargetSecondsPerFrame);
-        s16 *Samples = PushArrayZero(FrameArena, s16, SamplesCount);
+        s16 *Samples = PushArrayZero(PermanentArena, s16, SamplesCount);
 #endif
         
         app_code Code = {0};
@@ -943,46 +944,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     *Running = *Running && !ShouldQuit;
                     
                     OS_ProfileAndPrint("Update and render");
-                    
-                    umm SamplesToWrite = (umm)(3.f*TargetSecondsPerFrame*(f32)SampleRate);
-                    
-                    Code.GetAudioSamples(ThreadContext, Samples, SamplesToWrite);
-                    
-                    OS_ProfileAndPrint("Get samples");
-                    
-#if OS_LINUX
-                    snd_pcm_sframes_t AvailableFrames = 0;
-                    snd_pcm_sframes_t DelayFrames;
-                    
-                    AvailableFrames = snd_pcm_avail_update(SoundHandle);
-                    snd_pcm_delay(SoundHandle, &DelayFrames);
-                    
-                    
-                    
-                    Log("Avail: %ld, "
-                        "Delay: %ld, "
-                        "ToWrite: %zu, "
-                        "WriteTime: %.4f\n",
-                           AvailableFrames, 
-                           DelayFrames, 
-                        SamplesToWrite,
-                        (f32)SamplesToWrite/(f32)SampleRate);
-                    
-                    
-                    OS_ProfileAndPrint("Sound setup");
-
-#if 0                    
-                    snd_pcm_sframes_t FramesWritten = snd_pcm_writei(SoundHandle, Samples, SamplesToWrite);
-                    OS_ProfileAndPrint("Sound playback");
-                    
-                    if(FramesWritten < 0)
-                    {
-                        snd_pcm_recover(SoundHandle, (int)FramesWritten, ALSA_RECOVER_SILENT);
-                    }
-                    #endif
-
-                    #endif
-                    
                 }
                 
                 OS_ProfileAndPrint("UpdateAndRender");
@@ -996,8 +957,59 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     P_UpdateImage(PlatformContext, &Buffer);
                 }
                 
+                
                 OS_ProfileAndPrint("UpdateImage");
                 
+                
+#if 0
+#elif OS_LINUX
+                local_persist b32 FirstTimeSound = true;
+                snd_pcm_sframes_t AvailableFrames = snd_pcm_avail_update(SoundHandle);
+                snd_pcm_sframes_t DelayFrames;
+                snd_pcm_delay(SoundHandle, &DelayFrames);
+                
+                snd_pcm_sframes_t SamplesToWrite = (snd_pcm_sframes_t)(TargetSecondsPerFrame * (f32)SampleRate);
+                
+                if(FirstTimeSound)
+                {
+                    SamplesToWrite += SamplesToWrite / 2;
+                    FirstTimeSound = false;
+                }
+                
+                OS_ProfileAndPrint("Sound setup");
+                
+                Code.GetAudioSamples(ThreadContext, Samples, (s64)SamplesToWrite);
+                
+                OS_ProfileAndPrint("Get samples");
+                
+                Log("Avail: %ld, Delay: %ld, ToWrite: %zu\n", 
+                    AvailableFrames, DelayFrames, SamplesToWrite);
+                
+                if(AvailableFrames >= 0 && SamplesToWrite > AvailableFrames)
+                {
+                    Log("Overrun.\n");
+                SamplesToWrite = AvailableFrames;
+                }
+                
+                snd_pcm_sframes_t SamplesWritten = snd_pcm_writei(SoundHandle, Samples, (u64)SamplesToWrite);
+                    
+                    if(SamplesWritten < 0)
+                    {
+                        if(SamplesWritten == -EAGAIN)
+                        {
+                        Log("Buffer is full.\n");
+                        InvalidPath();
+                        }
+                        else
+                        {
+                        snd_pcm_recover(SoundHandle, (int)SamplesWritten, ALSA_RECOVER_SILENT);
+                            FirstTimeSound = true;
+                            }
+                    }
+
+                OS_ProfileAndPrint("Sound output");
+#endif
+
                 f64 WorkCounter = OS_GetWallClock();
                 f64 WorkMSPerFrame = OS_MSElapsed(LastCounter, WorkCounter);
                 LastWorkMSPerFrame = WorkMSPerFrame;

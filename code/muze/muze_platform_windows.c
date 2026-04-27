@@ -1,6 +1,7 @@
 #include <mmsystem.h>
 #include "muze/muze_midi.h"
 
+//~ Midi
 typedef struct app_midi_notes_queue app_midi_notes_queue;
 struct app_midi_notes_queue
 {
@@ -12,7 +13,6 @@ struct app_midi_notes_queue
 
 global_variable app_midi_notes_queue *NotesQueue = 0;
 
-//~ Midi
 #define MIDI_LogIfError(Code, In) MIDI_LogIfError_(Code, In, __FILE__, __LINE__)
 
 internal b32 
@@ -194,7 +194,7 @@ Win32MainWindowCallback(HWND Window,
     return Result;
 }
 
-//~ API
+//~ MIDI API
 global_variable HMIDIIN SelectedIn = 0;
 global_variable u32 SelectedInPort = 0;
 global_variable b32 SelectedInOpened = false;
@@ -341,6 +341,8 @@ PLATFORM_MIDI_CLOSE(P_MIDIClose)
     }
 }
 #endif
+
+//~ Platform API
 
 internal P_context 
 P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)

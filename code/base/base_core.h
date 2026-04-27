@@ -168,7 +168,7 @@ do { if(!(Expression)) DebugBreakMsg(Format, ##__VA_ARGS__); } while(0)
 #define Assert(Expression) AssertMsg(Expression, "Hit assertion")
 
 #define NotImplemented() DebugBreakMsg("Not Implemented!")
-#define InvalidPath()    TrapMsg("Invalid Path!")
+#define InvalidPath()    DebugBreakMsg("Invalid Path!")
 #define StaticAssert(C, ID) global_variable u8 Glue(ID, __LINE__)[(C)?1:-1]
 
 //~ Loop macros
