@@ -1,7 +1,7 @@
 #include "base/base.h"
 
 //- ALSA 
-#define ALSA_RECOVER_SILENT true
+#define ALSA_RECOVER_SILENT false
 
 #include <alsa/asoundlib.h>
 

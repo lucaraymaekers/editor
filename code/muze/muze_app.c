@@ -2421,5 +2421,26 @@ UPDATE_AND_RENDER(UpdateAndRender)
 
 GET_AUDIO_SAMPLES(GetAudioSamples)
 {
-	tsf_render_short(GlobalTSF, (short*)Buffer, FrameCount, 0);
+    s16 *Samples = (s16 *)Buffer;
+    
+    uint SampleRate = 48000;
+    
+    f32 nfreq = (Pi32 * 2.f) / (f32)SampleRate;
+    f32 Volume   = (1 << 15) * .5f;
+    f32 Pitch  = 440.f;
+    local_persist f32 ctr = 0.0;
+    
+#if 0
+    for EachIndex(Idx, FramesCount)
+        {
+            s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
+            ctr += 1.f;
+        Samples[2*Idx + 0] = SampleValue;
+            Samples[2*Idx + 1] = SampleValue;
+        }
+    #else
+	tsf_render_short(GlobalTSF, Samples, (int)FramesCount, 0);
+#endif
+    
+    
 }

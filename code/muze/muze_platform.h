@@ -267,7 +267,7 @@ struct app_memory
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) { return false; }
 
-#define GET_AUDIO_SAMPLES(Name) void Name(thread_context *Context, void *Buffer, s32 FrameCount)
+#define GET_AUDIO_SAMPLES(Name) void Name(thread_context *Context, void *Buffer, umm FramesCount)
 typedef GET_AUDIO_SAMPLES(get_audio_samples);
 GET_AUDIO_SAMPLES(GetAudioSamplesStub) {}
 

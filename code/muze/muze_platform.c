@@ -247,62 +247,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         P_context PlatformContext = P_Init(PermanentArena, &Buffer, Running);
         
-#if OS_LINUX
-        uint DesiredSampleRate = 48000;
-        uint DesiredChannelsCount = 2;
-        
-        snd_pcm_uframes_t PeriodSize;
-        snd_pcm_uframes_t BufferSize;
-        uint PeriodTime;
-        uint ChannelsCount;
-        uint SampleRate;
-        
-        snd_pcm_t *SoundHandle = 0;
-        snd_pcm_hw_params_t *SoundHandleParams = 0;
-        snd_pcm_status_t *SoundHandleStatus = 0;
-        
-        snd_pcm_open(&SoundHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
-        snd_pcm_set_params(SoundHandle,
-                           SND_PCM_FORMAT_S16_LE,
-                           SND_PCM_ACCESS_RW_INTERLEAVED,
-                           DesiredChannelsCount,
-                           DesiredSampleRate,
-                           1,
-                           16667);
-        
-        
-        snd_pcm_hw_params_alloca(&SoundHandleParams);
-        snd_pcm_hw_params_current(SoundHandle, SoundHandleParams);
-        snd_pcm_hw_params_get_channels(SoundHandleParams, &ChannelsCount);
-        snd_pcm_hw_params_get_rate(SoundHandleParams, &SampleRate, 0);
-        snd_pcm_hw_params_get_period_size(SoundHandleParams, &PeriodSize, 0);
-        snd_pcm_hw_params_get_period_time(SoundHandleParams, &PeriodTime, NULL);
-        snd_pcm_hw_params_get_buffer_size(SoundHandleParams, &BufferSize);
-        snd_pcm_status_malloc(&SoundHandleStatus);
-        
-        u64 SamplesCount = 1000;
-        s16 *Samples = PushArrayZero(FrameArena, s16, SamplesCount);
-        
-        f32 nfreq = (Pi32 * 2.f) / (f32)SampleRate;
-        f32 Volume   = (1 << 15) * .5f;
-        f32 Pitch  = 440.f;
-        f32 ctr = 0.0;
-
-#if 0        
-        for(;;) 
-        {
-            for(uint Idx = 0; Idx < SamplesCount; Idx += 2) 
-            {
-                s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
-                    ctr += 1.f;
-                Samples[Idx + 0] = Samples[Idx + 1] = SampleValue;
-            }
-            snd_pcm_writei(SoundHandle, Samples, SamplesCount/ChannelsCount);
-        }
-        #endif
-
-#endif
-        
         OS_ProfileAndPrint("Context");
         
         if(!PlatformContext)
@@ -363,6 +307,71 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         f32 GameUpdateHz = 144.0f;
 #endif
         f32 TargetSecondsPerFrame = 1.0f/GameUpdateHz; 
+        
+#if OS_LINUX
+        uint DesiredSampleRate = 48000;
+        uint DesiredChannelsCount = 2;
+        
+        snd_pcm_uframes_t DesiredPeriodSize = 256;
+        snd_pcm_uframes_t DesiredBufferSize = (snd_pcm_uframes_t)(3.f * (f32)DesiredSampleRate * TargetSecondsPerFrame);
+        
+        snd_pcm_uframes_t PeriodSize;
+        snd_pcm_uframes_t BufferSize;
+        uint PeriodTime;
+        uint ChannelsCount;
+        uint SampleRate;
+        
+        snd_pcm_t *SoundHandle = 0;
+        snd_pcm_hw_params_t *SoundHandleParams = 0;
+        snd_pcm_status_t *SoundHandleStatus = 0;
+        
+        snd_pcm_open(&SoundHandle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+        
+        snd_pcm_hw_params_alloca(&SoundHandleParams);
+        snd_pcm_hw_params_any(SoundHandle, SoundHandleParams);
+        
+        snd_pcm_hw_params_set_access(SoundHandle, SoundHandleParams, SND_PCM_ACCESS_RW_INTERLEAVED);
+        snd_pcm_hw_params_set_format(SoundHandle, SoundHandleParams, SND_PCM_FORMAT_S16_LE);
+        snd_pcm_hw_params_set_channels(SoundHandle, SoundHandleParams, DesiredChannelsCount);
+        snd_pcm_hw_params_set_rate_near(SoundHandle, SoundHandleParams, &DesiredSampleRate, 0);
+        snd_pcm_hw_params_set_period_size_near(SoundHandle, SoundHandleParams, &DesiredPeriodSize, 0);
+        snd_pcm_hw_params_set_buffer_size_near(SoundHandle, SoundHandleParams, &DesiredBufferSize);
+        
+        snd_pcm_hw_params(SoundHandle, SoundHandleParams);
+        
+        snd_pcm_hw_params_get_channels(SoundHandleParams, &ChannelsCount);
+        snd_pcm_hw_params_get_rate(SoundHandleParams, &SampleRate, 0);
+        snd_pcm_hw_params_get_period_size(SoundHandleParams, &PeriodSize, 0);
+        snd_pcm_hw_params_get_period_time(SoundHandleParams, &PeriodTime, 0);
+        snd_pcm_hw_params_get_buffer_size(SoundHandleParams, &BufferSize);
+        
+        Assert(DesiredChannelsCount == ChannelsCount);
+        Assert(DesiredSampleRate == SampleRate);
+        
+        snd_pcm_status_malloc(&SoundHandleStatus);
+        
+        u64 SamplesCount = (u64)roundf(3.f*(f32)SampleRate*TargetSecondsPerFrame);
+        s16 *Samples = PushArrayZero(FrameArena, s16, SamplesCount);
+        
+        f32 nfreq = (Pi32 * 2.f) / (f32)SampleRate;
+        f32 Volume   = (1 << 15) * .5f;
+        f32 Pitch  = 440.f;
+        f32 ctr = 0.0;
+        
+#if 0        
+        for(;;) 
+        {
+            for(uint Idx = 0; Idx < SamplesCount; Idx += 2) 
+            {
+                s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
+                ctr += 1.f;
+                Samples[Idx + 0] = Samples[Idx + 1] = SampleValue;
+            }
+            snd_pcm_writei(SoundHandle, Samples, SamplesCount/ChannelsCount);
+        }
+#endif
+        
+#endif
         
         app_code Code = {0};
         
@@ -952,38 +961,30 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     ReadWriteBarrier();
                     *Running = *Running && !ShouldQuit;
                     
-                    s32 SamplesToWrite = (s32)(TargetSecondsPerFrame*(f32)SampleRate);
+                    umm SamplesToWrite = (umm)(2.f*TargetSecondsPerFrame*(f32)SampleRate);
                     
                     Code.GetAudioSamples(ThreadContext, Samples, SamplesToWrite);
                     
 #if OS_LINUX
-                    
                     snd_pcm_sframes_t AvailableFrames = 0;
                     snd_pcm_sframes_t DelayFrames;
                     
-                    //snd_pcm_avail_update(SoundHandle);
-                    AvailableFrames = snd_pcm_avail(SoundHandle);
+                    AvailableFrames = snd_pcm_avail_update(SoundHandle);
                     snd_pcm_delay(SoundHandle, &DelayFrames);
                     
-                    //printf("PeriodSize: %lu, PeriodTime: %d, BufferSize: %lu\n", PeriodSize, PeriodTime, PCMBufferSize);
-                    printf("BeingWritten: %lu, Avail: %ld, Delay: %ld, ToWrite: %d\n", BufferSize - (u32)AvailableFrames, 
+                    printf("Avail: %ld, Delay: %ld, ToWrite: %zu\n",
                            AvailableFrames, 
                            DelayFrames, 
-                           (s32)SamplesToWrite);
+                           SamplesToWrite);
                     
-                    snd_pcm_sframes_t FramesWritten = snd_pcm_writei(SoundHandle, Samples, SamplesCount);
+                    snd_pcm_sframes_t FramesWritten = snd_pcm_writei(SoundHandle, Samples, SamplesToWrite);
                     
                     if(FramesWritten < 0)
                     {
-#if 1
-                        // NOTE(luca): Disabled, so I can hear the failing
                         snd_pcm_recover(SoundHandle, (int)FramesWritten, ALSA_RECOVER_SILENT);
-#endif
-                        
+                        //snd_pcm_writei(SoundHandle, Samples, SamplesToWrite);
                     }
-                    
                     #endif
-                    
                     
                 }
                 
