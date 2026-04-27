@@ -57,10 +57,10 @@
 # Other
 - Get all note timestamps in record time. 
   
-
 - Nickname for MIDI devices.
 
 - codebase: Change to snake case for everything except types.
+- platform: Move window to unfocused monitor when other monitor is focused.
 
 # Archived
 x Platform layer MIDI API

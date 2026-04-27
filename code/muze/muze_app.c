@@ -946,12 +946,29 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
     }
 }
 
-internal note *
-GetTopSel(app_state *App)
+internal panel_rec
+PanelRecDepthFirstPreOrder(panel *Panel)
 {
-    note *Result = (App->NoteSel ? App->NoteSel->Value : 0);
-    return Result;
+    panel_rec Rec = {0};
+    
+    if(Panel->First)
+    {
+        Rec.Next = Panel->First;
+        Rec.PushCount = 1;
+    }
+    else for(panel *P = Panel; !IsNilPanel(P); P = P->Parent)
+    {
+        if(!IsNilPanel(P->Next))
+        {
+            Rec.Next = P->Next;
+            break;
+        }
+        Rec.PopCount += 1;
+    }
+    
+    return Rec;
 }
+
 //~ Muze
 internal void
 MuzeInit(app_state *App)
@@ -1609,6 +1626,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             PanelAxis(Axis2_X) PanelGroup()
             {
                 App->FirstPanel = PanelAdd(1.f);
+                App->FirstPanel->Kind = PanelKind_Muze;
                 
                 PanelAxis(Axis2_Y) PanelGroup()
                 {
@@ -1839,29 +1857,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
         UI_FrameArena = FrameArena;
     }
     
-    // Draw rectangles 
-    {
-        // Window borders
-        {
-            v4 WindowBorderColor;
-            if(0) {}
-            else if(Input->PlatformIsRecording) WindowBorderColor = Color_Red;
-            else if(Input->PlatformIsStepping) WindowBorderColor = Color_Yellow;
-            else WindowBorderColor = Color_Black;
-            
-            v4 Dest = RectFromSize(V2(0.f, 0.f), BufferDim);
-            rect_instance *Inst = DrawRect(Dest, WindowBorderColor, 0.f, WindowBorderSize, 0.f);
-            Inst->Color0 = WindowBorderColor;
-            Inst->Color1 = (Input->PlatformWindowIsFocused ? Color_Snow2 : V4(V3Arg(Color_Snow2), 0.2f));
-            Inst->Color2 = (Input->PlatformWindowIsFocused ? Color_Snow2 : V4(V3Arg(Color_Snow2), 0.2f));
-            Inst->Color3 = WindowBorderColor;
-        }
-    }
-    
     
     OS_ProfileAndPrint("UI setup");
     
-    // UI
+    // UI Controls
     {
         local_persist ui_box *Root = 0;
         if(UI_IsNilBox(Root))
@@ -1869,6 +1868,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             Root = UI_BoxAlloc(App->UIArena);
         }
         
+        // Init root
         {    
             v2 Pos = V2(0.f, 0.f);
             v2 Size = BufferDim;
@@ -1947,7 +1947,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         Memory->PlatformMIDIListen(App->In);
                     }
                 }
-                
                 
                 UI_List(Axis2_Y, S8("Output Devices"))
                 {
@@ -2134,34 +2133,45 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 }
             }
             
-            UI_BackgroundColor(Color_Night3)
-                UI_TextColor(Color_Snow2)
-                UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
-                UI_SemanticHeight(UI_SizePx(300.f, 1.f))
-            {
-                ui_box *Box = UI_AddBox(S8("MuzeSheetMusic"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
-                
-                muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
-                Data->Box = Box;
-                Data->App = App;;
-                Data->ScrollX = ScrollX;
-                
-                Box->CustomDraw = CustomDrawSheetMusic;
-                Box->CustomDrawData = Data;
-            }
+            // UI Panels
             
-            UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
-                UI_SemanticHeight(UI_SizeParent(1.f, 0.f))
+            for(panel *Panel = App->FirstPanel; 
+                !IsNilPanel(Panel); 
+                Panel = PanelRecDepthFirstPreOrder(Panel).Next)
             {
-                ui_box *Box = UI_AddBox(S8("MuzePianoRoll"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
-                
-                muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
-                Data->Box = Box;
-                Data->App = App;
-                Data->ScrollX = ScrollX;
-                
-                Box->CustomDraw = CustomDrawPianoRoll;
-                Box->CustomDrawData = Data;
+                if(0) {}
+                else if(Panel->Kind == PanelKind_Muze)
+                {        
+                    UI_BackgroundColor(Color_Night3)
+                        UI_TextColor(Color_Snow2)
+                        UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
+                        UI_SemanticHeight(UI_SizePx(300.f, 1.f))
+                    {
+                        ui_box *Box = UI_AddBox(S8("MuzeSheetMusic"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
+                        
+                        muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
+                        Data->Box = Box;
+                        Data->App = App;;
+                        Data->ScrollX = ScrollX;
+                        
+                        Box->CustomDraw = CustomDrawSheetMusic;
+                        Box->CustomDrawData = Data;
+                    }
+                    
+                    UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
+                        UI_SemanticHeight(UI_SizeParent(1.f, 0.f))
+                    {
+                        ui_box *Box = UI_AddBox(S8("MuzePianoRoll"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
+                        
+                        muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
+                        Data->Box = Box;
+                        Data->App = App;
+                        Data->ScrollX = ScrollX;
+                        
+                        Box->CustomDraw = CustomDrawPianoRoll;
+                        Box->CustomDrawData = Data;
+                    }
+                }
             }
         }
         
@@ -2185,6 +2195,22 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
         
         OS_ProfileAndPrint("UI");
+    }
+    
+    // Window borders
+    {
+        v4 WindowBorderColor;
+        if(0) {}
+        else if(Input->PlatformIsRecording) WindowBorderColor = Color_Red;
+        else if(Input->PlatformIsStepping) WindowBorderColor = Color_Yellow;
+        else WindowBorderColor = Color_Black;
+        
+        v4 Dest = RectFromSize(V2(0.f, 0.f), BufferDim);
+        rect_instance *Inst = DrawRect(Dest, WindowBorderColor, 0.f, WindowBorderSize, 0.f);
+        Inst->Color0 = WindowBorderColor;
+        Inst->Color1 = (Input->PlatformWindowIsFocused ? Color_Snow2 : V4(V3Arg(Color_Snow2), 0.2f));
+        Inst->Color2 = (Input->PlatformWindowIsFocused ? Color_Snow2 : V4(V3Arg(Color_Snow2), 0.2f));
+        Inst->Color3 = WindowBorderColor;
     }
     
     f32 MaxRecordingLength = 3600.f;

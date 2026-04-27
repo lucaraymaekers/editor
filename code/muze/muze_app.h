@@ -53,7 +53,8 @@ struct panel
 raddbg_type_view(panel, 
                  no_addr(rows($,
                               (&First == NilPanel || &First == 0),
-                              ParentPct, 
+                              ParentPct,
+                              Kind,
                               (Axis == Axis2_X ? "X" : "Y"))));
 #define EachChildPanel(Child, Parent) (panel *Child = Parent->First; !IsNilPanel(Child); Child = Child->Next)
 
@@ -67,6 +68,14 @@ struct panel_node
 };
 #define EachPanel(Index, First) EachNode(Index, panel_node, First)
 
+typedef struct panel_rec panel_rec;
+struct panel_rec
+{
+    panel *Next;
+    s32 PushCount;
+    s32 PopCount;
+};
+
 typedef struct note note;
 struct note
 {
@@ -75,6 +84,7 @@ struct note
     f32 Timestamp;
     f32 Duration;
 };
+raddbg_type_view(note, rows(Note, (s32)Pitch, no_char((note_pitch)(Pitch%Note_Count)), no_char(Velocity), omit($, Pitch, Velocity)));
 
 typedef struct note_node note_node;
 struct note_node
