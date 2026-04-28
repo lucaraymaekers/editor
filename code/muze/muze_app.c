@@ -2154,6 +2154,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             }
                             
                             Song->RecordEnd -= StartSilence;
+                            
+                            
+                            f32 SongLength = (Song->RecordEnd - Song->RecordStart);
+                            
+                            f32 BPS = Song->BPM/60.f;
+                            f32 BarTime = BPS*Song->TimeSig;
+                            f32 Pad = ceilf(SongLength/BPS)*BPS;
+                            
+                            Song->RecordEnd = Song->RecordStart + Pad;
+                            
                             Song->PlayPos = 0.f;
                         }
                     }
@@ -2210,16 +2220,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         // 2. Travel by bar-length
                         // 3. Find note at matching position.
                     }
-                    
-                    if(UI_Button(S8("PadEndToBeat")))
-                    {
-                        
-                    }
                 }
                 
                 UI_List(Axis2_Y, S8("Recording"))
-                {                    
-                    UI_AddBox(Str8Fmt("Length: %.2f###RecordLength", (Song->RecordEnd - Song->RecordStart)), Flags);
+                {                  
+                    f32 RecordLength = (Song->RecordEnd - Song->RecordStart);
+                    UI_AddBox(Str8Fmt("Length: %.2f/%.2f###RecordLength", RecordLength, ((f32)Song->BPM/60.f)*RecordLength), Flags);
                 }
                 
                 UI_List(Axis2_Y, S8("Playing"))
