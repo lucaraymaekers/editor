@@ -85,7 +85,8 @@ LinuxBuildCommand(str8 Source,
     // NOTE(luca): These are almost all c++ flags.
     str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
     // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
-    str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-missing-field-initializers -Wno-pointer-arith -Wno-switch "
+    str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wswitch -Wshadow " 
+                                 "-Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-missing-field-initializers -Wno-pointer-arith "
                                  "-Wno-unused-parameter "
                                  "-Wno-unused-variable "
                                  "-Wno-unused-function "

@@ -373,6 +373,8 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         u64 SamplesCount = (u64)roundf(3.f*(f32)SampleRate*TargetSecondsPerFrame);
         s16 *Samples = PushArrayZero(PermanentArena, s16, SamplesCount);
+#elif OS_WINDOWS
+        uint SampleRate = 48000;
 #endif
         
         char *Path = PathFromExe(FrameArena, S8("../data/sounds.sf2"));

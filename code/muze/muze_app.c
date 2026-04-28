@@ -1038,9 +1038,9 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u
                 // NOTE(luca): NotesCount can be 0 if we start recording when a note is still playing.
                 if(App->NotesCount > 0)
                 {
-                    for(s64 Idx = App->NotesCount - 1; Idx >= 0; Idx -= 1)
+                    for(s64 NoteIdx = App->NotesCount - 1; NoteIdx >= 0; NoteIdx -= 1)
                     {
-                        note *Note = App->Notes + Idx;
+                        note *Note = App->Notes + NoteIdx;
                         if(Note->Pitch == Pitch)
                         {
                             Note->Duration = ((Timestamp - App->RecordStart)- Note->Timestamp);
