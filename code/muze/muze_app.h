@@ -91,13 +91,38 @@ struct note_node
     note_node *Next;
     note_node *Prev;
 };
-
 #define EachNoteNode(Index, First) \
 (note_node *_node = (First); _node; _node = _node->Next) \
 for (note *Index = _node->Value, *_note = _node->Value; _note; _note = 0)
-
 #define EachNote(Note, Notes, Count) \
 (note *Note = Notes; Note != (Notes + Count); Note = Note + 1)
+
+typedef struct song song;
+struct song
+{
+    platform_midi_device In;
+    platform_midi_device Out;
+    
+    s64 NotesCount;
+    note *Notes;
+    note_node *NoteSel;
+    arena *NoteNodesArena;
+    note_node *FreeNode;
+    
+    f32 RecordStart;
+    f32 RecordEnd;
+    
+    u8 MaxPitch;
+    u8 MinPitch;
+    
+    b32 IsRecording;
+    b32 IsPlaying;
+    
+    f32 PlayPos;
+    
+    s32 TimeSig;
+    f32 BPM;
+};
 
 typedef struct app_state app_state;
 struct app_state
@@ -112,39 +137,21 @@ struct app_state
     // TODO(luca): Move to UI state ?
     arena *UIArena;
     
+    song Song;
+    
     struct
     {
-        platform_midi_device In;
-        platform_midi_device Out;
-        
-        s64 NotesCount;
-        note *Notes;
-        note_node *NoteSel;
-        arena *NoteNodesArena;
-        note_node *FreeNode;
-        
-        f32 RecordStart;
-        f32 RecordEnd;
-        
-        u8 MaxPitch;
-        u8 MinPitch;
-        
-        b32 IsRecording;
-        b32 IsPlaying;
-        
-        f32 PlayPos;
-        
-        s32 TimeSig;
-        f32 BPM;
+        arena *TextArena;
     };
     
-    arena *TextArena;
-    
-    panel *SelectedPanel;
-    panel *FirstPanel;
-    panel_node *FreePanel;
-    arena *PanelArena;
-    panel *DebugPanel;
+    struct
+    {
+        panel *SelectedPanel;
+        panel *FirstPanel;
+        panel_node *FreePanel;
+        arena *PanelArena;
+        panel *DebugPanel;
+    };
     
     u64 FrameIdx;
     

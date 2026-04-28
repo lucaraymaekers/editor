@@ -975,7 +975,7 @@ PanelRecDepthFirstPreOrder(panel *Panel)
 //~ Muze
 
 internal void
-ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u64 Count)
+ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 Count)
 {
     for EachIndex(Idx, Count)
     {
@@ -984,7 +984,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u
         
 #if MUZE_INTERNAL
         // NOTE(luca): This is a hack to get loop editing to work properly.
-        // TODO(luca): "AppTime" concept.
+        // TODO(luca): "SongTime" concept.
         Timestamp = GetWallTime();
 #endif
         
@@ -996,22 +996,22 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u
         u8 Type    = Status & 0xF0;
         u8 Channel = Status & 0x0F;
         
-        if(App->IsRecording)
+        if(Song->IsRecording)
         {
             if(0) {} 
             else if(Type == 0x90 && Data2 > 0) 
             {
                 // Note On
-                note *Note = App->Notes + App->NotesCount;
+                note *Note = Song->Notes + Song->NotesCount;
                 MemoryZero(Note);
-                App->NotesCount += 1;
+                Song->NotesCount += 1;
                 
-                Note->Timestamp = Timestamp - App->RecordStart;
+                Note->Timestamp = Timestamp - Song->RecordStart;
                 Note->Pitch = Data1;
                 Note->Velocity = Data2;
                 
-                App->MaxPitch = Max(Note->Pitch, App->MaxPitch);
-                App->MinPitch = Min(Note->Pitch, App->MinPitch);
+                Song->MaxPitch = Max(Note->Pitch, Song->MaxPitch);
+                Song->MinPitch = Min(Note->Pitch, Song->MinPitch);
                 
                 {
                     midi_message OutMessage = {0};
@@ -1024,7 +1024,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u
                     OutMessage.U8[2] = Velocity;
                     OutMessage.U8[3] = 0;
                     
-                    Memory->PlatformMIDISend(App->Out, OutMessage.U32[0]);
+                    Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
                     
                 }
             }
@@ -1036,14 +1036,14 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u
                 u8 Velocity = Data2;
                 
                 // NOTE(luca): NotesCount can be 0 if we start recording when a note is still playing.
-                if(App->NotesCount > 0)
+                if(Song->NotesCount > 0)
                 {
-                    for(s64 NoteIdx = App->NotesCount - 1; NoteIdx >= 0; NoteIdx -= 1)
+                    for(s64 NoteIdx = Song->NotesCount - 1; NoteIdx >= 0; NoteIdx -= 1)
                     {
-                        note *Note = App->Notes + NoteIdx;
+                        note *Note = Song->Notes + NoteIdx;
                         if(Note->Pitch == Pitch)
                         {
-                            Note->Duration = ((Timestamp - App->RecordStart)- Note->Timestamp);
+                            Note->Duration = ((Timestamp - Song->RecordStart)- Note->Timestamp);
                             break;
                         }
                     }
@@ -1059,7 +1059,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u
                         OutMessage.U8[2] = 0;
                         OutMessage.U8[3] = 0;
                         
-                        Memory->PlatformMIDISend(App->Out, OutMessage.U32[0]);
+                        Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
                     }
                 }
             }
@@ -1077,44 +1077,44 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u
 
 
 internal void
-MuzeInit(app_state *App)
+MuzeInit(song *Song)
 {
-    App->NotesCount = 0;
-    App->MaxPitch = 75;
-    App->MinPitch = 40;
-    App->RecordStart = 0.f;
-    App->RecordEnd = 0.f;
-    App->PlayPos = 0.f;
-    App->BPM = 100.f;
-    App->TimeSig = 3;
-    App->NoteSel = 0;
+    Song->NotesCount = 0;
+    Song->MaxPitch = 75;
+    Song->MinPitch = 40;
+    Song->RecordStart = 0.f;
+    Song->RecordEnd = 0.f;
+    Song->PlayPos = 0.f;
+    Song->BPM = 100.f;
+    Song->TimeSig = 3;
+    Song->NoteSel = 0;
 }
 
 internal void
-StartRecording(app_state *App)
+StartRecording(song *Song)
 {
-    MuzeInit(App);
-    App->RecordStart = GetWallTime();
-    App->PlayPos = 0.f;
-    App->IsRecording = true;
-    App->IsPlaying = false;
+    MuzeInit(Song);
+    Song->RecordStart = GetWallTime();
+    Song->PlayPos = 0.f;
+    Song->IsRecording = true;
+    Song->IsPlaying = false;
 }
 
 internal b32
-IsNotePlaying(note *Note, app_state *App, f32 dtForFrame)
+IsNotePlaying(note *Note, song *Song, f32 dtForFrame)
 {
     b32 Result = false;
     
-    if(App->IsPlaying)
+    if(Song->IsPlaying)
     {
         f32 NoteStart = (Note->Timestamp);
         f32 NoteEnd = (NoteStart + Note->Duration);
         
-        Result = (App->PlayPos >= NoteStart - dtForFrame &&
-                  App->PlayPos < NoteEnd + dtForFrame);
+        Result = (Song->PlayPos >= NoteStart - dtForFrame &&
+                  Song->PlayPos < NoteEnd + dtForFrame);
     }
     
-    if(App->IsRecording)
+    if(Song->IsRecording)
     {
         Result = (Note->Duration == 0.f);
     }
@@ -1123,18 +1123,18 @@ IsNotePlaying(note *Note, app_state *App, f32 dtForFrame)
 }
 
 internal void
-StopAllPlayingNotes(app_memory *Memory, app_state *App, f32 dtForFrame)
+StopAllPlayingNotes(app_memory *Memory, song *Song, f32 dtForFrame)
 {
-    for EachNote(Note, App->Notes, App->NotesCount)
+    for EachNote(Note, Song->Notes, Song->NotesCount)
     {
-        b32 NoteIsPlaying = IsNotePlaying(Note, App, dtForFrame);
+        b32 NoteIsPlaying = IsNotePlaying(Note, Song, dtForFrame);
         if(NoteIsPlaying)
         {
-            if(App->IsRecording)
+            if(Song->IsRecording)
             {
-                f32 RecordLength = (App->RecordEnd - App->RecordStart);
+                f32 RecordLength = (Song->RecordEnd - Song->RecordStart);
                 f32 NoteMaxDuration = (RecordLength - Note->Timestamp);
-                f32 Now = (GetWallTime() - App->RecordStart);
+                f32 Now = (GetWallTime() - Song->RecordStart);
                 Note->Duration = ClampTop(Now-  Note->Timestamp, NoteMaxDuration);
             }
             
@@ -1146,16 +1146,16 @@ StopAllPlayingNotes(app_memory *Memory, app_state *App, f32 dtForFrame)
             OutMessage.U8[2] = 0;
             OutMessage.U8[3] = 0;
             
-            Memory->PlatformMIDISend(App->Out, OutMessage.U32[0]);
+            Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
         }
     }
 }
 
 internal void
-StopRecording(app_memory *Memory, app_state *App, f32 dtForFrame)
+StopRecording(app_memory *Memory, song *Song, f32 dtForFrame)
 {
-    StopAllPlayingNotes(Memory, App, dtForFrame);
-    App->IsRecording = false;
+    StopAllPlayingNotes(Memory, Song, dtForFrame);
+    Song->IsRecording = false;
 }
 
 //~ UI 
@@ -1218,16 +1218,16 @@ struct muze_box_data
 {
     ui_box *Box;
     app_state *App;
+    song *Song;
     
     f32 ScrollX;
 };
 
 UI_CUSTOM_DRAW(CustomDrawSheetMusic)
 {
-    
     muze_box_data *Data = (muze_box_data *)CustomDrawData;
     ui_box *Box = Data->Box;
-    app_state *App = Data->App;
+    song *Song = Data->Song;
     f32 ScrollX = Data->ScrollX;
     app_input *Input = UI_State->Input;
     
@@ -1249,8 +1249,8 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     v2 BoxPos = V2(Box->FixedPosition.X - ScrollX, Box->FixedPosition.Y);
     v2 BoxSize = Box->FixedSize;
     
-    f32 RecordLength = (App->RecordEnd - App->RecordStart);
-    f32 BPS = (App->BPM/60.f);
+    f32 RecordLength = (Song->RecordEnd - Song->RecordStart);
+    f32 BPS = (Song->BPM/60.f);
     
     // Staff Lines
     v2 StaffPos = BoxPos;
@@ -1261,7 +1261,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     // Bars
     f32 WholeBarWidth = 200.f;;
     f32 BarDuration = 1.f/BPS;
-    f32 BarsCount = floorf(RecordLength/(BarDuration*(f32)App->TimeSig)) + 1.f;
+    f32 BarsCount = floorf(RecordLength/(BarDuration*(f32)Song->TimeSig)) + 1.f;
     v2 BarDim = V2(2.f, StaffHeight);
     
     // Draw staff
@@ -1293,10 +1293,10 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
         }
     }
     
-    for EachNote(Note, App->Notes, App->NotesCount)
+    for EachNote(Note, Song->Notes, Song->NotesCount)
     {        
         NoteColor = Box->TextColor;
-        for EachNode(Node, note_node, App->NoteSel)
+        for EachNode(Node, note_node, Song->NoteSel)
         {
             if(Node->Value == Note)
             {
@@ -1304,13 +1304,13 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
             }
         }
         
-        b32 NoteIsPlaying = IsNotePlaying(Note, App, Input->dtForFrame);
+        b32 NoteIsPlaying = IsNotePlaying(Note, Song, Input->dtForFrame);
         if(NoteIsPlaying)
         {
             NoteColor = Color_Yellow;
         }
         
-        Assert(!(App->IsPlaying && Note->Duration == 0.f));
+        Assert(!(Song->IsPlaying && Note->Duration == 0.f));
         
         u8 PitchClass = (Note->Pitch%Note_Count);
         
@@ -1321,8 +1321,8 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
         f32 Duration = Note->Duration;
         if(Duration == 0.f)
         {
-            Assert(App->IsRecording);
-            f32 Now = (GetWallTime() - App->RecordStart);
+            Assert(Song->IsRecording);
+            f32 Now = (GetWallTime() - Song->RecordStart);
             Duration = (Now - Note->Timestamp);
         }
         
@@ -1330,7 +1330,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
         f32 NoteStart = (Note->Timestamp);
         // NOTE(luca): Get pos relative of time inside bar 
         
-        f32 NoteX = (NoteStart*BPS/(f32)App->TimeSig)*WholeBarWidth;
+        f32 NoteX = (NoteStart*BPS/(f32)Song->TimeSig)*WholeBarWidth;
         
         s32 FirstNoteOctave = 6;
         s32 FirstNoteSteps = NoteBasePitchToStep[Note_F];
@@ -1414,7 +1414,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
 {
     muze_box_data *Data = (muze_box_data *)CustomDrawData;
     ui_box *Box = Data->Box;
-    app_state *App = Data->App;
+    song *Song = Data->Song;
     
     app_input *Input = UI_State->Input;
     
@@ -1424,9 +1424,9 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     v2 MouseStartP = {0};
     v4 SelDest = {0};
     
-    f32 BPS = App->BPM/60.f;
+    f32 BPS = Song->BPM/60.f;
     
-    f32 Zoom = (BPS/(f32)App->TimeSig*200.f);
+    f32 Zoom = (BPS/(f32)Song->TimeSig*200.f);
     
     // Get Input
     {    
@@ -1461,7 +1461,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     
     // Piano roll
     {    
-        u8 Range = (App->MaxPitch - App->MinPitch);
+        u8 Range = (Song->MaxPitch - Song->MinPitch);
         
         f32 NoteHeight = (Box->FixedSize.Y/(f32)(Range + 1));
         f32 NoteWidth = 1.5f*NoteHeight;
@@ -1477,11 +1477,11 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
             f32 PianoWidth = 1.5f*NoteWidth;
             v2 PianoPos = Box->FixedPosition;
             
-            for(u8 Idx = App->MinPitch; 
-                Idx < App->MaxPitch + 1; 
+            for(u8 Idx = Song->MinPitch; 
+                Idx < Song->MaxPitch + 1; 
                 Idx += 1)
             {
-                f32 YOffset = NoteHeight*(f32)(Range - (Idx - App->MinPitch));
+                f32 YOffset = NoteHeight*(f32)(Range - (Idx - Song->MinPitch));
                 
                 f32 X = (PianoPos.X);
                 f32 Y = (PianoPos.Y + YOffset);
@@ -1500,19 +1500,19 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
             // NOTE(luca): This is also the current time when recording.
             f32 RecordMarkerX;
             {
-                f32 Timestamp = Max(App->RecordEnd - App->RecordStart, 0.f);
+                f32 Timestamp = Max(Song->RecordEnd - Song->RecordStart, 0.f);
                 f32 ZoomedTimestamp = Timestamp*Zoom;
                 RecordMarkerX = RollX + roundf(ZoomedTimestamp);
             }
             
             f32 PlayMarkerX;
             {
-                f32 Timestamp = App->PlayPos;
+                f32 Timestamp = Song->PlayPos;
                 f32 ZoomedTimestamp = Timestamp*Zoom;
                 PlayMarkerX = RollX + roundf(ZoomedTimestamp); 
             }
             
-            for EachNote(Note, App->Notes, App->NotesCount)
+            for EachNote(Note, Song->Notes, Song->NotesCount)
             {
                 b32 NoteIsRecording = (Note->Duration == 0.f);
                 
@@ -1521,7 +1521,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                 
                 f32 StartX = roundf(Note->Timestamp*Zoom);
                 // NOTE(luca): We have to flip the Y since we have TopDown coordinates for UI.
-                f32 StartY = NoteHeight*(f32)(Range - (Note->Pitch - App->MinPitch));
+                f32 StartY = NoteHeight*(f32)(Range - (Note->Pitch - Song->MinPitch));
                 
                 f32 Width;
                 {                
@@ -1550,7 +1550,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                 
                 // NOTE(luca): Find selection node for note
                 note_node *Sel = 0;
-                for EachNode(Node, note_node, App->NoteSel)
+                for EachNode(Node, note_node, Song->NoteSel)
                 {
                     if(Node->Value == Note)
                     {
@@ -1559,7 +1559,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                     }
                 }
                 
-                v4 NoteColor = (IsNotePlaying(Note, App, Input->dtForFrame) ? Color_Yellow : 
+                v4 NoteColor = (IsNotePlaying(Note, Song, Input->dtForFrame) ? Color_Yellow : 
                                 Sel ? Color_Blue :  (White ? Color_Snow0 : Color_Black));
                 v4 NoteDest = RectFromSize(NotePos, V2(Width, NoteHeight)); 
                 v4 Dest = RectIntersect(NoteDest, Box->Rec);
@@ -1580,16 +1580,16 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                     {
                         if(Adding && !Sel)
                         {
-                            note_node *Node = PushStruct(App->NoteNodesArena, note_node);
+                            note_node *Node = PushStruct(Song->NoteNodesArena, note_node);
                             Node->Value = Note;
                             
-                            if(App->NoteSel) 
+                            if(Song->NoteSel) 
                             {
-                                App->NoteSel->Prev = Node;
+                                Song->NoteSel->Prev = Node;
                             }
-                            Node->Next = App->NoteSel;
+                            Node->Next = Song->NoteSel;
                             
-                            App->NoteSel = Node;
+                            Song->NoteSel = Node;
                         }
                         else if(!Adding && Sel)
                         {
@@ -1604,9 +1604,9 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                                 Sel->Next->Prev = Sel->Prev;
                             }
                             
-                            if(Sel == App->NoteSel)
+                            if(Sel == Song->NoteSel)
                             {
-                                App->NoteSel = (Sel->Next ? Sel->Next : Sel->Prev);
+                                Song->NoteSel = (Sel->Next ? Sel->Next : Sel->Prev);
                             }
                         }
                     }
@@ -1677,8 +1677,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         App->UIArena = PushArena(PermanentArena, MB(64), false);
         
-        App->Notes = PushArray(PermanentArena, note, KB(128));
-        App->NoteNodesArena = PushArena(PermanentArena, KB(64), false);
+        App->Song.Notes = PushArray(PermanentArena, note, KB(128));
+        App->Song.NoteNodesArena = PushArena(PermanentArena, KB(64), false);
         
         PanelArena = App->PanelArena = PushArena(PermanentArena, ArenaAllocDefaultSize, false);
     }
@@ -1698,7 +1698,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     if(!Memory->Initialized)
     {
-        MuzeInit(App);
+        MuzeInit(&App->Song);
         
         // NOTE(luca): Hardcoded for my windows setup
         char *FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
@@ -1728,11 +1728,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
         RenderInit(&App->Render);
         
         // UI
-{
-                UI_State = PushStructZero(App->UIArena, ui_state);
-                UI_State->Arena = App->UIArena;
-                UI_State->BoxTableSize = 4096;
-                UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
+        {
+            UI_State = PushStructZero(App->UIArena, ui_state);
+            UI_State->Arena = App->UIArena;
+            UI_State->BoxTableSize = 4096;
+            UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
             App->TrackerForUI_State = UI_State;
         }
         
@@ -1767,6 +1767,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
     PanelInput = Input;
     PanelApp = App;
     
+    song *Song = &App->Song;
+    
     for EachIndex(Idx, Input->Text.Count)
     {
         app_text_button Key = Input->Text.Buffer[Idx];
@@ -1785,30 +1787,30 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     case 'p':
                     {
-                        StopRecording(Memory, App, Input->dtForFrame);
+                        StopRecording(Memory, Song, Input->dtForFrame);
                         
-                        if(App->IsPlaying)
+                        if(Song->IsPlaying)
                         {
-                            App->IsPlaying = false;
+                            Song->IsPlaying = false;
                         }
                         else
                         {
-                            StopAllPlayingNotes(Memory, App, Input->dtForFrame);
-                            App->PlayPos = 0.f;
-                            App->IsPlaying = true;
+                            StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
+                            Song->PlayPos = 0.f;
+                            Song->IsPlaying = true;
                         }
                     } break;
                     
                     case ' ':
                     {
-                        if(App->IsRecording)
+                        if(Song->IsRecording)
                         {
-                            StopRecording(Memory, App, Input->dtForFrame);
+                            StopRecording(Memory, Song, Input->dtForFrame);
                         }
                         else
                         {
-                            StopAllPlayingNotes(Memory, App, Input->dtForFrame);
-                            StartRecording(App);
+                            StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
+                            StartRecording(Song);
                         }
                     } break;
                     default: break;
@@ -2006,12 +2008,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 if(Device->IsOutput)
                 {
                     OutFound = true;
-                    App->Out = *Device;
+                    Song->Out = *Device;
                 }
                 else
                 {
                     InFound = true;
-                    App->In = *Device;
+                    Song->In = *Device;
                 }
                 if(InFound && OutFound) break;
             }
@@ -2042,18 +2044,18 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         platform_midi_device *Device = DevicesArray.Devices + Idx;
                         if(!Device->IsOutput)
                         {
-                            UI_BackgroundColor(((Device->Id == App->In.Id) ? Color_Yellow : Color_ButtonBackground))
+                            UI_BackgroundColor(((Device->Id == Song->In.Id) ? Color_Yellow : Color_ButtonBackground))
                                 if(UI_AddBox(Device->Name, ButtonFlags)->Clicked)
                             {
-                                DeviceChanged = (App->In.Id != Device->Id);
-                                App->In = *Device;
+                                DeviceChanged = (Song->In.Id != Device->Id);
+                                Song->In = *Device;
                             }
                         }
                     }
                     
                     if(DeviceChanged)
                     {
-                        Memory->PlatformMIDIListen(App->In);
+                        Memory->PlatformMIDIListen(Song->In);
                     }
                 }
                 
@@ -2065,13 +2067,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         if(Device->IsOutput)
                         {                            
                             
-                            UI_BackgroundColor(((Device->Id == App->Out.Id) ? Color_Yellow : Color_ButtonBackground))
+                            UI_BackgroundColor(((Device->Id == Song->Out.Id) ? Color_Yellow : Color_ButtonBackground))
                                 if(UI_AddBox(Device->Name, ButtonFlags)->Clicked)
                             {
-                                if(App->Out.Id != Device->Id)
+                                if(Song->Out.Id != Device->Id)
                                 {
-                                    StopAllPlayingNotes(Memory, App, Input->dtForFrame);
-                                    App->Out = *Device;
+                                    StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
+                                    Song->Out = *Device;
                                 }
                             }
                         }
@@ -2082,26 +2084,26 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     if(UI_Button(S8("Reset")))
                     {
-                        MuzeInit(App);
-                        App->IsRecording = false;
-                        App->IsPlaying = false;
-                        StopAllPlayingNotes(Memory, App, Input->dtForFrame);
+                        MuzeInit(Song);
+                        Song->IsRecording = false;
+                        Song->IsPlaying = false;
+                        StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
                     }
                     
-                    UI_BackgroundColor((!App->IsRecording ? Color_ButtonBackground : Color_Red))
+                    UI_BackgroundColor((!Song->IsRecording ? Color_ButtonBackground : Color_Red))
                         if(UI_AddBox(S8("Record"), ButtonFlags)->Clicked)
                     {
-                        StopAllPlayingNotes(Memory, App, Input->dtForFrame);
-                        if(!App->IsRecording)
+                        StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
+                        if(!Song->IsRecording)
                         {
-                            StartRecording(App);
+                            StartRecording(Song);
                         }
                         else
                         {
-                            StopRecording(Memory, App, Input->dtForFrame);
+                            StopRecording(Memory, Song, Input->dtForFrame);
                         }
                         
-                        App->IsPlaying = false;
+                        Song->IsPlaying = false;
                     }
                     
                     UI_BackgroundColor(Color_ButtonBackground)
@@ -2109,19 +2111,19 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         
                     }
                     
-                    UI_BackgroundColor((!App->IsPlaying ? Color_ButtonBackground : Color_Green))
+                    UI_BackgroundColor((!Song->IsPlaying ? Color_ButtonBackground : Color_Green))
                         if(UI_AddBox(S8("Play"), ButtonFlags)->Clicked)
                     {
-                        StopRecording(Memory, App, Input->dtForFrame);
+                        StopRecording(Memory, Song, Input->dtForFrame);
                         
-                        if(App->IsPlaying)
+                        if(Song->IsPlaying)
                         {
-                            App->IsPlaying = false;
+                            Song->IsPlaying = false;
                         }
                         else
                         {
-                            App->PlayPos = 0.f;
-                            App->IsPlaying = true;
+                            Song->PlayPos = 0.f;
+                            Song->IsPlaying = true;
                         }
                     }
                 }
@@ -2130,37 +2132,37 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     if(UI_Button(S8("Trim")))
                     {
-                        if(App->NotesCount)
+                        if(Song->NotesCount)
                         {
-                            StopAllPlayingNotes(Memory, App, Input->dtForFrame);
-                            note *LastNote = App->Notes + (App->NotesCount - 1);
+                            StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
+                            note *LastNote = Song->Notes + (Song->NotesCount - 1);
                             
                             f32 LastNoteEnd = (LastNote->Timestamp + LastNote->Duration); 
-                            for EachNote(Note, App->Notes, App->NotesCount)
+                            for EachNote(Note, Song->Notes, Song->NotesCount)
                             {
                                 LastNoteEnd = Max(LastNoteEnd, (Note->Timestamp + Note->Duration));
                             }
                             
-                            App->RecordEnd = App->RecordStart + LastNoteEnd;
+                            Song->RecordEnd = Song->RecordStart + LastNoteEnd;
                             
-                            note *FirstNote = App->Notes;
+                            note *FirstNote = Song->Notes;
                             f32 StartSilence = FirstNote->Timestamp;
                             
-                            for EachNote(Note, App->Notes, App->NotesCount)
+                            for EachNote(Note, Song->Notes, Song->NotesCount)
                             {
                                 Note->Timestamp -= StartSilence;
                             }
                             
-                            App->RecordEnd -= StartSilence;
-                            App->PlayPos = 0.f;
+                            Song->RecordEnd -= StartSilence;
+                            Song->PlayPos = 0.f;
                         }
                     }
                     
                     if(UI_Button(S8("Round")))
                     {
-                        f32 BPS = App->BPM/60.f;
+                        f32 BPS = Song->BPM/60.f;
                         
-                        for EachNoteNode(Note, App->NoteSel)
+                        for EachNoteNode(Note, Song->NoteSel)
                         {
                             f32 NoteLength = Note->Duration*BPS;
                             f32 DenomOfFraction = roundf(-log2f(NoteLength));
@@ -2174,8 +2176,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     if(UI_Button(S8("Sync")))
                     {
-                        f32 BPS = App->BPM/60.f;
-                        for EachNoteNode(Note, App->NoteSel)
+                        f32 BPS = Song->BPM/60.f;
+                        for EachNoteNode(Note, Song->NoteSel)
                         {
                             f32 NoteLength = Note->Duration*BPS;
                             f32 DenomOfFraction = roundf(-log2f(NoteLength));
@@ -2198,7 +2200,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     if(UI_Button(S8("Clear")))
                     {
-                        App->NoteSel = 0;
+                        Song->NoteSel = 0;
                     }
                     
                     if(UI_Button(S8("BPMFromPattern")))
@@ -2217,20 +2219,20 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 
                 UI_List(Axis2_Y, S8("Recording"))
                 {                    
-                    UI_AddBox(Str8Fmt("Length: %.2f###RecordLength", (App->RecordEnd - App->RecordStart)), Flags);
+                    UI_AddBox(Str8Fmt("Length: %.2f###RecordLength", (Song->RecordEnd - Song->RecordStart)), Flags);
                 }
                 
                 UI_List(Axis2_Y, S8("Playing"))
                 {                    
-                    UI_AddBox(Str8Fmt("Pos: %.2f###RecordEnd", App->PlayPos), Flags);
+                    UI_AddBox(Str8Fmt("Pos: %.2f###RecordEnd", Song->PlayPos), Flags);
                 }
                 
-                if(App->NoteSel)
+                if(Song->NoteSel)
                 {
                     UI_List(Axis2_Y, S8("Note"))
                     {                    
-                        note *Sel = App->NoteSel->Value;
-                        f32 BPS = App->BPM/60.f;
+                        note *Sel = Song->NoteSel->Value;
+                        f32 BPS = Song->BPM/60.f;
                         UI_AddBox(Str8Fmt("Duration: %.2f/%.2f###Duration", Sel->Duration, BPS*Sel->Duration), Flags);
                         UI_AddBox(Str8Fmt("Start: %.2f/%.2f###Start", Sel->Timestamp, BPS*Sel->Timestamp), Flags);
                     }
@@ -2238,8 +2240,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 
                 UI_List(Axis2_Y, S8("Music"))
                 {                    
-                    UI_AddBox(Str8Fmt("BPM: %.2f/%.2f###BPM", App->BPM, App->BPM/60.f), Flags);
-                    UI_AddBox(Str8Fmt("Sig: %d/4###TimeSig", App->TimeSig), Flags);
+                    UI_AddBox(Str8Fmt("BPM: %.2f/%.2f###BPM", Song->BPM, Song->BPM/60.f), Flags);
+                    UI_AddBox(Str8Fmt("Sig: %d/4###TimeSig", Song->TimeSig), Flags);
                 }
                 
                 UI_List(Axis2_Y, S8("UI"))
@@ -2266,7 +2268,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         
                         muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
                         Data->Box = Box;
-                        Data->App = App;;
+                        Data->Song = Song;;
                         Data->ScrollX = ScrollX;
                         
                         Box->CustomDraw = CustomDrawSheetMusic;
@@ -2280,7 +2282,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         
                         muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
                         Data->Box = Box;
-                        Data->App = App;
+                        Data->Song = Song;
                         Data->ScrollX = ScrollX;
                         
                         Box->CustomDraw = CustomDrawPianoRoll;
@@ -2309,7 +2311,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             }
         }
     }
-        OS_ProfileAndPrint("UI");
+    OS_ProfileAndPrint("UI");
     
     // Window borders
     {
@@ -2329,9 +2331,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     f32 MaxRecordingLength = 3600.f;
     
-    if(App->IsPlaying)
+    if(Song->IsPlaying)
     {
-        for EachNote(Note, App->Notes, App->NotesCount)
+        for EachNote(Note, Song->Notes, Song->NotesCount)
         {
             f32 NoteStart = Note->Timestamp;
             f32 NoteEnd = NoteStart + Note->Duration;
@@ -2339,8 +2341,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             // TODO(luca): If a note is really short it could skip it.  But how else would you do this.
             // NOTE(luca): We need to  use midiStream instead?
             
-            if(NoteStart <= App->PlayPos &&
-               NoteStart > (App->PlayPos - Input->dtForFrame))
+            if(NoteStart <= Song->PlayPos &&
+               NoteStart > (Song->PlayPos - Input->dtForFrame))
             {
                 midi_message Message = {0};
                 
@@ -2351,11 +2353,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = Note->Velocity;
                 Message.U8[3] = 0;
                 
-                Memory->PlatformMIDISend(App->Out, Message.U32[0]);
+                Memory->PlatformMIDISend(Song->Out, Message.U32[0]);
             }
             
-            if(NoteEnd <= App->PlayPos &&
-               NoteEnd > (App->PlayPos - Input->dtForFrame))
+            if(NoteEnd <= Song->PlayPos &&
+               NoteEnd > (Song->PlayPos - Input->dtForFrame))
             {
                 midi_message Message = {0};
                 
@@ -2366,80 +2368,80 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = 0;
                 Message.U8[3] = 0;
                 
-                Memory->PlatformMIDISend(App->Out, Message.U32[0]);
+                Memory->PlatformMIDISend(Song->Out, Message.U32[0]);
             }
         }
         
-        App->PlayPos += Input->dtForFrame;
-        if(App->PlayPos >= (App->RecordEnd - App->RecordStart))
+        Song->PlayPos += Input->dtForFrame;
+        if(Song->PlayPos >= (Song->RecordEnd - Song->RecordStart))
         {
-            StopAllPlayingNotes(Memory, App, Input->dtForFrame);
+            StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
             
-            App->PlayPos = 0.f;
+            Song->PlayPos = 0.f;
         }
     }
     
-    if(App->IsRecording)
+    if(Song->IsRecording)
     {
-        App->RecordEnd = GetWallTime();
+        Song->RecordEnd = GetWallTime();
         
-        if(App->RecordEnd - App->RecordStart >= MaxRecordingLength)
+        if(Song->RecordEnd - Song->RecordStart >= MaxRecordingLength)
         {
-            StopRecording(Memory, App, Input->dtForFrame);
+            StopRecording(Memory, Song, Input->dtForFrame);
         }
     }
     
     // MIDI Processing
     {    
         // Virtual MIDI keyboard (piano)
-    {
-        u64 MaxNotesPerFrame = 128; 
-        app_midi_note *Notes = PushArray(FrameArena, app_midi_note, MaxNotesPerFrame);
-        u64 NotesCount = 0;
-        
-        u8 StartPitch = 60;
-        for EachElement(Idx, Input->MIDI.Buttons)
         {
-            app_button_state *Key = Input->MIDI.Buttons + Idx;
+            u64 MaxNotesPerFrame = 128; 
+            app_midi_note *Notes = PushArray(FrameArena, app_midi_note, MaxNotesPerFrame);
+            u64 NotesCount = 0;
             
-            b32 IsOn = (Key->EndedDown && Key->HalfTransitionCount == 1);
-            b32 IsOff = (!Key->EndedDown && Key->HalfTransitionCount & 1);
-            Assert(!(IsOn && IsOff));
-            
-            if(IsOn || IsOff)
-            {                            
-                Assert(Idx < 127);
-                u8 Pitch = StartPitch + (u8)Idx;
-                u8 Velocity = 64;
+            u8 StartPitch = 60;
+            for EachElement(Idx, Input->MIDI.Buttons)
+            {
+                app_button_state *Key = Input->MIDI.Buttons + Idx;
                 
-                app_midi_note *Note = Notes + NotesCount;
-                NotesCount += 1;
-                Note->Timestamp = (f32)OS_GetWallClock();
+                b32 IsOn = (Key->EndedDown && Key->HalfTransitionCount == 1);
+                b32 IsOff = (!Key->EndedDown && Key->HalfTransitionCount & 1);
+                Assert(!(IsOn && IsOff));
                 
-                midi_message Message = {0};
-                
-                if(IsOn)
-                {
+                if(IsOn || IsOff)
+                {                            
+                    Assert(Idx < 127);
+                    u8 Pitch = StartPitch + (u8)Idx;
+                    u8 Velocity = 64;
+                    
+                    app_midi_note *Note = Notes + NotesCount;
+                    NotesCount += 1;
+                    Note->Timestamp = (f32)OS_GetWallClock();
+                    
+                    midi_message Message = {0};
+                    
+                    if(IsOn)
+                    {
                         Message.U8[0] = MIDIEventType_NoteOn;
                         Message.U8[1] = Pitch;
                         Message.U8[2] = Velocity;
-                }
-                else if(IsOff)
-                {
+                    }
+                    else if(IsOff)
+                    {
                         Message.U8[0] = MIDIEventType_NoteOff;
                         Message.U8[1] = Pitch;
+                    }
+                    
+                    Note->Message = Message.U32[0];
                 }
-                
-                Note->Message = Message.U32[0];
             }
+            
+            ProcessMIDINotes(Memory, Song, Notes, NotesCount);
         }
         
-        ProcessMIDINotes(Memory, App, Notes, NotesCount);
+        ProcessMIDINotes(Memory, Song, Input->MIDI.Notes, Input->MIDI.Count);
     }
     
-    ProcessMIDINotes(Memory, App, Input->MIDI.Notes, Input->MIDI.Count);
-    }
-
     //- Rendering 
     
     // Render rectangles
@@ -2459,7 +2461,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
 #if 0 || MUZE_STARTUP_PROFILE
     // NOTE(luca): Useful for profiling startup times.
-    if(App->FrameIdx == 3)
+    if(Song->FrameIdx == 3)
         ShouldQuit = true;
 #endif
     
@@ -2479,11 +2481,11 @@ GET_AUDIO_SAMPLES(GetAudioSamples)
     local_persist f32 ctr = 0.0;
     
     for EachIndex(Idx, FramesCount)
-        {
-            s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
-            ctr += 1.f;
+    {
+        s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
+        ctr += 1.f;
         Samples[2*Idx + 0] = SampleValue;
-            Samples[2*Idx + 1] = SampleValue;
-        }
+        Samples[2*Idx + 1] = SampleValue;
+    }
 #endif
 }

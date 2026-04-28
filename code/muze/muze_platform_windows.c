@@ -64,7 +64,7 @@ MIDI_InCallback(HMIDIIN Device, UINT Msg, DWORD_PTR Instance, DWORD_PTR Param1, 
         {            
             Log("Note(%lu): %u\n", WritePos, Data1);
         }
-
+        
         app_midi_note *Note = NotesQueue->Notes + WritePos;
         NotesQueue->WritePos += 1;
         Note->Timestamp = (f32)OS_GetWallClock();
@@ -597,6 +597,18 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                             {
                                 ProcessKeyPress(&Input->ActionRight, IsDown);
                             }
+                            
+                            // TODO(luca): Metaprogram
+#if defined(MUZE_COLEMAK)
+                            uint Symbols[] = { 'A', 'W', 'R', 'F', 'S', 'T', 'G', 'D', 'J', 'H', 'L', 'N', 'E', 'Y', 'I', };
+#else
+                            uint Symbols[] = { 'A', 'W', 'S', 'E', 'D', 'F', 'T', 'G', 'Y', 'H', 'U', 'J', 'K', 'I', 'L', };
+#endif
+                            for EachElement(Idx, Symbols)
+                            {
+                                if(VKCode == Symbols[Idx]) ProcessKeyPress(&Input->MIDI.Buttons[Idx], IsDown);
+                            }
+                            
                             
                         }
                     }
