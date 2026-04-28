@@ -154,7 +154,6 @@ struct app_state
     ui_box *TrackerForUI_NilBox;
     ui_state *TrackerForUI_State;
     panel *TrackerForNilPanel;
-    tsf *TrackerForTSF;
 };
 
 //~ Globals

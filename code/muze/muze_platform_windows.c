@@ -1,4 +1,4 @@
-#include <mmsystem.h>
+.#include <mmsystem.h>
 #include "muze/muze_midi.h"
 
 //~ Midi

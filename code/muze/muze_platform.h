@@ -170,7 +170,7 @@ struct app_input
     
     union
     {
-        app_button_state GameButtons[12];
+        app_button_state GameButtons[8];
         struct 
         {
             app_button_state ActionLeft;
@@ -195,6 +195,31 @@ struct app_input
     {
         app_midi_note *Notes;
         u64 Count;
+        
+        union
+        {
+            struct 
+            {
+                // NOTE(luca): Keys are chosen to be like in Ableton
+                // TODO(luca): Metaprogram
+                app_button_state KeyA;
+                app_button_state KeyW;
+                app_button_state KeyS;
+                app_button_state KeyE;
+                app_button_state KeyD;
+                app_button_state KeyF;
+                app_button_state KeyT;
+                app_button_state KeyG;
+                app_button_state KeyY;
+                app_button_state KeyH;
+                app_button_state KeyU;
+                app_button_state KeyJ;
+                app_button_state KeyK;
+                app_button_state KeyI;
+                app_button_state KeyL;
+            };
+            app_button_state Buttons[15];
+        };
     } MIDI;
     
     // NOTE(luca): We can invalidate the input with this.

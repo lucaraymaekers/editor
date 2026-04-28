@@ -2,7 +2,6 @@
 multiple panes
 sf2
 
-
 # Muze (planned) features 
 - Snap BPM to bass notes 
 
@@ -66,6 +65,8 @@ sf2
 
 - codebase: Change to snake case for everything except types.
 - platform: Move window to unfocused monitor when other monitor is focused.
+- platform: Change key inputs to linked list so we can easily remove a key from it.
+- platform: Specify window name with P_Init
 
 # Archived
 x Platform layer MIDI API

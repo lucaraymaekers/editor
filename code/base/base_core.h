@@ -153,7 +153,7 @@ Swap(t& A, t& B) { t T = A; A = B; B = T; }
 #elif COMPILER_GNU || COMPILER_CLANG
 # define ReadWriteBarrier() __asm__ __volatile__ ("" : : : "memory")
 #endif
-#define NoOp() ReadWriteBarrier()
+#define NoOp() do { int Glue(X, __LINE__) = 3; } while(0)
 
 #define DebugBreak() do { if(GlobalDebuggerIsAttached) { Trap(); } } while(0)
 

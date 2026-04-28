@@ -8,10 +8,6 @@
 #include <mmsystem.h>
 #endif
 
-#define TSF_IMPLEMENTATION
-NO_WARNINGS_BEGIN
-#include "lib/tsf.h"
-NO_WARNINGS_END
 
 #include "muze/generated/everything.c"
 
@@ -29,8 +25,6 @@ NO_WARNINGS_END
 #include "muze/muze_ui.c"
 
 //~ Globals
-global_variable tsf *GlobalTSF = 0;
-
 // TODO(luca): Metaprogram
 typedef enum note_pitch note_pitch;
 enum note_pitch
@@ -979,6 +973,109 @@ PanelRecDepthFirstPreOrder(panel *Panel)
 }
 
 //~ Muze
+
+internal void
+ProcessMIDINotes(app_memory *Memory, app_state *App, app_midi_note *MIDINotes, u64 Count)
+{
+    for EachIndex(Idx, Count)
+    {
+        app_midi_note *MIDINote = MIDINotes + Idx;
+        f32 Timestamp = MIDINote->Timestamp;
+        
+#if MUZE_INTERNAL
+        // NOTE(luca): This is a hack to get loop editing to work properly.
+        // TODO(luca): "AppTime" concept.
+        Timestamp = GetWallTime();
+#endif
+        
+        midi_message Message = {MIDINote->Message};
+        
+        u8 Status  = Message.U8[0];
+        u8 Data1   = Message.U8[1];
+        u8 Data2   = Message.U8[2];
+        u8 Type    = Status & 0xF0;
+        u8 Channel = Status & 0x0F;
+        
+        if(App->IsRecording)
+        {
+            if(0) {} 
+            else if(Type == 0x90 && Data2 > 0) 
+            {
+                // Note On
+                note *Note = App->Notes + App->NotesCount;
+                MemoryZero(Note);
+                App->NotesCount += 1;
+                
+                Note->Timestamp = Timestamp - App->RecordStart;
+                Note->Pitch = Data1;
+                Note->Velocity = Data2;
+                
+                App->MaxPitch = Max(Note->Pitch, App->MaxPitch);
+                App->MinPitch = Min(Note->Pitch, App->MinPitch);
+                
+                {
+                    midi_message OutMessage = {0};
+                    
+                    u8 Pitch = Data1;
+                    u8 Velocity = Data2;
+                    
+                    OutMessage.U8[0] = MIDIEventType_NoteOn;
+                    OutMessage.U8[1] = Pitch;
+                    OutMessage.U8[2] = Velocity;
+                    OutMessage.U8[3] = 0;
+                    
+                    Memory->PlatformMIDISend(App->Out, OutMessage.U32[0]);
+                    
+                }
+            }
+            else if(Type == MIDIEventType_NoteOff || 
+                    (Type == MIDIEventType_NoteOn && Data2 == 0))
+            {
+                // Note Off, set the duration of the last note with same pitch
+                u8 Pitch = Data1;
+                u8 Velocity = Data2;
+                
+                // NOTE(luca): NotesCount can be 0 if we start recording when a note is still playing.
+                if(App->NotesCount > 0)
+                {
+                    for(s64 Idx = App->NotesCount - 1; Idx >= 0; Idx -= 1)
+                    {
+                        note *Note = App->Notes + Idx;
+                        if(Note->Pitch == Pitch)
+                        {
+                            Note->Duration = ((Timestamp - App->RecordStart)- Note->Timestamp);
+                            break;
+                        }
+                    }
+                    
+                    // Send this note out to the output device
+                    {                
+                        midi_message OutMessage = {0};
+                        u8 OutChannel = 0;
+                        
+                        Assert(OutChannel < 16);
+                        OutMessage.U8[0] = MIDIEventType_NoteOff | OutChannel;
+                        OutMessage.U8[1] = Pitch;
+                        OutMessage.U8[2] = 0;
+                        OutMessage.U8[3] = 0;
+                        
+                        Memory->PlatformMIDISend(App->Out, OutMessage.U32[0]);
+                    }
+                }
+            }
+            else if(Status == 0xB0) 
+            {
+                // Control Change
+                
+                //Log("CC       - Channel: %d, Controller: %d, Value: %d\n", Channel, Data1, Data2);
+            }
+        }
+    }
+    
+}
+
+
+
 internal void
 MuzeInit(app_state *App)
 {
@@ -1630,18 +1727,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         RenderInit(&App->Render);
         
-        // Sound
-        {
-            char *Path = PathFromExe(FrameArena, S8("../data/sounds.sf2"));
-            str8 File = OS_ReadEntireFileIntoMemory(Path);
-            GlobalTSF = tsf_load_memory(File.Data, (int)File.Size);
-            Assert(GlobalTSF);
-            
-            tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 48000, -10);
-            
-            App->TrackerForTSF = GlobalTSF;
-}
-        
         // UI
 {
                 UI_State = PushStructZero(App->UIArena, ui_state);
@@ -1675,7 +1760,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
     UI_NilBox = App->TrackerForUI_NilBox;
     UI_State = App->TrackerForUI_State;
     NilPanel = App->TrackerForNilPanel;
-    GlobalTSF = App->TrackerForTSF;
     
     StringsScratch = FrameArena;
     
@@ -1816,21 +1900,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
     }
     local_persist f32 ScrollX    = 0.f;
     local_persist f32 ScrollVelX = 0.f;
-    
-    // Keyboard piano
-{    
-        Log("%d, %d", Input->ActionUp.EndedDown, Input->ActionUp.HalfTransitionCount);
-        if(Input->ActionUp.EndedDown && Input->ActionUp.HalfTransitionCount == 1)
-        {
-            tsf_note_on(GlobalTSF, 0, 48, 1.0f);
-        }
-        if(!Input->ActionUp.EndedDown && Input->ActionUp.HalfTransitionCount & 1)
-        {
-            tsf_note_off(GlobalTSF, 0, 48);
-        }
-        
-    }
-
     
     // Scrolling
     {    
@@ -2001,6 +2070,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             {
                                 if(App->Out.Id != Device->Id)
                                 {
+                                    StopAllPlayingNotes(Memory, App, Input->dtForFrame);
                                     App->Out = *Device;
                                 }
                             }
@@ -2276,13 +2346,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = Note->Velocity;
                 Message.U8[3] = 0;
                 
-#if 0
                 Memory->PlatformMIDISend(App->Out, Message.U32[0]);
-#else
-                tsf_note_on(GlobalTSF, 0, Note->Pitch, Note->Velocity);
-#endif
             }
-            
             
             if(NoteEnd <= App->PlayPos &&
                NoteEnd > (App->PlayPos - Input->dtForFrame))
@@ -2296,11 +2361,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = 0;
                 Message.U8[3] = 0;
                 
-#if 0
                 Memory->PlatformMIDISend(App->Out, Message.U32[0]);
-#else
-                tsf_note_off(GlobalTSF, 0, Note->Pitch);
-#endif
             }
         }
         
@@ -2316,103 +2377,64 @@ UPDATE_AND_RENDER(UpdateAndRender)
     if(App->IsRecording)
     {
         App->RecordEnd = GetWallTime();
+        
         if(App->RecordEnd - App->RecordStart >= MaxRecordingLength)
         {
             StopRecording(Memory, App, Input->dtForFrame);
         }
     }
     
-    for EachIndex(DeviceIdx, Input->MIDI.Count)
+    // MIDI Processing
+    {    
+        // Virtual MIDI keyboard (piano)
     {
-        app_midi_note *MIDINote = Input->MIDI.Notes + DeviceIdx;
-        f32 Timestamp = MIDINote->Timestamp;
+        u64 MaxNotesPerFrame = 128; 
+        app_midi_note *Notes = PushArray(FrameArena, app_midi_note, MaxNotesPerFrame);
+        u64 NotesCount = 0;
         
-#if MUZE_INTERNAL
-        // NOTE(luca): This is a hack to get loop editing to work properly.
-        // TODO(luca): "AppTime" concept.
-        Timestamp = GetWallTime();
-#endif
-        
-        midi_message Message = {MIDINote->Message};
-        
-        u8 Status  = Message.U8[0];
-        u8 Data1   = Message.U8[1];
-        u8 Data2   = Message.U8[2];
-        u8 Type    = Status & 0xF0;
-        u8 Channel = Status & 0x0F;
-        
-        if(App->IsRecording)
+        u8 StartPitch = 60;
+        for EachElement(Idx, Input->MIDI.Buttons)
         {
-            if(0) {} 
-            else if(Type == 0x90 && Data2 > 0) 
-            {
-                // Note On
-                note *Note = App->Notes + App->NotesCount;
-                MemoryZero(Note);
-                App->NotesCount += 1;
+            app_button_state *Key = Input->MIDI.Buttons + Idx;
+            
+            b32 IsOn = (Key->EndedDown && Key->HalfTransitionCount == 1);
+            b32 IsOff = (!Key->EndedDown && Key->HalfTransitionCount & 1);
+            Assert(!(IsOn && IsOff));
+            
+            if(IsOn || IsOff)
+            {                            
+                Assert(Idx < 127);
+                u8 Pitch = StartPitch + (u8)Idx;
+                u8 Velocity = 64;
                 
-                Note->Timestamp = Timestamp - App->RecordStart;
-                Note->Pitch = Data1;
-                Note->Velocity = Data2;
+                app_midi_note *Note = Notes + NotesCount;
+                NotesCount += 1;
+                Note->Timestamp = (f32)OS_GetWallClock();
                 
-                App->MaxPitch = Max(Note->Pitch, App->MaxPitch);
-                App->MinPitch = Min(Note->Pitch, App->MinPitch);
+                midi_message Message = {0};
                 
+                if(IsOn)
                 {
-                    midi_message OutMessage = {0};
-                    
-                    OutMessage.U8[0] = MIDIEventType_NoteOn;
-                    OutMessage.U8[1] = Data1;
-                    OutMessage.U8[2] = Data2;
-                    OutMessage.U8[3] = 0;
-                    
-                    Memory->PlatformMIDISend(App->Out, OutMessage.U32[0]);
+                    Message.NoteOn.Type = MIDIEventType_NoteOn;
+                    Message.NoteOn.Pitch = Pitch;
+                    Message.NoteOn.Velocity = Velocity;
                 }
-            }
-            else if(Type == MIDIEventType_NoteOff || 
-                    (Type == MIDIEventType_NoteOn && Data2 == 0))
-            {
-                // Note Off, set the duration of the last note with same pitch
-                u8 Pitch = Data1;
-                u8 Velocity = Data2;
-                
-                // NOTE(luca): NotesCount can be 0 if we start recording when a note is still playing.
-                if(App->NotesCount > 0)
+                else if(IsOff)
                 {
-                    for(s64 Idx = App->NotesCount - 1; Idx >= 0; Idx -= 1)
-                    {
-                        note *Note = App->Notes + Idx;
-                        if(Note->Pitch == Pitch)
-                        {
-                            Note->Duration = ((Timestamp - App->RecordStart)- Note->Timestamp);
-                            break;
-                        }
-                    }
-                    
-                    // Send this note out to the output device
-                    {                
-                        midi_message OutMessage = {0};
-                        u8 OutChannel = 0;
-                        
-                        Assert(OutChannel < 16);
-                        OutMessage.U8[0] = MIDIEventType_NoteOff | OutChannel;
-                        OutMessage.U8[1] = Pitch;
-                        OutMessage.U8[2] = 0;
-                        OutMessage.U8[3] = 0;
-                        
-                        Memory->PlatformMIDISend(App->Out, OutMessage.U32[0]);
-                    }
+                    Message.NoteOff.Type = MIDIEventType_NoteOff;
+                    Message.NoteOff.Pitch = Pitch;
                 }
-            }
-            else if(Status == 0xB0) 
-            {
-                // Control Change
                 
-                //Log("CC       - Channel: %d, Controller: %d, Value: %d\n", Channel, Data1, Data2);
+                Note->Message = Message.U32[0];
             }
         }
+        
+        ProcessMIDINotes(Memory, App, Notes, NotesCount);
     }
     
+    ProcessMIDINotes(Memory, App, Input->MIDI.Notes, Input->MIDI.Count);
+    }
+
     //- Rendering 
     
     // Render rectangles
@@ -2443,6 +2465,7 @@ GET_AUDIO_SAMPLES(GetAudioSamples)
 {
     s16 *Samples = (s16 *)Buffer;
     
+#if 0
     uint SampleRate = 48000;
     
     f32 nfreq = (Pi32 * 2.f) / (f32)SampleRate;
@@ -2450,7 +2473,6 @@ GET_AUDIO_SAMPLES(GetAudioSamples)
     f32 Pitch  = 440.f;
     local_persist f32 ctr = 0.0;
     
-#if 0
     for EachIndex(Idx, FramesCount)
         {
             s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
@@ -2458,7 +2480,5 @@ GET_AUDIO_SAMPLES(GetAudioSamples)
         Samples[2*Idx + 0] = SampleValue;
             Samples[2*Idx + 1] = SampleValue;
         }
-    #else
-	tsf_render_short(GlobalTSF, Samples, (int)FramesCount, 0);
 #endif
 }

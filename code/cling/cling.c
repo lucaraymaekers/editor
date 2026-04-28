@@ -18,8 +18,8 @@ NO_WARNINGS_END
 
 //~ Globals
 global_variable MD_Arena *GlobalMDArena = 0;
-global_variable b32 Windows = false;
-global_variable b32 Linux = false;
+global_variable b32 OSWindows = false;
+global_variable b32 OSLinux = false;
 
 //~ Functions
 internal void
@@ -71,7 +71,7 @@ WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags)
 }
 
 internal void
-LinuxMakeBuildCommand(str8 Source, 
+LinuxBuildCommand(str8 Source, 
                       str8 OutputName, 
                       b32 GCC, b32 Clang, b32 Asan, b32 Debug,
                       str8_array *ExtraFlags,
@@ -145,7 +145,7 @@ MuzeBuildCommand(str8 Source,
                  b32 IsDLL, b32 IsObject)
 {
     if(0) {}
-    else if(Linux)
+    else if(OSLinux)
     {
         if(0) {}
         else if(IsObject)
@@ -160,11 +160,11 @@ MuzeBuildCommand(str8 Source,
         }
         
         Str8ArrayAppendTo(ExtraFlags, ExtraLinkerFlags);
-        LinuxMakeBuildCommand(Source, OutputName, GCC, Clang, Asan, Debug, ExtraFlags, false);
+        LinuxBuildCommand(Source, OutputName, GCC, Clang, Asan, Debug, ExtraFlags, false);
         Str8ArrayAppend(ExtraSource);
         RunCommand();
     }
-    else if(Windows)
+    else if(OSWindows)
     {
         if(0) {}
         else if(IsObject)
@@ -218,9 +218,9 @@ ENTRY_POINT(EntryPoint)
         b32 Muze = true;
         
 #if OS_WINDOWS
-        Windows = true;
+        OSWindows = true;
 #elif OS_LINUX
-        Linux = true;
+        OSLinux = true;
 #endif
         
         //- Targets 
@@ -363,7 +363,7 @@ ENTRY_POINT(EntryPoint)
                 str8_array *ExtraFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
                 
-                LinuxMakeBuildCommand(S8("../code/computerenhance/haversine_generator/haversine_generator.c"), 
+                LinuxBuildCommand(S8("../code/computerenhance/haversine_generator/haversine_generator.c"), 
                                       S8("haversine_generator"),
                                       GCC, Clang, Asan, Debug,
                                       ExtraFlags,
@@ -378,13 +378,13 @@ ENTRY_POINT(EntryPoint)
         {
             LogBuildMode(S8("Haversine processor"), Debug);
             
-            if(Linux)
+            if(OSLinux)
             {            
                 str8_array *ExtraFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH
                                                  " -std=c++11"));
                 
-                LinuxMakeBuildCommand(S8("../code/computerenhance/haversine_processor/haversine_processor.c"), 
+                LinuxBuildCommand(S8("../code/computerenhance/haversine_processor/haversine_processor.c"), 
                                       S8("haversine_processor"),
                                       GCC, Clang, Asan, Debug,
                                       ExtraFlags,
@@ -398,12 +398,12 @@ ENTRY_POINT(EntryPoint)
         {
             LogBuildMode(S8("sim86"), Debug);
             
-            if(Linux)
+            if(OSLinux)
             {            
                 str8_array *ExtraFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
                 
-                LinuxMakeBuildCommand(S8("../code/computerenhance/sim86/sim86.cpp"), 
+                LinuxBuildCommand(S8("../code/computerenhance/sim86/sim86.cpp"), 
                                       S8("sim86"),
                                       GCC, Clang, Asan, Debug,
                                       ExtraFlags,
@@ -557,9 +557,9 @@ ENTRY_POINT(EntryPoint)
                     Str8ArrayAppendTo(CommonMuzeFlags, S8("-DBASE_PERSONAL=1"));
                 }
                 
-                char *LibsFileName = (Windows ? 
+                char *LibsFileName = (OSWindows ? 
                                       CLING_BUILD_PATH "editor_libs.obj" :
-                                      (Linux ?
+                                      (OSLinux ?
                                        CLING_BUILD_PATH "editor_libs.o" :
                                        0));
                 
@@ -583,7 +583,7 @@ ENTRY_POINT(EntryPoint)
                 {
                     str8 ExtraLinkerFlags  = {0};
                     
-                    if(Windows)
+                    if(OSWindows)
                     {
                         
                         ExtraLinkerFlags = S8("/EXPORT:UpdateAndRender");
@@ -606,11 +606,11 @@ ENTRY_POINT(EntryPoint)
                     Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=0"));
                     
                     if(0) {}
-                    else if(Linux)
+                    else if(OSLinux)
                     {
                         ExtraLinkerFlags = S8("-lasound -lX11 -lGL -lGLX");
                     }
-                    else if(Windows)
+                    else if(OSWindows)
                     {
                         ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
                     }
@@ -764,14 +764,23 @@ ENTRY_POINT(EntryPoint)
                 str8_array *CommonMuzeFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(CommonMuzeFlags, S8("-I" CLING_CODE_PATH));
                 
+                // Alsa sample
+                if(1)
+                {                
+                MuzeBuildCommand(S8("../code/muze/lnx_alsa.c"),
+                                 S8("lnx_alsa"),
+                                 GCC, Clang, Asan, Debug,
+                                 CommonMuzeFlags, S8("-lasound"), S8(""), false, false);
+                }
+
                 if(OS_FileExists(CLING_CODE_PATH "base/base_build.h"))
                 {
                     Str8ArrayAppendTo(CommonMuzeFlags, S8("-DBASE_PERSONAL=1"));
                 }
                 
-                char *LibsFileName = (Windows ? 
+                char *LibsFileName = (OSWindows ? 
                                       CLING_BUILD_PATH "muze_libs.obj" :
-                                      (Linux ?
+                                      (OSLinux ?
                                        CLING_BUILD_PATH "muze_libs.o" :
                                        0));
                 
@@ -793,7 +802,7 @@ ENTRY_POINT(EntryPoint)
                 {
                     str8 ExtraLinkerFlags  = {0};
                     
-                    if(Windows)
+                    if(OSWindows)
                     {
                         ExtraLinkerFlags = S8("/EXPORT:UpdateAndRender winmm.lib");
                     }
@@ -814,11 +823,11 @@ ENTRY_POINT(EntryPoint)
                     Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=0"));
                     
                     if(0) {}
-                    else if(Linux)
+                    else if(OSLinux)
                     {
                         ExtraLinkerFlags = S8("-lasound -lX11 -lGL -lGLX");
                     }
-                    else if(Windows)
+                    else if(OSWindows)
                     {
                         ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
                     }
@@ -829,6 +838,7 @@ ENTRY_POINT(EntryPoint)
                                      CommonMuzeFlags, ExtraLinkerFlags, S8FromCString(LibsFileName), 
                                      false, false);
                 }
+                
             }
         }
         

@@ -7,6 +7,12 @@
 
 #include "muze/muze_libs.h"
 
+#define TSF_IMPLEMENTATION
+NO_WARNINGS_BEGIN
+#include "lib/tsf.h"
+NO_WARNINGS_END
+global_variable tsf *GlobalTSF = 0;
+
 #include "muze/muze_platform.h"
 #if OS_LINUX
 # include "muze/muze_platform_linux.c"
@@ -32,7 +38,6 @@
 #include "lib/raddbg_markup.h"
 
 //~ Recording 
-
 typedef struct platform_replay platform_replay;
 struct platform_replay
 {
@@ -207,6 +212,20 @@ DebugReplayToggleButton(str8 Name, b32 State, b32 DisabledCondition)
     return Result;
 }
 
+internal void
+ResetButtons(app_button_state *NewButtons, app_button_state *OldButtons, u64 Count)
+{
+    for EachIndex(Idx, Count)
+    {
+        app_button_state *NewButton = NewButtons + Idx;
+        app_button_state *OldButton = OldButtons + Idx;
+        NewButton->EndedDown = OldButton->EndedDown;
+        NewButton->HalfTransitionCount = 0;
+        NewButton->Modifiers = 0;
+    }
+    
+}
+
 //~ Entrypoint
 
 C_LINKAGE ENTRY_POINT(EntryPoint)
@@ -308,8 +327,9 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
 #endif
         f32 TargetSecondsPerFrame = 1.0f/GameUpdateHz; 
         
-#if OS_LINUX
+        //- Sound 
         
+#if OS_LINUX
         uint DesiredSampleRate = 48000;
         uint DesiredChannelsCount = 2;
         
@@ -354,6 +374,15 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         u64 SamplesCount = (u64)roundf(3.f*(f32)SampleRate*TargetSecondsPerFrame);
         s16 *Samples = PushArrayZero(PermanentArena, s16, SamplesCount);
 #endif
+        
+        char *Path = PathFromExe(FrameArena, S8("../data/sounds.sf2"));
+        str8 File = OS_ReadEntireFileIntoMemory(Path);
+        GlobalTSF = tsf_load_memory(File.Data, (int)File.Size);
+        Assert(GlobalTSF);
+        
+        tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, (int)SampleRate, -10);
+        
+        //- 
         
         app_code Code = {0};
         
@@ -442,18 +471,11 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     NewInput->SkipRendering = false;
                     NewInput->MIDI.Count = 0;
                     NewInput->Text.Count = 0;
-                    for EachElement(Idx, NewInput->Mouse.Buttons)
-                    {
-                        NewInput->Mouse.Buttons[Idx].EndedDown = OldInput->Mouse.Buttons[Idx].EndedDown;
-                        NewInput->Mouse.Buttons[Idx].HalfTransitionCount = 0;
-                        NewInput->Mouse.Buttons[Idx].Modifiers = 0;
-                    }
-                    for EachElement(Idx, NewInput->GameButtons)
-                    {
-                        NewInput->GameButtons[Idx].EndedDown = OldInput->GameButtons[Idx].EndedDown;
-                        NewInput->GameButtons[Idx].HalfTransitionCount = 0;
-                        NewInput->GameButtons[Idx].Modifiers = 0;
-                    }
+                    
+                    ResetButtons(NewInput->Mouse.Buttons, OldInput->Mouse.Buttons, ArrayCount(NewInput->Mouse.Buttons));
+                    ResetButtons(NewInput->GameButtons, OldInput->GameButtons, ArrayCount(NewInput->GameButtons));
+                    ResetButtons(NewInput->MIDI.Buttons, OldInput->MIDI.Buttons, ArrayCount(NewInput->MIDI.Buttons));
+                    
                     NewInput->dtForFrame = TargetSecondsPerFrame;
                     NewInput->PlatformCursor = OldInput->PlatformCursor;
                     NewInput->PlatformSetClipboard = OldInput->PlatformSetClipboard;
@@ -957,9 +979,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     P_UpdateImage(PlatformContext, &Buffer);
                 }
                 
-                
                 OS_ProfileAndPrint("UpdateImage");
-                
                 
 #if 0
 #elif OS_LINUX
@@ -972,19 +992,25 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
                 if(FirstTimeSound)
                 {
-                    SamplesToWrite += SamplesToWrite / 2;
+                    SamplesToWrite += SamplesToWrite/2;
                     FirstTimeSound = false;
                 }
                 
                 OS_ProfileAndPrint("Sound setup");
                 
+#if 1   
+                tsf_render_short(GlobalTSF, Samples, (s32)SamplesToWrite, 0);
+                #else
                 Code.GetAudioSamples(ThreadContext, Samples, (s64)SamplesToWrite);
-                
+                #endif
+
                 OS_ProfileAndPrint("Get samples");
-                
+
+#if 0                
                 Log("Avail: %ld, Delay: %ld, ToWrite: %zu\n", 
                     AvailableFrames, DelayFrames, SamplesToWrite);
-                
+                #endif
+
                 if(AvailableFrames >= 0 && SamplesToWrite > AvailableFrames)
                 {
                     Log("Overrun.\n");

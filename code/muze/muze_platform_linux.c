@@ -1,4 +1,5 @@
 #include "base/base.h"
+#include "muze/muze_midi.h"
 
 //- ALSA 
 #define ALSA_RECOVER_SILENT false
@@ -184,268 +185,215 @@ LinuxShowCursor(linux_x11_context *Linux, b32 Entered)
     }
 }
 
-
 //~ MIDI API
-#if 0
+
+typedef enum linux_midi_port_type linux_midi_port_type;
+enum linux_midi_port_type
+{
+PortType_SPECIFIC = (1<<0),
+PortType_MIDI_GENERIC = (1<<1),
+PortType_MIDI_GM = (1<<2),
+PortType_MIDI_GS = (1<<3),
+PortType_MIDI_XG = (1<<4),
+PortType_MIDI_MT32 = (1<<5),
+PortType_MIDI_GM2 = (1<<6),
+PortType_MIDI_UMP = (1<<7),
+PortType_SYNTH = (1<<10),
+PortType_DIRECT_SAMPLE = (1<<11),
+PortType_SAMPLE = (1<<12),
+PortType_HARDWARE = (1<<16),
+PortType_SOFTWARE = (1<<17),
+PortType_SYNTHESIZER = (1<<18),
+PortType_PORT = (1<<19),
+PortType_APPLICATION = (1<<20),
+};
+
+typedef struct linux_midi_device linux_midi_device;
+struct linux_midi_device
+{
+    u64 Id;
+    
+    int Port;
+    int Client;
+    b32 CanRead;
+    b32 CanWrite;
+    str8 Name;
+    str8 PortName;
+};
+
+global_variable snd_seq_t *MIDISeq = 0;
+global_variable snd_seq_client_info_t *MIDIClientInfo = 0;
+global_variable snd_seq_port_info_t *MIDIPortInfo = 0;
+global_variable int MIDIOutPort = 0;
+global_variable int MIDIInPort = 0;
+global_variable u64 MaxMIDIDevicesCount = 128;
+global_variable linux_midi_device *MIDIDevices = 0;
+global_variable u64 MIDIDevicesCount = 0;
+
+#define TSF_DEVICE_ID 0
+
 PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
 {
     platform_midi_get_devices_result Result = {0};
     
-    return Result;
-}
-
-PLATFORM_MIDI_SEND(P_MIDISend) 
-{
+    Result.Devices = PushArray(FrameArena, platform_midi_device, MaxMIDIDevicesCount); 
     
-}
-
-PLATFORM_MIDI_LISTEN(P_MIDIListen)
-{
-    
-}
-#else
-#include <alsa/asoundlib.h>
-#include <stdlib.h>
-#include <string.h>
-
-typedef struct midi_alsa_state
-{
-    snd_seq_t *Seq;
-    
-    int ClientID;
-    int OutPort;
-    int InPort;
-    
-    b32 OutputConnected;
-    b32 InputConnected;
-    
-    u64 OutputDeviceId;
-    u64 InputDeviceId;
-} midi_alsa_state;
-
-static midi_alsa_state MidiState = {0};
-
-// -----------------------------------------------------------------------------
-// INIT (implicit inside API calls)
-// -----------------------------------------------------------------------------
-
-static void P_MIDIInitOnce(void)
-{
-    if (MidiState.Seq)
-        return;
-    
-    snd_seq_open(&MidiState.Seq, "default", SND_SEQ_OPEN_DUPLEX, 0);
-    snd_seq_set_client_name(MidiState.Seq, "platform_midi");
-    
-    MidiState.ClientID = snd_seq_client_id(MidiState.Seq);
-    
-    MidiState.OutPort =
-        snd_seq_create_simple_port(
-                                   MidiState.Seq,
-                                   "out",
-                                   SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_SUBS_READ,
-                                   SND_SEQ_PORT_TYPE_MIDI_GENERIC);
-    
-    MidiState.InPort =
-        snd_seq_create_simple_port(
-                                   MidiState.Seq,
-                                   "in",
-                                   SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_WRITE,
-                                   SND_SEQ_PORT_TYPE_MIDI_GENERIC);
-}
-
-// -----------------------------------------------------------------------------
-// GET DEVICES
-// -----------------------------------------------------------------------------
-
-PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
-{
-    P_MIDIInitOnce();
-    
-    platform_midi_get_devices_result Result = {0};
-    
-    snd_seq_client_info_t *cinfo;
-    snd_seq_port_info_t *pinfo;
-    
-    snd_seq_client_info_malloc(&cinfo);
-    snd_seq_port_info_malloc(&pinfo);
-    
-    Result.Count = 0;
-    
-    snd_seq_client_info_set_client(cinfo, -1);
-    
-    while (snd_seq_query_next_client(MidiState.Seq, cinfo) >= 0)
+    for EachIndex(Idx, MIDIDevicesCount)
     {
-        int client = snd_seq_client_info_get_client(cinfo);
+        linux_midi_device *LnxDev = MIDIDevices + Idx;
         
-        snd_seq_port_info_set_client(pinfo, client);
-        snd_seq_port_info_set_port(pinfo, -1);
-        
-        while (snd_seq_query_next_port(MidiState.Seq, pinfo) >= 0)
-        {
-            unsigned int cap = snd_seq_port_info_get_capability(pinfo);
-            
-            if (cap & (SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE))
-                Result.Count++;
-        }
-    }
-    
-    Result.Devices = PushArray(FrameArena, platform_midi_device, Result.Count);
-    
-    u64 Index = 0;
-    
-    snd_seq_client_info_set_client(cinfo, -1);
-    
-    while (snd_seq_query_next_client(MidiState.Seq, cinfo) >= 0)
-    {
-        int client = snd_seq_client_info_get_client(cinfo);
-        
-        snd_seq_port_info_set_client(pinfo, client);
-        snd_seq_port_info_set_port(pinfo, -1);
-        
-        while (snd_seq_query_next_port(MidiState.Seq, pinfo) >= 0)
-        {
-            unsigned int cap = snd_seq_port_info_get_capability(pinfo);
-            
-            if (!(cap & (SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE)))
-                continue;
-            
-            platform_midi_device *D = &Result.Devices[Index++];
-            
-            D->Id = ((u64)client << 32) |
-            (u64)snd_seq_port_info_get_port(pinfo);
-            
-            {            
-                char *Name = (char *)snd_seq_port_info_get_name(pinfo);
-                u64 Size = StringLength(Name);
-                D->Name = PushS8(FrameArena, Size);
-                MemoryCopy(D->Name.Data, Name, Size);
+        // NOTE(luca): Special case for TSF
+            str8 Name = (LnxDev->Id == TSF_DEVICE_ID ? LnxDev->Name : Str8Fmt(S8Fmt ": %d", 
+                                                                            S8Arg(LnxDev->Name),
+                                                                            LnxDev->Port));
+            if(LnxDev->CanRead)
+    {            
+            platform_midi_device *Dev = Result.Devices + Result.Count;
+            Result.Count += 1;
+                    
+                Dev->Id = LnxDev->Id;
+                Dev->IsOutput = false;
+                Dev->Name = Name;
             }
-
-            D->IsOutput = (cap & SND_SEQ_PORT_CAP_WRITE) != 0;
+    
+            if(LnxDev->CanWrite)
+            {
+                platform_midi_device *Dev = Result.Devices + Result.Count;
+                Result.Count += 1;
+                            
+                Dev->Id = LnxDev->Id;
+                Dev->IsOutput = true;
+                Dev->Name = Name;
+            }
+                    
         }
+            
+        return Result;
     }
     
-    snd_seq_client_info_free(cinfo);
-    snd_seq_port_info_free(pinfo);
-    
-    return Result;
-}
-
-// -----------------------------------------------------------------------------
-// CONNECT OUTPUT (persistent)
-// -----------------------------------------------------------------------------
-
-PLATFORM_MIDI_SEND(P_MIDISend)
-{
-    P_MIDIInitOnce();
-    
-    int client = (int)(Device.Id >> 32);
-    int port   = (int)(Device.Id & 0xFFFFFFFF);
-    
-    if (!MidiState.OutputConnected ||
-        MidiState.OutputDeviceId != Device.Id)
+    PLATFORM_MIDI_SEND(P_MIDISend) 
     {
-        if (MidiState.OutputConnected)
-            snd_seq_disconnect_to(MidiState.Seq,
-                                  MidiState.OutPort,
-                                  (int)(MidiState.OutputDeviceId >> 32),
-                                  (int)(MidiState.OutputDeviceId & 0xFFFFFFFF));
+        midi_message MIDIMessage = {Message};
+            
+        if(Device.Id == TSF_DEVICE_ID)
+        {
+            u8 Type = MIDIMessage.U8[0];
+            u8 Pitch = MIDIMessage.U8[1]; 
+            u8 Velocity = MIDIMessage.U8[2];
+                    
+            if(Type == MIDIEventType_NoteOn)
+            {
+                tsf_note_on(GlobalTSF, 0, Pitch, (f32)Velocity/127.f);
+            }
+            else if(Type == MIDIEventType_NoteOff)
+            {
+                tsf_note_off(GlobalTSF, 0, Pitch);
+            }
+        }
+        else
+        {
+            linux_midi_device *Dev = MIDIDevices + Device.Id;
+                    
+            snd_seq_connect_to(MIDISeq, MIDIOutPort, Dev->Client, Dev->Port);
+                    
+            snd_seq_event_t Event;
+            snd_seq_ev_clear(&Event);
+            snd_seq_ev_set_direct(&Event);
+            snd_seq_ev_set_source(&Event, MIDIOutPort);
+            snd_seq_ev_set_dest(&Event, Dev->Client, Dev->Port);
+                    
+            // TODO(luca): Allow for U32 message.
+            midi_message Msg = {Message};
+            u8 MsgBytes[3] = { Msg.U8[0], Msg.U8[1], Msg.U8[2] };
+            snd_seq_ev_set_sysex(&Event, sizeof(MsgBytes), MsgBytes);
         
-        snd_seq_connect_to(MidiState.Seq, MidiState.OutPort, client, port);
-        
-        MidiState.OutputConnected = 1;
-        MidiState.OutputDeviceId = Device.Id;
+        snd_seq_event_output(MIDISeq, &Event);
+        snd_seq_drain_output(MIDISeq);
     }
     
-    snd_seq_event_t ev;
-    snd_seq_ev_clear(&ev);
-    
-    snd_seq_ev_set_source(&ev, MidiState.OutPort);
-    snd_seq_ev_set_subs(&ev);
-    snd_seq_ev_set_direct(&ev);
-    
-    u8 status = (Message & 0xFF);
-    u8 data1  = (Message >> 8) & 0xFF;
-    u8 data2  = (Message >> 16) & 0xFF;
-    
-    if ((status & 0xF0) == 0xC0 || (status & 0xF0) == 0xD0)
-    {
-        snd_seq_ev_set_pgmchange(&ev,
-                                 status & 0x0F,
-                                 data1);
-    }
-    else
-    {
-        snd_seq_ev_set_noteon(&ev,
-                              status & 0x0F,
-                              data1,
-                              data2);
-    }
-    
-    snd_seq_event_output_direct(MidiState.Seq, &ev);
 }
-
-// -----------------------------------------------------------------------------
-// CONNECT INPUT (persistent)
-// -----------------------------------------------------------------------------
 
 PLATFORM_MIDI_LISTEN(P_MIDIListen)
 {
-    P_MIDIInitOnce();
+    Assert(Device.Id != TSF_DEVICE_ID);
     
-    int client = (int)(Device.Id >> 32);
-    int port   = (int)(Device.Id & 0xFFFFFFFF);
-    
-    if (!MidiState.InputConnected ||
-        MidiState.InputDeviceId != Device.Id)
-    {
-        if (MidiState.InputConnected)
-            snd_seq_disconnect_from(MidiState.Seq,
-                                    MidiState.InPort,
-                                    (int)(MidiState.InputDeviceId >> 32),
-                                    (int)(MidiState.InputDeviceId & 0xFFFFFFFF));
-        
-        snd_seq_connect_from(MidiState.Seq, MidiState.InPort, client, port);
-        
-        MidiState.InputConnected = 1;
-        MidiState.InputDeviceId = Device.Id;
-    }
-    
-    snd_seq_event_t *ev = NULL;
-    
-    while (0)
-    {
-        snd_seq_event_input(MidiState.Seq, &ev);
-        if (!ev) continue;
-        
-        // minimal handling hook point
-        switch (ev->type)
-        {
-            case SND_SEQ_EVENT_NOTEON:
-            case SND_SEQ_EVENT_NOTEOFF:
-            {
-                u32 msg =
-                    0x90 |
-                (u32)(ev->data.note.note << 8) |
-                (u32)(ev->data.note.velocity << 16);
-                
-                // replace with your dispatcher
-                P_MIDISend((platform_midi_device){0}, msg);
-            } break;
-            
-            default:
-            break;
-        }
-    }
+    linux_midi_device *Dev = MIDIDevices + Device.Id;
+    snd_seq_connect_from(MIDISeq, MIDIInPort, Dev->Client, Dev->Port);
 }
-#endif
 
 //~ Platform API
 internal P_context
 P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
 {
     OS_ProfileInit("S_L");
+    
+    // Sound
+{
+        snd_seq_open(&MIDISeq, "default", SND_SEQ_OPEN_DUPLEX, 0);
+        snd_seq_set_client_name(MIDISeq, "Muze");
+        
+        snd_seq_client_info_alloca(&MIDIClientInfo);
+        snd_seq_port_info_alloca(&MIDIPortInfo);
+        
+        MIDIOutPort = snd_seq_create_simple_port(MIDISeq, "Out",
+                                                 SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_SUBS_READ,
+                                                 SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+        MIDIInPort = snd_seq_create_simple_port(MIDISeq, "In",
+                                            SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_WRITE,
+                                            SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+        
+        // Get connected devices 
+{        
+            MIDIDevices = PushArrayZero(Arena, linux_midi_device, MaxMIDIDevicesCount); 
+            
+            {    
+            linux_midi_device *Dev = MIDIDevices + MIDIDevicesCount;
+            Dev->Id = MIDIDevicesCount;
+            MIDIDevicesCount += 1;
+            
+            Dev->Name = Str8DupCString(Arena, "TSF");
+            Dev->CanWrite = true;
+        }
+        
+        snd_seq_client_info_set_client(MIDIClientInfo, -1);
+        while(snd_seq_query_next_client(MIDISeq, MIDIClientInfo) >= 0)
+        {
+            int Client = snd_seq_client_info_get_client(MIDIClientInfo);
+            
+            snd_seq_port_info_set_client(MIDIPortInfo, Client);
+            snd_seq_port_info_set_port(MIDIPortInfo, -1);
+            while(snd_seq_query_next_port(MIDISeq, MIDIPortInfo) >= 0)
+            {
+                uint Caps = snd_seq_port_info_get_capability(MIDIPortInfo);
+                linux_midi_port_type Type = snd_seq_port_info_get_type(MIDIPortInfo);
+                
+                b32 IsMIDIDevice = ((Type & SND_SEQ_PORT_TYPE_MIDI_GENERIC) &&
+                                    (Type & SND_SEQ_PORT_TYPE_PORT));
+                
+                b32 CanRead  = (Caps & SND_SEQ_PORT_CAP_READ);
+                b32 CanWrite = (Caps & SND_SEQ_PORT_CAP_WRITE);
+                
+                if(IsMIDIDevice)
+                {
+                        linux_midi_device *Dev = MIDIDevices + MIDIDevicesCount;
+                    Dev->Id = MIDIDevicesCount;
+                    MIDIDevicesCount += 1;
+                    
+                        Dev->Client = Client;
+                        Dev->Port = snd_seq_port_info_get_port(MIDIPortInfo);
+                    Dev->CanRead = CanRead;
+                    Dev->CanWrite = CanWrite;
+                    
+                        // TODO(luca): Trim whitespace
+                        Dev->Name = Str8DupCString(Arena, (char *)snd_seq_client_info_get_name(MIDIClientInfo));
+                        Dev->PortName = Str8DupCString(Arena, (char *)snd_seq_port_info_get_name(MIDIPortInfo));
+                }
+            }
+        }
+        }
+
+        
+}
     
 #if MUZE_FORCE_X11
     b32 OpenGLMode = false;
@@ -455,7 +403,7 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
     
     P_context Result = 0;
     s32 XRet = 0;
-    char *WindowName = "Handmade Window";
+    char *WindowName = "Muze";
     
     linux_x11_context *Context = PushStruct(Arena, linux_x11_context);
     
@@ -1161,7 +1109,6 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     }
                     
                     // Game input
-                    
                     if(0) {}
                     else if(Symbol == XK_Left)  ProcessKeyPress(&Input->ActionLeft, IsDown);
                     else if(Symbol == XK_Right) ProcessKeyPress(&Input->ActionRight, IsDown);
@@ -1172,6 +1119,16 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     else if(Symbol == XK_w) ProcessKeyPress(&Input->MoveUp, IsDown);
                     else if(Symbol == XK_r) ProcessKeyPress(&Input->MoveDown, IsDown);
                     
+                    // TODO(luca): Metaprogram
+#if defined(MUZE_COLEMAK)
+                    uint Symbols[] = { XK_a, XK_w, XK_r, XK_f, XK_s, XK_t, XK_g, XK_d, XK_j, XK_h, XK_l, XK_n, XK_e, XK_y, XK_i, };
+                    #else
+                    uint Symbols[] = { XK_a, XK_w, XK_s, XK_e, XK_d, XK_f, XK_t, XK_g, XK_y, XK_h, XK_u, XK_j, XK_k, XK_i, XK_l, };
+                        #endif
+                    for EachElement(Idx, Symbols)
+                    {
+                        if(Symbol == Symbols[Idx]) ProcessKeyPress(&Input->MIDI.Buttons[Idx], IsDown);
+                    }
                 } break;
                 
                 case ButtonPress:

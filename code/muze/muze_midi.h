@@ -8,6 +8,20 @@ union midi_message
 {
     u32 U32[1];
     u8 U8[4];
+    struct
+    {
+        u8 Type;
+        u8 Pitch;
+        u8 Velocity;
+        u8 Ignored;
+    } NoteOn;
+    struct
+    {
+        u8 Type;
+        u8 Pitch;
+        u8 Velocity;
+        u8 Ignored;
+    } NoteOff;
 };
 
 typedef enum midi_event_type midi_event_type;

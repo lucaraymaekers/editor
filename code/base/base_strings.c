@@ -5,6 +5,12 @@
 
 global_variable arena *StringsScratch = 0;
 
+#define StringsScratchScope(Arena) \
+DeferLoop(\
+arena *Temp = StringsScratch; \
+StringsScratch = Arena, \
+StringsScratch = Temp)
+
 internal b32 
 IsPrintable(u8 Char)
 {
@@ -157,6 +163,20 @@ Str8Fmt(char *Format, ...)
     
     return Result;
 }
+
+internal str8
+Str8DupCString(arena *Arena, char *String)
+{
+    str8 Result = {0};
+    
+    Result.Size = StringLength(String);
+    Result.Data = PushArray(Arena, u8, Result.Size);
+    MemoryCopy(Result.Data, String, Result.Size);
+    
+    return Result;
+}
+
+//- 
 
 #if !defined(BASE_EXTERNAL_LIBS)
 # if !defined(XXH_IMPLEMENTATION)
