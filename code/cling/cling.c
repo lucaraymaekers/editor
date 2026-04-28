@@ -764,15 +764,6 @@ ENTRY_POINT(EntryPoint)
                 str8_array *CommonMuzeFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(CommonMuzeFlags, S8("-I" CLING_CODE_PATH));
                 
-                // Alsa sample
-                if(1)
-                {                
-                MuzeBuildCommand(S8("../code/muze/lnx_alsa.c"),
-                                 S8("lnx_alsa"),
-                                 GCC, Clang, Asan, Debug,
-                                 CommonMuzeFlags, S8("-lasound"), S8(""), false, false);
-                }
-
                 if(OS_FileExists(CLING_CODE_PATH "base/base_build.h"))
                 {
                     Str8ArrayAppendTo(CommonMuzeFlags, S8("-DBASE_PERSONAL=1"));

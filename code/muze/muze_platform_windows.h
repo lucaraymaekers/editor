@@ -1,6 +1,0 @@
-/* date = April 16th 2026 2:23 pm */
-
-#ifndef MUZE_PLATFORM_WINDOWS_H
-#define MUZE_PLATFORM_WINDOWS_H
-
-#endif //MUZE_PLATFORM_WINDOWS_H

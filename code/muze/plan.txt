@@ -67,6 +67,7 @@ sf2
 - platform: Move window to unfocused monitor when other monitor is focused.
 - platform: Change key inputs to linked list so we can easily remove a key from it.
 - platform: Specify window name with P_Init
+- platform: Detect refresh rate
 
 # Archived
 x Platform layer MIDI API

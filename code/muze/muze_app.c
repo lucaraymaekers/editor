@@ -2201,12 +2201,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         App->NoteSel = 0;
                     }
                     
-                    if(UI_Button(S8("Pattern")))
+                    if(UI_Button(S8("BPMFromPattern")))
                     {
                         // TODO(luca): 
                         // 1. Check position in beat
                         // 2. Travel by bar-length
                         // 3. Find note at matching position.
+                    }
+                    
+                    if(UI_Button(S8("PadEndToBeat")))
+                    {
+                        
                     }
                 }
                 
@@ -2415,14 +2420,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 
                 if(IsOn)
                 {
-                    Message.NoteOn.Type = MIDIEventType_NoteOn;
-                    Message.NoteOn.Pitch = Pitch;
-                    Message.NoteOn.Velocity = Velocity;
+                        Message.U8[0] = MIDIEventType_NoteOn;
+                        Message.U8[1] = Pitch;
+                        Message.U8[2] = Velocity;
                 }
                 else if(IsOff)
                 {
-                    Message.NoteOff.Type = MIDIEventType_NoteOff;
-                    Message.NoteOff.Pitch = Pitch;
+                        Message.U8[0] = MIDIEventType_NoteOff;
+                        Message.U8[1] = Pitch;
                 }
                 
                 Note->Message = Message.U32[0];

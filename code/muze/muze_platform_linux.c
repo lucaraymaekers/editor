@@ -185,8 +185,41 @@ LinuxShowCursor(linux_x11_context *Linux, b32 Entered)
     }
 }
 
-//~ MIDI API
+internal midi_message
+MIDIMessageFromEvent(snd_seq_event_t *Event)
+{
+    midi_message Result = {0};
+    
+    switch (Event->type)
+    {
+        case SND_SEQ_EVENT_NOTEON:
+{
+        Result.U8[0] = 0x90 | Event->data.note.channel;
+        Result.U8[1] = Event->data.note.note;
+        Result.U8[2] = Event->data.note.velocity;
+} break;
+        
+        case SND_SEQ_EVENT_NOTEOFF:
+{
+        Result.U8[0] = 0x80 | Event->data.note.channel;
+        Result.U8[1] = Event->data.note.note;
+        Result.U8[2] = Event->data.note.velocity;
+} break;
+        
+        case SND_SEQ_EVENT_CONTROLLER:
+{
+        Result.U8[0] = 0xB0 | Event->data.control.channel;
+            Result.U8[1] = (u8)Event->data.control.param;
+            Result.U8[2] = (u8)Event->data.control.value;
+} break;
+        
+        default: break;
+    }
+    
+    return Result;
+}
 
+//~ MIDI API
 typedef enum linux_midi_port_type linux_midi_port_type;
 enum linux_midi_port_type
 {
@@ -229,6 +262,8 @@ global_variable int MIDIInPort = 0;
 global_variable u64 MaxMIDIDevicesCount = 128;
 global_variable linux_midi_device *MIDIDevices = 0;
 global_variable u64 MIDIDevicesCount = 0;
+global_variable u64 MIDIListenDevId = 0;
+global_variable b32 MIDIListenDevInitialized = false;
 
 #define TSF_DEVICE_ID 0
 
@@ -310,15 +345,28 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
         snd_seq_event_output(MIDISeq, &Event);
         snd_seq_drain_output(MIDISeq);
     }
-    
 }
 
 PLATFORM_MIDI_LISTEN(P_MIDIListen)
 {
     Assert(Device.Id != TSF_DEVICE_ID);
     
+    b32 DeviceChanged = (Device.Id != MIDIListenDevId);
+    
+    if(MIDIListenDevInitialized && DeviceChanged)
+    {
+        linux_midi_device *OldDev = MIDIDevices + MIDIListenDevId;
+        snd_seq_disconnect_from(MIDISeq, MIDIInPort, OldDev->Client, OldDev->Port);
+    }
+    
+    if(!MIDIListenDevInitialized || DeviceChanged)
+{
     linux_midi_device *Dev = MIDIDevices + Device.Id;
     snd_seq_connect_from(MIDISeq, MIDIInPort, Dev->Client, Dev->Port);
+    }
+
+    MIDIListenDevId = Device.Id;
+    MIDIListenDevInitialized = true;
 }
 
 //~ Platform API
@@ -341,6 +389,7 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
         MIDIInPort = snd_seq_create_simple_port(MIDISeq, "In",
                                             SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_WRITE,
                                             SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+        snd_seq_nonblock(MIDISeq, 1);
         
         // Get connected devices 
 {        
@@ -716,12 +765,6 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
     
     if(Linux)
     {
-        Atom PropertyAtom = XInternAtom(Linux->DisplayHandle, "X11_CLIPBOARD_DATA", False);
-        Atom UTF8Atom = XInternAtom(Linux->DisplayHandle, "UTF8_STRING", False);
-        Atom StringAtom = XInternAtom(Linux->DisplayHandle, "STRING", False);
-        Atom TargetsAtom  = XInternAtom(Linux->DisplayHandle, "TARGETS", False);
-        Atom ClipboardAtom = XInternAtom(Linux->DisplayHandle, "CLIPBOARD", False);
-        
         // Handle Cursor
         if(Linux->Cursor != Input->PlatformCursor)
         {        
@@ -759,7 +802,39 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
             }
         }
         
+        // Sound
+        {
+            Input->MIDI.Notes = PushArray(FrameArena, app_midi_note, KB(1));
+            
+            snd_seq_event_t *Event;
+            
+            if(snd_seq_event_input_pending(MIDISeq, 0) > 0)
+            {
+                Log("Pending...\n");
+            }
+            
+            while(snd_seq_event_input(MIDISeq, &Event) >= 0)
+            {
+                u32 Message = Event->data.raw32.d[0];
+                if(Message != 0)
+                {               
+                app_midi_note *Note = Input->MIDI.Notes + Input->MIDI.Count;
+                Input->MIDI.Count += 1;
+                    
+                    midi_message Msg = MIDIMessageFromEvent(Event);
+                    
+                    Note->Message = Msg.U32[0];
+                Note->Timestamp = (f32)OS_GetWallClock();
+}
+            }
+        }
+        
         // Clipboard
+        Atom PropertyAtom = XInternAtom(Linux->DisplayHandle, "X11_CLIPBOARD_DATA", False);
+        Atom UTF8Atom = XInternAtom(Linux->DisplayHandle, "UTF8_STRING", False);
+        Atom StringAtom = XInternAtom(Linux->DisplayHandle, "STRING", False);
+        Atom TargetsAtom  = XInternAtom(Linux->DisplayHandle, "TARGETS", False);
+        Atom ClipboardAtom = XInternAtom(Linux->DisplayHandle, "CLIPBOARD", False);
         {
             Input->PlatformClipboard.Data = Linux->ClipboardBuffer;
             
