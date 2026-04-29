@@ -8,7 +8,6 @@
 #include <mmsystem.h>
 #endif
 
-
 #include "muze/generated/everything.c"
 
 #include "muze/muze_platform.h"
@@ -1260,8 +1259,8 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     
     // Bars
     f32 WholeBarWidth = 200.f;;
-    f32 BarDuration = 1.f/BPS;
-    f32 BarsCount = floorf(RecordLength/(BarDuration*(f32)Song->TimeSig)) + 1.f;
+    f32 BarDuration = (1.f/BPS)*(f32)Song->TimeSig;
+    f32 BarsCount = ceilf(RecordLength/BarDuration);
     v2 BarDim = V2(2.f, StaffHeight);
     
     // Draw staff
@@ -2164,11 +2163,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             f32 SongLength = (Song->RecordEnd - Song->RecordStart);
                             
-                            f32 BPS = Song->BPM/60.f;
-                            f32 SPB = 1.f/BPS;
+                            f32 BeatsPerSecond = Song->BPM/60.f;
+                            f32 SecondsPerBeat = 1.f/BeatsPerSecond;
                             
-                            f32 BarTime = BPS*(f32)Song->TimeSig;
-                            f32 Pad = ceilf(SongLength/BPS)*BPS;
+                            f32 BarTime = SecondsPerBeat*(f32)Song->TimeSig;
+                            f32 Pad = ceilf(SongLength/BarTime)*BarTime;
                             
                             Song->RecordEnd = Song->RecordStart + Pad;
                             
@@ -2221,6 +2220,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         Song->NoteSel = 0;
                     }
                     
+                    if(UI_Button(S8("Delete")))
+                    {
+                        // TODO(luca): Delete notes
+                    }
+                    
+                    if(UI_Button(S8("Cycle duration")))
+                    {
+                        // TODO(luca): Cycle note duration
+                    }
+                    
                     if(UI_Button(S8("BPMFromPattern")))
                     {
                         // TODO(luca): 
@@ -2228,8 +2237,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         // 2. Travel by bar-length
                         // 3. Find note at matching position.
                     }
+                    
+                    if(UI_Button(S8("Change BPM")))
+                    {
+                    }
+                    
                 }
                 
+#if MUZE_INTERNAL                
                 UI_List(Axis2_Y, S8("Recording"))
                 {                  
                     f32 RecordLength = (Song->RecordEnd - Song->RecordStart);
@@ -2249,6 +2264,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         f32 BPS = Song->BPM/60.f;
                         UI_AddBox(Str8Fmt("Duration: %.2f/%.2f###Duration", Sel->Duration, BPS*Sel->Duration), Flags);
                         UI_AddBox(Str8Fmt("Start: %.2f/%.2f###Start", Sel->Timestamp, BPS*Sel->Timestamp), Flags);
+                        UI_AddBox(Str8Fmt("Pitch/Vel: %d/%d###PitchAndVelocity", Sel->Pitch, Sel->Velocity), Flags);
                     }
                 }
                 
@@ -2263,6 +2279,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     UI_AddBox(Str8Fmt("ScrollX: %.2f###ScrollX", ScrollX), Flags);
                 }
             }
+#endif
             
             // UI Panels
             
