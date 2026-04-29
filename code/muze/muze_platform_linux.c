@@ -278,6 +278,7 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
         linux_midi_device *LnxDev = MIDIDevices + Idx;
         
         // NOTE(luca): Special case for TSF
+        // TODO(luca): Only if there is the same name multiple times should there be the port added.
             str8 Name = (LnxDev->Id == TSF_DEVICE_ID ? LnxDev->Name : Str8Fmt(S8Fmt ": %d", 
                                                                             S8Arg(LnxDev->Name),
                                                                             LnxDev->Port));

@@ -2122,9 +2122,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         }
                         else
                         {
-                            Song->PlayPos = 0.f;
                             Song->IsPlaying = true;
                         }
+                    }
+                    
+                    if(UI_Button(S8("Stop")))
+                    {
+                        StopRecording(Memory, Song, Input->dtForFrame);
+                        Song->IsPlaying = false;
+                        Song->PlayPos = 0.f;
                     }
                 }
                 
@@ -2159,7 +2165,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             f32 SongLength = (Song->RecordEnd - Song->RecordStart);
                             
                             f32 BPS = Song->BPM/60.f;
-                            f32 BarTime = BPS*Song->TimeSig;
+                            f32 SPB = 1.f/BPS;
+                            
+                            f32 BarTime = BPS*(f32)Song->TimeSig;
                             f32 Pad = ceilf(SongLength/BPS)*BPS;
                             
                             Song->RecordEnd = Song->RecordStart + Pad;
