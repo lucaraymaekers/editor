@@ -2242,6 +2242,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     {
                     }
                     
+                    UI_AddBox(S8("Cookooo"), Flags|UI_BoxFlag_DrawDebugBorder);
                 }
                 
 #if MUZE_INTERNAL                

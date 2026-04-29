@@ -68,6 +68,7 @@ sf2
 - platform: Change key inputs to linked list so we can easily remove a key from it.
 - platform: Specify window name with P_Init
 - platform: Detect refresh rate
+- platform: Merge editor and muze
 - ui: DisplayString should be only string, and UI_Label should be what I need for displaying text fields.
 
 # Archived
