@@ -80,16 +80,20 @@ struct ui_box
     f32 HeightPx;
     font_kind FontKind;
     
-    f32 tHot;
-    f32 tActive;
-    
     // Produced from layout resolving
     v2 FixedPosition;
     v2 FixedSize;
-    
-    // Computed per build
-    b32 Clicked;
     v4 Rec;
+    
+    // Produced from input
+    b32 Clicked;
+    b32 Hovered;
+    b32 Pressed;
+    v2s32 Scroll;
+    
+    f32 tHot;
+    f32 tActive;
+    
 };
 #define UI_EachBox(Node, First) \
 (ui_box *Node = First; !UI_IsNilBox(Node); Node = Node->Next)  
@@ -173,6 +177,8 @@ struct ui_state
     b32 AppendToParent;
     ui_box *Current;
     ui_box *Root;
+    // TODO(luca): Remove
+    ui_box *DebugBox;
     struct
     {
         UI_StateStacks
@@ -196,6 +202,10 @@ global_variable v4 Color_ButtonText = {U32ToV4Arg(0xff000000)};
 #define UI_SizeEm(_Value, Strictness) UI_Size(UI_SizeKind_Pixels, ((_Value)*UI_State->HeightPxTop->Value), Strictness)
 #define UI_SizeParent(Value, Strictness) UI_Size(UI_SizeKind_PercentOfParent, Value, Strictness)
 #define UI_SizeChildren(Strictness) UI_Size(UI_SizeKind_ChildrenSum, 0.f, Strictness)
+
+#define UI_FillHeight() UI_SemanticHeight(UI_SizeParent(1.f, 0.f))
+#define UI_FillWidth() UI_SemanticWidth(UI_SizeParent(1.f, 0.f))  
+#define UI_FillAll() UI_FillHeight() UI_FillWidth()
 
 // TODO(luca): Freelist?
 #define StackPush(Arena, t, PushValue, Top) \
@@ -260,7 +270,5 @@ internal void UI_PopFontKind()                    { UI_StackPop(FontKind); }
 #define UI_SemanticFull() \
 UI_SemanticHeight(UI_SizeParent(1.f, 1.f)) \
 UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
-
-#define UI_
 
 #endif //MUZE_UI_H

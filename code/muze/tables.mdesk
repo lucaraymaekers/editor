@@ -29,12 +29,15 @@ UI_BoxFlags:
     DrawDebugBorder,
     DrawShadow,
     DrawDisplayString,
+    DrawHotEffects,
+    DrawActiveEffects,
     CenterTextHorizontally,
     CenterTextVertically,
-    MouseClickability,
+    MouseClickable,
     FloatingX,
     FloatingY,
     Clip,
+    Scroll,
 }
 
 // TODO(luca): Metaprogram

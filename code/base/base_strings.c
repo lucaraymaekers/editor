@@ -62,7 +62,7 @@ ToLowercase(u8 Char)
     u8 Result = Char;
     
     if(Char >= 'A' && Char <= 'Z')
-{
+    {
         Result = (Char - (u8)('A' - 'a'));
     }
     
@@ -148,18 +148,25 @@ S8Cat(str8 Prefix, str8 Suffix)
 }
 
 internal str8
-Str8Fmt(char *Format, ...)
+Str8VFmt(char *Format, va_list Args)
 {
     str8 Result = {0};
     
     arena *Arena = StringsScratch;
-    
     Result.Data = PushArray(Arena, u8, 256);
+    Result.Size = (u64)vsprintf((char *)Result.Data, Format, Args);
+    
+    return Result;
+}
+
+internal str8
+Str8Fmt(char *Format, ...)
+{
+    str8 Result = {0};
     
     va_list Args;
     va_start(Args, Format);
-    
-    Result.Size = (u64)vsprintf((char *)Result.Data, Format, Args);
+    Result = Str8VFmt(Format, Args);
     
     return Result;
 }

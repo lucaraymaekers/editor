@@ -217,70 +217,79 @@ UI_AddBox(str8 String, s32 Flags)
     Box->CustomDraw = 0;
     Box->CustomDrawData = 0;
     Box->Clicked = false;
+    Box->Hovered = false;
+    Box->Pressed = false;
+    MemoryZero(&Box->Scroll);
     
     if(!FirstTime)
     {
-        b32 Hovered = false;
-        b32 Clicked = false;
-        b32 Pressed = false;
-        
         app_input *Input = UI_State->Input;
         
-        if(!Input->Consumed && Box->Flags & UI_BoxFlag_MouseClickability)
+        if(!Input->Consumed)
         {        
-            v2 MouseP = MousePosFromInput(Input);
-            
-            app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
-            
-            Hovered = IsInsideRectV2(MouseP, Box->Rec);
-            Pressed = (Hovered && MouseLeft.EndedDown);
-            
-            // Set active and hot state
-            {            
-                b32 MouseUp = (!MouseLeft.EndedDown);
+            if(Box->Flags & UI_BoxFlag_MouseClickable)
+            {                
+                v2 MouseP = MousePosFromInput(Input);
                 
-                if(Hovered)
-                {
-                    if(UI_IsActive(UI_NilBox) ||
-                       UI_IsActive(Box)) 
-                    {
-                        UI_State->Hot = Box->Key;
-                    }
-                }
-                else if(UI_IsHot(Box))
-                {
-                    UI_State->Hot = UI_KeyNull();
-                }
+                app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
                 
-                if(UI_IsActive(Box))
-                {
-                    if(MouseUp)
+                Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
+                Box->Pressed = (Box->Hovered && MouseLeft.EndedDown);
+                
+                // Set active and hot state
+                {            
+                    b32 MouseUp = (!MouseLeft.EndedDown);
+                    
+                    if(Box->Hovered)
                     {
-                        if(UI_IsHot(Box))
+                        if(UI_IsActive(UI_NilBox) ||
+                           UI_IsActive(Box)) 
                         {
-                            Clicked = true;
+                            UI_State->Hot = Box->Key;
                         }
-                        UI_State->Active = UI_KeyNull();
                     }
-                }
-                else if(UI_IsHot(Box))
-                {
-                    if(MouseLeft.EndedDown)
+                    else if(UI_IsHot(Box))
                     {
-                        UI_State->Active = Box->Key;
+                        UI_State->Hot = UI_KeyNull();
                     }
+                    
+                    if(UI_IsActive(Box))
+                    {
+                        if(MouseUp)
+                        {
+                            if(UI_IsHot(Box))
+                            {
+                                Box->Clicked = true;
+                            }
+                            UI_State->Active = UI_KeyNull();
+                        }
+                    }
+                    else if(UI_IsHot(Box))
+                    {
+                        if(MouseLeft.EndedDown)
+                        {
+                            UI_State->Active = Box->Key;
+                        }
+                    }
+                    
                 }
                 
+                f32 Speed = 20.f;
+                f32 HotTarget    = UI_IsHot(Box)    ? 1.f : 0.f;
+                f32 ActiveTarget = UI_IsActive(Box) ? 1.f : 0.f;
+                Box->tActive += (ActiveTarget - Box->tActive) * Speed * Input->dtForFrame;
+                Box->tHot += (HotTarget - Box->tHot) * Speed * Input->dtForFrame;
+            }
+            
+            if(Box->Flags & UI_BoxFlag_Scroll)
+            {            
+                if(Box->Pressed)
+                {
+                    Box->Scroll.X = (Input->Mouse.X - Input->Mouse.StartX);
+                    Box->Scroll.Y = (Input->Mouse.Y - Input->Mouse.StartY);
+                }
             }
         }
-        
-        Box->Clicked = Clicked;
-        
-        f32 Speed = 20.f;
-        f32 HotTarget    = UI_IsHot(Box)    ? 1.f : 0.f;
-        f32 ActiveTarget = UI_IsActive(Box) ? 1.f : 0.f;
-        Box->tActive += (ActiveTarget - Box->tActive) * Speed * Input->dtForFrame;
-        Box->tHot += (HotTarget - Box->tHot) * Speed * Input->dtForFrame;
     }
     
     // Add box to the tree
@@ -420,6 +429,9 @@ UI_CalculateUpwardSizes(ui_box *Box, axis2 Axis)
 {
     if(Box->SemanticSize[Axis].Kind == UI_SizeKind_PercentOfParent)
     {
+        
+        if(Box == UI_State->DebugBox);
+        
         Box->FixedSize.e[Axis] = (Box->SemanticSize[Axis].Value * 
                                   Box->Parent->FixedSize.e[Axis]);
     }
@@ -489,6 +501,7 @@ UI_CalculateDownwardSizes(ui_box *Box, axis2 Axis)
 internal void
 UI_CalculateViolations(ui_box *Box, axis2 Axis)
 {
+    
     ui_box *Parent = Box->Parent;
     
     f32 ParentSize = Parent->FixedSize.e[Axis];
@@ -646,17 +659,16 @@ UI_DrawBoxes(ui_box *Box)
             rect_instance *Inst = DrawRect(Dest, Box->BackgroundColor, 0.f, 0.f, Box->Softness);
             Inst->CornerRadii = Box->CornerRadii;
             
-            if(Box->Flags & UI_BoxFlag_MouseClickability)
+            if(Box->Flags & UI_BoxFlag_DrawHotEffects)
             {
-#if 1
-                V3Math Inst->Color2.E *= 1.f - .4f*(Box->tActive);
-                V3Math Inst->Color3.E *= 1.f - .4f*(Box->tActive);
-                
                 V3Math Inst->Color0.E *= 1.f - .4f*(Box->tHot - Box->tActive);
                 V3Math Inst->Color1.E *= 1.f - .4f*(Box->tHot - Box->tActive);
-#else
-                
-#endif
+            }
+            
+            if(Box->Flags & UI_BoxFlag_DrawActiveEffects)
+            {
+                V3Math Inst->Color2.E *= 1.f - .4f*(Box->tActive);
+                V3Math Inst->Color3.E *= 1.f - .4f*(Box->tActive);
             }
         }
         
@@ -700,9 +712,11 @@ UI_DrawBoxes(ui_box *Box)
         }
         
         if(Box->Flags & UI_BoxFlag_DrawBorders)
-        {    
-            if(Box->Flags & UI_BoxFlag_MouseClickability && 
-               (UI_IsHot(Box) || UI_IsActive(Box)))
+        {
+            b32 Selected = (Box->Flags & UI_BoxFlag_DrawHotEffects &&
+                            (UI_IsHot(Box) || UI_IsActive(Box)));
+            
+            if(Selected)
             {
                 Box->BorderColor = Color_Snow2;
             }

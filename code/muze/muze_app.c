@@ -109,13 +109,6 @@ global_variable s32 NoteBasePitchToStep[] =
 };
 StaticAssert(ArrayCount(NoteBasePitchToStep) == Note_Count, NoteBasePitchToStepSizeCheck);
 
-global_variable s32 Flags = (UI_BoxFlag_Clip |
-                             UI_BoxFlag_DrawBorders |
-                             UI_BoxFlag_DrawBackground |
-                             UI_BoxFlag_DrawDisplayString |
-                             UI_BoxFlag_CenterTextVertically |
-                             UI_BoxFlag_CenterTextHorizontally);
-
 //~ Helpers
 
 internal f32
@@ -1158,10 +1151,47 @@ StopRecording(app_memory *Memory, song *Song, f32 dtForFrame)
 }
 
 //~ UI 
-#define UI_YSpacer() UI_SemanticHeight(UI_SizeEm(.3f, 1.f)) UI_AddBox(S8(""), UI_BoxFlag_Clip);
+#include "muze/muze_widgets.c"
+
+typedef struct muze_box_data muze_box_data;
+struct muze_box_data
+{
+    ui_box *Box;
+    app_state *App;
+    song *Song;
+    
+    f32 ScrollX;
+};
+
+internal ui_box *
+UI_Label(str8 String)
+{
+    ui_box *Result = UI_AddBox(String, (UI_BoxFlag_Clip|
+                                        UI_BoxFlag_DrawDisplayString|
+                                        UI_BoxFlag_DrawBackground|
+                                        UI_BoxFlag_DrawBorders|
+                                        UI_BoxFlag_CenterTextHorizontally|
+                                        UI_BoxFlag_CenterTextVertically));
+    return Result;
+}
+
+internal ui_box *
+UI_Labelf(char *Format, ...)
+{
+    ui_box *Result = UI_NilBox;
+    str8 String = {0};
+    
+    va_list Args;
+    va_start(Args, Format);
+    String = Str8VFmt(Format, Args);
+    
+    Result = UI_Label(String);
+    
+    return Result;
+}
 
 internal void
-UI_PushContainer(axis2 Axis, str8 Name)
+UI_PushList(axis2 Axis, str8 Name)
 {
     UI_LayoutAxis(Axis) 
         UI_SemanticWidth(UI_SizeChildren(1.f)) 
@@ -1169,16 +1199,16 @@ UI_PushContainer(axis2 Axis, str8 Name)
         UI_AddBox(Name, UI_BoxFlag_Clip);
     UI_PushBox();
     
-    UI_AddBox(Name, Flags);
-    UI_YSpacer();
+    UI_Label(Name);
+    
+    UI_Spacer(UI_SizeEm(.3f, 1.f));
 }
 
 internal void
-UI_PopContainer(void)
+UI_PopList(void)
 {
     UI_PopBox();
     
-    // TODO(luca): Check for the widest child of the container and make all children its size
     ui_box *Parent = UI_State->Current;
     axis2 Axis = 1 - Parent->LayoutAxis;
     
@@ -1199,28 +1229,11 @@ UI_PopContainer(void)
     }
 }
 
-internal b32
-UI_Button(str8 Label)
-{
-    b32 Result = false;
-    UI_BackgroundColor(Color_ButtonBackground)
-    {
-        Result = (UI_AddBox(Label, Flags | UI_BoxFlag_MouseClickability)->Clicked);
-    }
-    return Result;
-}
+//- Stacks 
 
-#define UI_List(Axis, Name) DeferLoop(UI_PushContainer(Axis, Name), UI_PopContainer())
+#define UI_List(Axis, Name) DeferLoop(UI_PushList(Axis, Name), UI_PopList())
 
-typedef struct muze_box_data muze_box_data;
-struct muze_box_data
-{
-    ui_box *Box;
-    app_state *App;
-    song *Song;
-    
-    f32 ScrollX;
-};
+//- Custom elements 
 
 UI_CUSTOM_DRAW(CustomDrawSheetMusic)
 {
@@ -1632,7 +1645,81 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
             }
         }
     }
+}
+
+internal f32
+UI_Slider(f32 MinSize, f32 MaxSize,
+          f32 SliderMinPct, 
+          f32 Value, 
+          str8 DisplayName)
+{
+    f32 Result = 0.f;
+    ui_size Padding = UI_SizePx(UI_State->BorderThicknessTop->Value, 1.f);
+    ui_box *Box = 0;
     
+    app_input *Input = UI_State->Input;
+    
+    // Fill level from value
+    f32 FillLevel = 0.f;
+    {
+        f32 Pct = (Value - MinSize)/(MaxSize - MinSize);
+        FillLevel = Pct*(1.f - SliderMinPct) + SliderMinPct;
+    }
+    
+    UI_FillWidth()
+        UI_BackgroundColor(Color_ButtonBackground)
+        Box = UI_AddBox(S8("Slider"), (UI_BoxFlag_Clip|
+                                       UI_BoxFlag_MouseClickable|
+                                       UI_BoxFlag_DrawBorders|
+                                       UI_BoxFlag_DrawHotEffects|
+                                       UI_BoxFlag_DrawActiveEffects|
+                                       UI_BoxFlag_Scroll));
+    
+    UI_Push() 
+        UI_Column() UI_Padding(Padding)
+        UI_Row() UI_Padding(Padding)
+    {
+        UI_FillAll()
+            UI_AddBox(S8("background"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
+        UI_Push()
+            UI_FillHeight()
+            UI_SemanticWidth(UI_SizeParent(FillLevel, 0.f))
+            UI_BackgroundColor(Color_Orange)
+            UI_AddBox(S8("color"), (UI_BoxFlag_Clip|
+                                    UI_BoxFlag_DrawBackground));
+    }
+    
+    UI_FillWidth()
+        UI_AddBox(Str8Fmt(S8Fmt ": %.0f###" S8Fmt, 
+                          S8Arg(DisplayName), Value,
+                          S8Arg(DisplayName)), 
+                  (UI_BoxFlag_Clip|
+                   UI_BoxFlag_DrawDisplayString|
+                   UI_BoxFlag_DrawBorders|
+                   UI_BoxFlag_CenterTextHorizontally|
+                   UI_BoxFlag_CenterTextVertically|
+                   UI_BoxFlag_FloatingX|
+                   UI_BoxFlag_FloatingY));
+    
+    
+    if(!Input->Consumed && 
+       (UI_IsActive(Box) || UI_IsHot(Box)) && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
+    {
+        
+        f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPosition.X)/Box->FixedSize.X);
+        FillLevel = Clamp(SliderMinPct, PctOnXAxis, 1.f);
+        
+        Input->Consumed = true;
+    }
+    
+    // Value from FillLevel
+    {    
+        f32 Range = MaxSize - MinSize;
+        f32 New = MinSize + (Range*(FillLevel - SliderMinPct)/(1.f - SliderMinPct));
+        Result = roundf(New);
+    }
+    
+    return Result;
 }
 
 
@@ -1993,8 +2080,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         UI_DefaultState(Root, App->HeightPx);
         
-        s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickability);
-        
         platform_midi_get_devices_result DevicesArray = Memory->PlatformMIDIGetDevices();
         
         if(!Memory->Initialized)
@@ -2043,8 +2128,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         platform_midi_device *Device = DevicesArray.Devices + Idx;
                         if(!Device->IsOutput)
                         {
-                            UI_BackgroundColor(((Device->Id == Song->In.Id) ? Color_Yellow : Color_ButtonBackground))
-                                if(UI_AddBox(Device->Name, ButtonFlags)->Clicked)
+                            if(UI_ToggleButton(Device->Name, (Device->Id == Song->In.Id), Color_Yellow))
                             {
                                 DeviceChanged = (Song->In.Id != Device->Id);
                                 Song->In = *Device;
@@ -2065,9 +2149,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         platform_midi_device *Device = DevicesArray.Devices + Idx;
                         if(Device->IsOutput)
                         {                            
-                            
-                            UI_BackgroundColor(((Device->Id == Song->Out.Id) ? Color_Yellow : Color_ButtonBackground))
-                                if(UI_AddBox(Device->Name, ButtonFlags)->Clicked)
+                            if(UI_ToggleButton(Device->Name, (Device->Id == Song->Out.Id), Color_Yellow))
                             {
                                 if(Song->Out.Id != Device->Id)
                                 {
@@ -2089,8 +2171,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
                     }
                     
-                    UI_BackgroundColor((!Song->IsRecording ? Color_ButtonBackground : Color_Red))
-                        if(UI_AddBox(S8("Record"), ButtonFlags)->Clicked)
+                    if(UI_ToggleButton(S8("Record"), Song->IsRecording, Color_Red))
                     {
                         StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
                         if(!Song->IsRecording)
@@ -2105,13 +2186,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         Song->IsPlaying = false;
                     }
                     
-                    UI_BackgroundColor(Color_ButtonBackground)
-                    {
-                        
-                    }
-                    
-                    UI_BackgroundColor((!Song->IsPlaying ? Color_ButtonBackground : Color_Green))
-                        if(UI_AddBox(S8("Play"), ButtonFlags)->Clicked)
+                    if(UI_ToggleButton(S8("Play"), Song->IsPlaying, Color_Green))
                     {
                         StopRecording(Memory, Song, Input->dtForFrame);
                         
@@ -2237,24 +2312,24 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         // 2. Travel by bar-length
                         // 3. Find note at matching position.
                     }
-                    
-                    if(UI_Button(S8("Change BPM")))
-                    {
-                    }
-                    
-                    UI_AddBox(S8("Cookooo"), Flags|UI_BoxFlag_DrawDebugBorder);
+                }
+                
+                UI_List(Axis2_Y, S8("Music"))
+                {                
+                    App->Song.BPM = UI_Slider(30.f, 180.f, .1f, App->Song.BPM, S8("BPM"));
+                    App->Song.TimeSig = UI_Slider(1.f, 4.f, .1f, App->Song.TimeSig, S8("TimeSig"));
                 }
                 
 #if MUZE_INTERNAL                
                 UI_List(Axis2_Y, S8("Recording"))
                 {                  
                     f32 RecordLength = (Song->RecordEnd - Song->RecordStart);
-                    UI_AddBox(Str8Fmt("Length: %.2f/%.2f###RecordLength", RecordLength, ((f32)Song->BPM/60.f)*RecordLength), Flags);
+                    UI_Labelf("Length: %.2f/%.2f###RecordLength", RecordLength, ((f32)Song->BPM/60.f)*RecordLength);
                 }
                 
                 UI_List(Axis2_Y, S8("Playing"))
                 {                    
-                    UI_AddBox(Str8Fmt("Pos: %.2f###RecordEnd", Song->PlayPos), Flags);
+                    UI_Labelf("Pos: %.2f###RecordEnd", Song->PlayPos);
                 }
                 
                 if(Song->NoteSel)
@@ -2263,21 +2338,31 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     {                    
                         note *Sel = Song->NoteSel->Value;
                         f32 BPS = Song->BPM/60.f;
-                        UI_AddBox(Str8Fmt("Duration: %.2f/%.2f###Duration", Sel->Duration, BPS*Sel->Duration), Flags);
-                        UI_AddBox(Str8Fmt("Start: %.2f/%.2f###Start", Sel->Timestamp, BPS*Sel->Timestamp), Flags);
-                        UI_AddBox(Str8Fmt("Pitch/Vel: %d/%d###PitchAndVelocity", Sel->Pitch, Sel->Velocity), Flags);
+                        UI_Labelf("Duration: %.2f/%.2f###Duration", Sel->Duration, BPS*Sel->Duration);
+                        UI_Labelf("Start: %.2f/%.2f###Start", Sel->Timestamp, BPS*Sel->Timestamp);
+                        UI_Labelf("Pitch/Vel: %d/%d###PitchAndVelocity", Sel->Pitch, Sel->Velocity);
                     }
-                }
-                
-                UI_List(Axis2_Y, S8("Music"))
-                {                    
-                    UI_AddBox(Str8Fmt("BPM: %.2f/%.2f###BPM", Song->BPM, Song->BPM/60.f), Flags);
-                    UI_AddBox(Str8Fmt("Sig: %d/4###TimeSig", Song->TimeSig), Flags);
                 }
                 
                 UI_List(Axis2_Y, S8("UI"))
                 {                    
-                    UI_AddBox(Str8Fmt("ScrollX: %.2f###ScrollX", ScrollX), Flags);
+                    UI_Labelf("ScrollX: %.2f###ScrollX", ScrollX);
+                    
+                    ui_box *Hot = UI_BoxFromKey(UI_State->Hot);
+                    ui_box *Active = UI_BoxFromKey(UI_State->Active);
+                    str8 ActiveDisplayString = Active->DisplayString;
+                    str8 HotDisplayString = Hot->DisplayString;
+                    if(ActiveDisplayString.Size == 0) ActiveDisplayString = S8("null");
+                    if(HotDisplayString.Size == 0) HotDisplayString = S8("null");
+                    
+                    UI_Labelf("Active: " S8Fmt, S8Arg(ActiveDisplayString));
+                    UI_Labelf("Hot: " S8Fmt, S8Arg(HotDisplayString));
+                    
+                    UI_Labelf("Active->tHot = %.2f", Active->tHot);
+                    UI_Labelf("Active->tActive = %.2f", Active->tActive);
+                    UI_Labelf("Hot->tHot = %.2f", Hot->tHot);
+                    UI_Labelf("Hot->tActive = %.2f", Hot->tActive);
+                    
                 }
             }
 #endif
@@ -2291,24 +2376,22 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 if(0) {}
                 else if(Panel->Kind == PanelKind_Muze)
                 {        
-                    UI_BackgroundColor(Color_Night3)
+                    UI_FillWidth() UI_SemanticHeight(UI_SizePx(300.f, 1.f))
+                        UI_BackgroundColor(Color_Night3)
                         UI_TextColor(Color_Snow2)
-                        UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
-                        UI_SemanticHeight(UI_SizePx(300.f, 1.f))
                     {
                         ui_box *Box = UI_AddBox(S8("MuzeSheetMusic"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
                         
                         muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
                         Data->Box = Box;
-                        Data->Song = Song;;
+                        Data->Song = Song;
                         Data->ScrollX = ScrollX;
                         
                         Box->CustomDraw = CustomDrawSheetMusic;
                         Box->CustomDrawData = Data;
                     }
                     
-                    UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
-                        UI_SemanticHeight(UI_SizeParent(1.f, 0.f))
+                    UI_FillAll()
                     {
                         ui_box *Box = UI_AddBox(S8("MuzePianoRoll"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
                         

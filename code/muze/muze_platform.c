@@ -28,6 +28,7 @@ global_variable tsf *GlobalTSF = 0;
 #include "muze/muze_ui.h"
 #include "muze/muze_renderer.c"
 #include "muze/muze_ui.c"
+#include "muze/muze_widgets.c"
 
 //- Third party 
 #if OS_WINDOWS
@@ -164,14 +165,39 @@ ReplayStepNext(platform_replay *Replay)
     }
 }
 
-#define DebugButton() UI_BackgroundColor(Color_ButtonBackground) UI_BorderThickness(1.f)
-
+//~ UI (Debug) 
 internal void
 DebugSpacer(void)
 {
-    UI_SemanticHeight(UI_SizeEm(.2f, 1.f))
-        UI_AddBox(S8(""), UI_BoxFlag_Clip);
+    UI_Spacer(UI_SizeEm(.2f, 1.f));
 }
+
+internal ui_box *
+UI_Label(s32 Flags, str8 String)
+{
+    ui_box *Result = UI_AddBox(String, (UI_BoxFlag_Clip|
+                                        UI_BoxFlag_DrawDisplayString|
+                                        UI_BoxFlag_DrawBackground|
+                                        Flags));
+    return Result;
+}
+
+internal ui_box *
+UI_Labelf(s32 Flags, char *Format, ...)
+{
+    ui_box *Result = UI_NilBox;
+    str8 String = {0};
+    
+    va_list Args;
+    va_start(Args, Format);
+    String = Str8VFmt(Format, Args);
+    
+    Result = UI_Label(Flags, String);
+    
+    return Result;
+}
+
+global_variable v4 Color_Disabled = {U32ToV4Arg(0xFF616E88)};
 
 internal v4
 GetDisabledColorCondition(b32 Condition)
@@ -185,29 +211,20 @@ GetDisabledColorCondition(b32 Condition)
     return BackgroundColor;
 }
 
-internal ui_box *
+
+internal b32
 DebugReplayToggleButton(str8 Name, b32 State, b32 DisabledCondition)
 {
-    ui_box *Result = 0;
+    b32 Result = false;
     
-    s32 ButtonFlags = (UI_BoxFlag_Clip |
-                       UI_BoxFlag_DrawBackground |
-                       UI_BoxFlag_DrawDisplayString |
-                       UI_BoxFlag_CenterTextVertically |
-                       UI_BoxFlag_CenterTextHorizontally| 
-                       UI_BoxFlag_DrawBorders |
-                       UI_BoxFlag_MouseClickability);
     str8 Label = (!State ? 
                   Str8Fmt(        S8Fmt "###" S8Fmt, S8Arg(Name), S8Arg(Name)) : 
                   Str8Fmt("Stop " S8Fmt "###" S8Fmt, S8Arg(Name), S8Arg(Name)));
-    v4 BackgroundColor = (State ? Color_Red : Color_ButtonBackground);
+    v4 BackgroundColor = (DisabledCondition ? 
+                          Color_Disabled :
+                          State ? Color_Red : Color_ButtonBackground);
     
-    DebugButton() 
-        UI_BackgroundColor(BackgroundColor)
-        UI_BackgroundColor(GetDisabledColorCondition(DisabledCondition))
-    {
-        Result = UI_AddBox(Label, ButtonFlags);
-    }
+    Result = UI_ToggleButton(Label, true, BackgroundColor);
     
     return Result;
 }
@@ -223,7 +240,6 @@ ResetButtons(app_button_state *NewButtons, app_button_state *OldButtons, u64 Cou
         NewButton->HalfTransitionCount = 0;
         NewButton->Modifiers = 0;
     }
-    
 }
 
 //~ Entrypoint
@@ -641,23 +657,14 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     UI_DefaultState(Root, DebugHeightPx);
                     
                     {
-                        s32 Flags = (UI_BoxFlag_Clip |
-                                     UI_BoxFlag_DrawBackground |
-                                     UI_BoxFlag_DrawDisplayString |
-                                     UI_BoxFlag_CenterTextVertically |
-                                     UI_BoxFlag_CenterTextHorizontally);
-                        s32 ButtonFlags = (Flags | 
-                                           UI_BoxFlag_DrawBorders |
-                                           UI_BoxFlag_MouseClickability);
-                        
                         // TODO(luca): 
                         // if shift held other texts
                         // if shift click
                         // key bind information on 300ms hover?
                         
                         // When done start doing serialization. (+ (de)compression?)
-                        UI_BackgroundColor(V4(V3Arg(Color_Background), .8f))
-                            
+                        UI_BorderThickness(1.f)
+                            UI_BackgroundColor(V4(V3Arg(Color_Background), .8f))
                         {                        
                             UI_LayoutAxis(Axis2_X)
                                 UI_SemanticWidth(UI_SizeChildren(1.f))
@@ -676,25 +683,25 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                     {
                                         
                                         UI_SemanticWidth(UI_SizeText(2.f, 1.f))
-                                            DebugButton() UI_FontKind(FontKind_Icon)
-                                            if(UI_AddBox(S8("b"), ButtonFlags)->Clicked)
+                                            UI_FontKind(FontKind_Icon)
+                                            if(UI_Button(S8("b")))
                                         {
                                             ShowDebugUI = false;
                                         }
                                         
                                         b32 RecordingIsEmpty = (Replay.RecordingSize == 0);
                                         
-                                        if(DebugReplayToggleButton(S8("Recording"), Replay.IsRecording, false)->Clicked)
+                                        if(UI_ToggleButton(S8("Recording"), Replay.IsRecording, Color_Red))
                                         {
                                             ReplayToggleRecording(&Replay, &AppMemory, true);
                                         }
                                         
-                                        if(DebugReplayToggleButton(S8("Looping"), Replay.IsLooping, RecordingIsEmpty)->Clicked)
+                                        if(DebugReplayToggleButton(S8("Looping"), Replay.IsLooping, RecordingIsEmpty))
                                         {
                                             ReplayToggleLooping(&Replay, &AppMemory);
                                         }
                                         
-                                        if(DebugReplayToggleButton(S8("Stepping"), Replay.IsStepping, RecordingIsEmpty)->Clicked)
+                                        if(DebugReplayToggleButton(S8("Stepping"), Replay.IsStepping, RecordingIsEmpty))
                                         {
                                             if(Replay.RecordingSize && Replay.StepsCount > 0)
                                             {
@@ -705,9 +712,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                         
                                         DebugSpacer();
                                         
-                                        DebugButton()
-                                            UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
-                                            if(UI_AddBox(S8("Step"), ButtonFlags)->Clicked)
+                                        if(UI_ToggleButton(S8("Step"), RecordingIsEmpty, Color_Disabled))
                                         {
                                             ReplayStep(&Replay, &AppMemory);
                                             if(Replay.StepsCount)
@@ -716,9 +721,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                             }
                                         }
                                         
-                                        DebugButton()
-                                            UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
-                                            if(UI_AddBox(S8("Skip"), ButtonFlags)->Clicked)
+                                        if(UI_ToggleButton(S8("Skip"), RecordingIsEmpty, Color_Disabled))
                                         {
                                             if(Replay.RecordingSize)
                                             {
@@ -727,16 +730,12 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                             }
                                         }
                                         
-                                        DebugButton()
-                                            UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
-                                            if(UI_AddBox(S8("Set target"), ButtonFlags)->Clicked)
+                                        if(UI_ToggleButton(S8("Set target"), RecordingIsEmpty, Color_Disabled))
                                         {
                                             Replay.StepTarget = Replay.StepIdx;
                                         }
                                         
-                                        DebugButton()
-                                            UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
-                                            if(UI_AddBox(S8("Load record"), ButtonFlags)->Clicked)
+                                        if(UI_ToggleButton(S8("Load record"), RecordingIsEmpty, Color_Disabled))
                                         {
                                             if(Replay.RecordingSize)
                                             {
@@ -746,8 +745,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                         
                                         DebugSpacer();
                                         
-                                        DebugButton()
-                                            if(UI_AddBox(S8("Load from disk"), ButtonFlags)->Clicked)
+                                        if(UI_Button(S8("Load from disk")))
                                         {
                                             char *FileName = PathFromExe(FrameArena, Str8Fmt("replay_%lu.edr", ReplaySlot));
                                             
@@ -768,9 +766,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                             
                                         }
                                         
-                                        DebugButton()
-                                            UI_BackgroundColor(GetDisabledColorCondition(Replay.RecordingSize == 0))
-                                            if(UI_AddBox(S8("Save to disk"), ButtonFlags)->Clicked)
+                                        if(UI_ToggleButton(S8("Save to disk"), RecordingIsEmpty, Color_Disabled))
                                         {
                                             if(Replay.RecordingSize)
                                             {
@@ -786,8 +782,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                         
                                         if(GlobalDebuggerIsAttached)
                                         {
-                                            DebugButton()
-                                                if(UI_AddBox(S8("DebugBreak"), ButtonFlags)->Clicked)
+                                            if(UI_Button(S8("DebugBreak")))
                                             {
                                                 DebugBreak();
                                             }
@@ -795,32 +790,31 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                             DebugSpacer();
                                         }
                                         
-                                        DebugButton()
-                                            if(UI_AddBox(S8("Prev slot"), ButtonFlags)->Clicked)
+                                        if(UI_Button(S8("Prev slot")))
                                         {
                                             ReplaySlot = ((ReplaySlot == 0) ? (MaxReplaySlots - 1) : (ReplaySlot - 1));
                                         }
                                         
-                                        DebugButton()
-                                            if(UI_AddBox(S8("Next slot"), ButtonFlags)->Clicked)
+                                        if(UI_Button(S8("Next slot")))
                                         {
                                             ReplaySlot = ((ReplaySlot == (MaxReplaySlots - 1)) ? (0) : (ReplaySlot + 1));
                                         }
                                         
                                         DebugSpacer();
                                         
-                                        if(DebugReplayToggleButton(S8("Logging"), Logging, false)->Clicked)
+                                        
+                                        if(UI_ToggleButton(S8("Logging"), Logging, Color_Red))
                                         {
                                             Logging = !Logging;
                                         }
                                         
                                         
-                                        if(DebugReplayToggleButton(S8("Pause"), Paused, false)->Clicked)
+                                        if(UI_ToggleButton(S8("Pause"), Paused, Color_Red))
                                         {
                                             Paused = !Paused;
                                         }
                                         
-                                        if(DebugReplayToggleButton(S8("Profiling"), GlobalIsProfiling, false)->Clicked)
+                                        if(UI_ToggleButton(S8("Profiling"), GlobalIsProfiling, Color_Red))
                                         {                                    
                                             GlobalIsProfiling = !GlobalIsProfiling;
                                         }
@@ -831,7 +825,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                         UI_SemanticWidth(UI_SizeText(2.f, 1.f))
                                         UI_SemanticHeight(UI_SizeText(2.f, 1.f))
                                     {
-                                        UI_AddBox(Str8Fmt("cpu: %.2fms/f###cpu frame time", LastWorkMSPerFrame), Flags);
+                                        UI_Labelf(0, "cpu: %.2fms/f###cpu frame time", LastWorkMSPerFrame);
                                         
                                         {                                    
                                             str8 StateName = S8("App");
@@ -839,16 +833,15 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                             if(Replay.IsLooping) StateName = S8("Looping");
                                             if(Replay.IsRecording) StateName = S8("Recording");
                                             if(Paused) StateName = S8("Paused");
-                                            UI_AddBox(Str8Fmt("[" S8Fmt "]###state", S8Arg(StateName)), Flags);
+                                            UI_Labelf(0, "[" S8Fmt "]###state", S8Arg(StateName));
                                         }
                                         
                                         u64 LastStepIdx = (Replay.StepsCount > 0 ? Replay.StepsCount - 1 : 0); 
-                                        // TODO(luca): UI Header
-                                        UI_AddBox(S8("Steps"), Flags|UI_BoxFlag_DrawBorders);
-                                        UI_AddBox(Str8Fmt("idx:    %-4lu###StepIdx", Replay.StepIdx), Flags);
-                                        UI_AddBox(Str8Fmt("target: %-4lu###StepTarget", Replay.StepTarget), Flags);
-                                        UI_AddBox(Str8Fmt("count:  %-4lu###StepsCount", Replay.StepsCount), Flags);
-                                        UI_AddBox(Str8Fmt("Slot: %lu###Slot", ReplaySlot), Flags);
+                                        UI_Labelf(UI_BoxFlag_DrawBorders, "Steps");
+                                        UI_Labelf(0, "idx:    %-4lu###StepIdx", Replay.StepIdx);
+                                        UI_Labelf(0, "target: %-4lu###StepTarget", Replay.StepTarget);
+                                        UI_Labelf(0, "count:  %-4lu###StepsCount", Replay.StepsCount);
+                                        UI_Labelf(0, "Slot: %lu###Slot", ReplaySlot);
                                     }
                                 }
                             }
@@ -1002,42 +995,42 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
 #if 1   
                 tsf_render_short(GlobalTSF, Samples, (s32)SamplesToWrite, 0);
-                #else
+#else
                 Code.GetAudioSamples(ThreadContext, Samples, (s64)SamplesToWrite);
-                #endif
-
+#endif
+                
                 OS_ProfileAndPrint("Get samples");
-
+                
 #if 0                
                 Log("Avail: %ld, Delay: %ld, ToWrite: %zu\n", 
                     AvailableFrames, DelayFrames, SamplesToWrite);
-                #endif
-
+#endif
+                
                 if(AvailableFrames >= 0 && SamplesToWrite > AvailableFrames)
                 {
                     Log("Overrun.\n");
-                SamplesToWrite = AvailableFrames;
+                    SamplesToWrite = AvailableFrames;
                 }
                 
                 snd_pcm_sframes_t SamplesWritten = snd_pcm_writei(SoundHandle, Samples, (u64)SamplesToWrite);
-                    
-                    if(SamplesWritten < 0)
+                
+                if(SamplesWritten < 0)
+                {
+                    if(SamplesWritten == -EAGAIN)
                     {
-                        if(SamplesWritten == -EAGAIN)
-                        {
                         Log("Buffer is full.\n");
                         InvalidPath();
-                        }
-                        else
-                        {
-                        snd_pcm_recover(SoundHandle, (int)SamplesWritten, ALSA_RECOVER_SILENT);
-                            FirstTimeSound = true;
-                            }
                     }
-
+                    else
+                    {
+                        snd_pcm_recover(SoundHandle, (int)SamplesWritten, ALSA_RECOVER_SILENT);
+                        FirstTimeSound = true;
+                    }
+                }
+                
                 OS_ProfileAndPrint("Sound output");
 #endif
-
+                
                 f64 WorkCounter = OS_GetWallClock();
                 f64 WorkMSPerFrame = OS_MSElapsed(LastCounter, WorkCounter);
                 LastWorkMSPerFrame = WorkMSPerFrame;

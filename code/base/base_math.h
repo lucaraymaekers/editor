@@ -18,6 +18,13 @@ struct range_u64
     u64 Max;
 };
 
+typedef union v2s32 v2s32;
+union v2s32
+{
+    s32 e[2];
+    struct { s32 X, Y; };
+};
+
 typedef union v2 v2;
 union v2
 {
