@@ -427,11 +427,13 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
 internal void
 UI_CalculateUpwardSizes(ui_box *Box, axis2 Axis)
 {
+    if(S8Match(Box->DisplayString, S8("BPM"), false))
+    {
+        NoOp();
+    }
+    
     if(Box->SemanticSize[Axis].Kind == UI_SizeKind_PercentOfParent)
     {
-        
-        if(Box == UI_State->DebugBox);
-        
         Box->FixedSize.e[Axis] = (Box->SemanticSize[Axis].Value * 
                                   Box->Parent->FixedSize.e[Axis]);
     }

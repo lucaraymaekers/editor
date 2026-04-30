@@ -1201,7 +1201,7 @@ UI_PushList(axis2 Axis, str8 Name)
     
     UI_Label(Name);
     
-    UI_Spacer(UI_SizeEm(.3f, 1.f));
+    UI_Spacer(UI_SizeEm(.2f, 1.f));
 }
 
 internal void
@@ -1668,39 +1668,36 @@ UI_Slider(f32 MinSize, f32 MaxSize,
     
     UI_FillWidth()
         UI_BackgroundColor(Color_ButtonBackground)
-        Box = UI_AddBox(S8("Slider"), (UI_BoxFlag_Clip|
-                                       UI_BoxFlag_MouseClickable|
-                                       UI_BoxFlag_DrawBorders|
-                                       UI_BoxFlag_DrawHotEffects|
-                                       UI_BoxFlag_DrawActiveEffects|
-                                       UI_BoxFlag_Scroll));
+        Box = UI_AddBox(DisplayName, (UI_BoxFlag_Clip|
+                                      UI_BoxFlag_MouseClickable|
+                                      UI_BoxFlag_DrawBorders|
+                                      UI_BoxFlag_DrawHotEffects|
+                                      UI_BoxFlag_DrawActiveEffects|
+                                      UI_BoxFlag_Scroll));
     
     UI_Push() 
-        UI_Column() UI_Padding(Padding)
-        UI_Row() UI_Padding(Padding)
-    {
+        UI_FillAll() UI_Row() UI_Padding(Padding)
+        UI_FillAll() UI_Column() UI_Padding(Padding)
+    {        
         UI_FillAll()
-            UI_AddBox(S8("background"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
+            UI_AddBox(S8("BackgroundColor"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
         UI_Push()
             UI_FillHeight()
             UI_SemanticWidth(UI_SizeParent(FillLevel, 0.f))
             UI_BackgroundColor(Color_Orange)
-            UI_AddBox(S8("color"), (UI_BoxFlag_Clip|
-                                    UI_BoxFlag_DrawBackground));
+            UI_AddBox(S8("FillColor"), (UI_BoxFlag_Clip|
+                                        UI_BoxFlag_DrawBackground));
     }
     
-    UI_FillWidth()
-        UI_AddBox(Str8Fmt(S8Fmt ": %.0f###" S8Fmt, 
-                          S8Arg(DisplayName), Value,
-                          S8Arg(DisplayName)), 
-                  (UI_BoxFlag_Clip|
-                   UI_BoxFlag_DrawDisplayString|
-                   UI_BoxFlag_DrawBorders|
-                   UI_BoxFlag_CenterTextHorizontally|
-                   UI_BoxFlag_CenterTextVertically|
-                   UI_BoxFlag_FloatingX|
-                   UI_BoxFlag_FloatingY));
-    
+    UI_AddBox(Str8Fmt(S8Fmt ": %.0f###label" S8Fmt, 
+                      S8Arg(DisplayName), Value,
+                      S8Arg(DisplayName)), 
+              (UI_BoxFlag_Clip|
+               UI_BoxFlag_DrawDisplayString|
+               UI_BoxFlag_CenterTextHorizontally|
+               UI_BoxFlag_CenterTextVertically|
+               UI_BoxFlag_FloatingX|
+               UI_BoxFlag_FloatingY));
     
     if(!Input->Consumed && 
        (UI_IsActive(Box) || UI_IsHot(Box)) && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
@@ -1790,7 +1787,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         char *FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
         InitFont(&App->Font, FontPath);
         
-        App->PreviousHeightPx = DefaultHeightPx + 1.0f;
+        App->PreviousHeightPx = DefaultHeightPx + 1.f;
         App->HeightPx = DefaultHeightPx;
         App->FrameIdx = 0;
         
@@ -2314,8 +2311,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     }
                 }
                 
+                // List
                 UI_List(Axis2_Y, S8("Music"))
-                {                
+                {         
                     App->Song.BPM = UI_Slider(30.f, 180.f, .1f, App->Song.BPM, S8("BPM"));
                     App->Song.TimeSig = UI_Slider(1.f, 4.f, .1f, App->Song.TimeSig, S8("TimeSig"));
                 }
