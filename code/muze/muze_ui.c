@@ -377,7 +377,7 @@ UI_DefaultState(ui_box *Root, f32 HeightPx)
     UI_PushTextColor(Color_ButtonText);
     UI_PushBorderColor(Color_ButtonBorder);
     UI_PushSoftness(0.f);
-    UI_PushBorderThickness(2.f);
+    UI_PushBorderThickness(1.f);
     UI_PushCornerRadii(V4F32(0.f));
     UI_PushLayoutAxis(Axis2_X);
     UI_PushSemanticWidth(UI_SizeParent(1.f, 1.f));
@@ -427,11 +427,6 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
 internal void
 UI_CalculateUpwardSizes(ui_box *Box, axis2 Axis)
 {
-    if(S8Match(Box->DisplayString, S8("BPM"), false))
-    {
-        NoOp();
-    }
-    
     if(Box->SemanticSize[Axis].Kind == UI_SizeKind_PercentOfParent)
     {
         Box->FixedSize.e[Axis] = (Box->SemanticSize[Axis].Value * 

@@ -1666,38 +1666,46 @@ UI_Slider(f32 MinSize, f32 MaxSize,
         FillLevel = Pct*(1.f - SliderMinPct) + SliderMinPct;
     }
     
-    UI_FillWidth()
-        UI_BackgroundColor(Color_ButtonBackground)
-        Box = UI_AddBox(DisplayName, (UI_BoxFlag_Clip|
-                                      UI_BoxFlag_MouseClickable|
-                                      UI_BoxFlag_DrawBorders|
-                                      UI_BoxFlag_DrawHotEffects|
-                                      UI_BoxFlag_DrawActiveEffects|
-                                      UI_BoxFlag_Scroll));
-    
-    UI_Push() 
-        UI_FillAll() UI_Row() UI_Padding(Padding)
-        UI_FillAll() UI_Column() UI_Padding(Padding)
+    UI_Softness(.5f) UI_CornerRadii(V4F32(3.f))
     {        
-        UI_FillAll()
-            UI_AddBox(S8("BackgroundColor"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
-        UI_Push()
-            UI_FillHeight()
-            UI_SemanticWidth(UI_SizeParent(FillLevel, 0.f))
-            UI_BackgroundColor(Color_Orange)
-            UI_AddBox(S8("FillColor"), (UI_BoxFlag_Clip|
-                                        UI_BoxFlag_DrawBackground));
+        UI_FillWidth()
+            UI_BackgroundColor(Color_ButtonBackground)
+            Box = UI_AddBox(Str8Fmt(S8Fmt "Slider", S8Arg(DisplayName)),
+                            (UI_BoxFlag_Clip|
+                             UI_BoxFlag_MouseClickable|
+                             UI_BoxFlag_DrawBorders|
+                             UI_BoxFlag_DrawHotEffects|
+                             UI_BoxFlag_DrawActiveEffects|
+                             UI_BoxFlag_Scroll));
+        
+        UI_Push() 
+            UI_FillAll() UI_Row() UI_Padding(Padding)
+            UI_FillAll() UI_Column() UI_Padding(Padding)
+        {        
+            UI_FillAll()
+                UI_AddBox(S8("BackgroundColor"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
+            UI_Push()
+                UI_FillHeight()
+                UI_SemanticWidth(UI_SizeParent(FillLevel, 0.f))
+                UI_BackgroundColor(Color_Orange)
+                UI_AddBox(S8("FillColor"), (UI_BoxFlag_Clip|
+                                            UI_BoxFlag_DrawBackground));
+        }
+        
+        // TODO(luca): Remove this se we have only the slider
+        if(1)
+        {    
+            UI_AddBox(Str8Fmt(S8Fmt ": %.0f###Label" S8Fmt, 
+                              S8Arg(DisplayName), Value,
+                              S8Arg(DisplayName)), 
+                      (UI_BoxFlag_Clip|
+                       UI_BoxFlag_DrawDisplayString|
+                       UI_BoxFlag_CenterTextHorizontally|
+                       UI_BoxFlag_CenterTextVertically|
+                       UI_BoxFlag_FloatingX|
+                       UI_BoxFlag_FloatingY));
+        }
     }
-    
-    UI_AddBox(Str8Fmt(S8Fmt ": %.0f###label" S8Fmt, 
-                      S8Arg(DisplayName), Value,
-                      S8Arg(DisplayName)), 
-              (UI_BoxFlag_Clip|
-               UI_BoxFlag_DrawDisplayString|
-               UI_BoxFlag_CenterTextHorizontally|
-               UI_BoxFlag_CenterTextVertically|
-               UI_BoxFlag_FloatingX|
-               UI_BoxFlag_FloatingY));
     
     if(!Input->Consumed && 
        (UI_IsActive(Box) || UI_IsHot(Box)) && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
@@ -2311,11 +2319,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     }
                 }
                 
-                // List
                 UI_List(Axis2_Y, S8("Music"))
                 {         
+                    
                     App->Song.BPM = UI_Slider(30.f, 180.f, .1f, App->Song.BPM, S8("BPM"));
-                    App->Song.TimeSig = UI_Slider(1.f, 4.f, .1f, App->Song.TimeSig, S8("TimeSig"));
+                    App->Song.TimeSig = UI_Slider(1.f, 4.f, .25f, App->Song.TimeSig, S8("TimeSig"));
                 }
                 
 #if MUZE_INTERNAL                
@@ -2362,8 +2370,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     UI_Labelf("Hot->tActive = %.2f", Hot->tActive);
                     
                 }
-            }
 #endif
+            }
             
             // UI Panels
             
