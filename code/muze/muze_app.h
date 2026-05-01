@@ -74,6 +74,13 @@ struct panel_rec
     s32 PopCount;
 };
 
+typedef enum note_kind note_kind;
+enum note_kind
+{
+    NoteKind_Note,
+    NoteKind_Pedal
+};
+
 typedef struct note note;
 struct note
 {
@@ -81,6 +88,8 @@ struct note
     u8 Velocity;
     f32 Timestamp;
     f32 Duration;
+    
+    note_kind Kind;
 };
 raddbg_type_view(note, rows(Note, (s32)Pitch, no_char((note_pitch)(Pitch%Note_Count)), no_char(Velocity), omit($, Pitch, Velocity)));
 

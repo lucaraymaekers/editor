@@ -1077,8 +1077,6 @@ MuzeInit(song *Song)
     Song->RecordStart = 0.f;
     Song->RecordEnd = 0.f;
     Song->PlayPos = 0.f;
-    Song->BPM = 100.f;
-    Song->TimeSig = 3;
     Song->NoteSel = 0;
 }
 
@@ -1790,6 +1788,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
     if(!Memory->Initialized)
     {
         MuzeInit(&App->Song);
+        App->Song.TimeSig = 3;
+        App->Song.BPM = 100.f;
         
         // NOTE(luca): Hardcoded for my windows setup
         char *FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
@@ -2305,25 +2305,97 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         // TODO(luca): Delete notes
                     }
                     
-                    if(UI_Button(S8("Cycle duration")))
+                    if(UI_Button(S8("GuessBPM")))
                     {
-                        // TODO(luca): Cycle note duration
+                        note_node *Node = Song->NoteSel;
+                        
+                        f32 AveragedDiff = 0.f;
+                        f32 Diff = 0.f;
+                        
+                        if(Node && Node->Next)
+                        {
+                            note *Start = Node->Value;
+                            note *End = Node->Next->Value;
+                            
+                            if(Start->Timestamp > End->Timestamp) Swap(Start, End);
+                            
+                            Diff = (End->Timestamp - Start->Timestamp);
+                            
+                             Node = Node->Next;
+                            
+                            // Time that goes in a bar
+                        f32 SecondsPerBeat = Diff/(f32)Song->TimeSig;
+                        Song->BPM = (1.f/SecondsPerBeat)*60.f;
+                        }
+
+                    }
+                    }
+                
+                UI_List(Axis2_Y, S8("Set Length"))
+                {
+                    if(UI_Button(S8("4")))
+                    {
+                        for EachNoteNode(Note, Song->NoteSel)
+                        {
+                            f32 Ratio = 4.f;
+                            f32 SecondsPerBeat = (1.f/(Song->BPM/60.f));
+                            Note->Duration = Ratio*SecondsPerBeat;
+                        }
+                    }
+                    if(UI_Button(S8("2")))
+                    {
+                        for EachNoteNode(Note, Song->NoteSel)
+                        {
+                            f32 Ratio = 2.f;
+                            f32 SecondsPerBeat = (1.f/(Song->BPM/60.f));
+                            Note->Duration = Ratio*SecondsPerBeat;
+                        }
+                    }
+                    if(UI_Button(S8("1")))
+                    {
+                        for EachNoteNode(Note, Song->NoteSel)
+                        {
+                            f32 Ratio = 1.f;
+                            f32 SecondsPerBeat = (1.f/(Song->BPM/60.f));
+                            Note->Duration = Ratio*SecondsPerBeat;
+                        }
+                    }
+                    if(UI_Button(S8("1/2")))
+                    {
+                        for EachNoteNode(Note, Song->NoteSel)
+                        {
+                            f32 Ratio = 1.f/2.f;
+                            f32 SecondsPerBeat = (1.f/(Song->BPM/60.f));
+                            Note->Duration = Ratio*SecondsPerBeat;
+                        }
+                    }
+                    if(UI_Button(S8("1/4")))
+                    {
+                        for EachNoteNode(Note, Song->NoteSel)
+                        {
+                            f32 Ratio = 1.f/4.f;
+                            f32 SecondsPerBeat = (1.f/(Song->BPM/60.f));
+                            Note->Duration = Ratio*SecondsPerBeat;
+                        }
+                    }
+                    if(UI_Button(S8("1/8")))
+                    {
+                        for EachNoteNode(Note, Song->NoteSel)
+                        {
+                            f32 Ratio = 1.f/8.f;
+                            f32 SecondsPerBeat = (1.f/(Song->BPM/60.f));
+                            Note->Duration = Ratio*SecondsPerBeat;
+                        }
                     }
                     
-                    if(UI_Button(S8("BPMFromPattern")))
-                    {
-                        // TODO(luca): 
-                        // 1. Check position in beat
-                        // 2. Travel by bar-length
-                        // 3. Find note at matching position.
-                    }
                 }
+                
                 
                 UI_List(Axis2_Y, S8("Music"))
                 {         
                     
                     App->Song.BPM = UI_Slider(30.f, 180.f, .1f, App->Song.BPM, S8("BPM"));
-                    App->Song.TimeSig = UI_Slider(1.f, 4.f, .25f, App->Song.TimeSig, S8("TimeSig"));
+                    App->Song.TimeSig = (s32)UI_Slider(1.f, 4.f, .25f, (f32)App->Song.TimeSig, S8("TimeSig"));
                 }
                 
 #if MUZE_INTERNAL                
