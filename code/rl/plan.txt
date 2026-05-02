@@ -1,0 +1,67 @@
+
+# Misc
+- ui/renderer: - Some borders of the buttons are not exactly 1px like they should be.
+
+# Codebase
+- Change to snake case for everything except types.
+- Intrinsics
+- Better profiler. (with UI)
+  - graphs
+  - computerenhance
+
+- Cmdline hash parsing 
+
+- tick() function?
+
+# UI
+- DisplayString should be only string, and UI_Label should be what I need for displaying text fields.
+
+- Assert for adding the exact same box twice (?)
+- Implement properties from https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language
+- inset elements
+- ui: windows
+
+# Renderer
+- Speed up atlas creation.
+- Glyph cache for faster atlas creating
+
+- shader:
+  - group draw calls with those that need the same texture and those that don't without changing draw order (because foreground&background) 
+  - find a way to push a texture for a number of rectangles
+  - then pop when not adding characters anymore
+
+
+# Platorm
+- Replay improvements
+  - More UI for operations  
+  - Forward/Backward 1 frame
+  x Multiple slots
+  - Save/Load replay to/from file
+  - Select a starting state 
+  - Overwrite a recording buffer partially.
+    - Idea: Always load/to Save.Buffer so that we have enough space to eventually get it out.
+  - We could use an arena for permanent memory so that the platform knows exactly how much memory to write to disk to speed up load/save times.  But in the end we might end up being using all that memory or more so does it really matter?
+
+- Logging improvements
+  - Attach callstack, frame index, time to errors, (maybe even system tag) 
+  - Multiple levels
+  - Visual console to view logs
+
+- linux: release clipboard when exiting
+- linux: investigate startup time.
+  - choosing visual config ~40ms
+  - atlas = 90ms
+
+- Move window to unfocused monitor when other monitor is focused.
+- Change key inputs to linked list so we can easily remove a key from it.
+- Specify window name with P_Init
+- Detect refresh rate
+- Merge editor and muze
+
+- keyboard input (pressing & holding, vs text)
+  - easier query of keys & modifiers.
+  - to have key binds. (WasPressed(Control, 'c')
+- window resizing
+- sleep threads when idle
+- custom borders and titlebar
+

@@ -105,6 +105,7 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
         rune CharIdx = Codepoint - Atlas->FirstCodepoint;
         stbtt_packedchar *PackedChar = &Atlas->PackedChars[CharIdx];
         stbtt_aligned_quad *Quad = &Atlas->AlignedQuads[CharIdx];
+        // TODO(luca): Investigate why floorf needed.
         f32 Width = floorf(PackedChar->x1 - PackedChar->x0);
         f32 Height = floorf(PackedChar->y1 - PackedChar->y0);
         {    
@@ -181,8 +182,8 @@ RenderDrawAllRectangles(gl_render_state *Render, v2 BufferDim, font_atlas *Atlas
         gl_uint RectShader = Render->RectShader;
         glDeleteProgram(RectShader);
         
-        RectShader = GL_ProgramFromShaders(S8("../code/muze/generated/rect_vert.glsl"),
-                                           S8("../code/muze/generated/rect_frag.glsl"));
+        RectShader = GL_ProgramFromShaders(S8("../code/rl/generated/rect_vert.glsl"),
+                                           S8("../code/rl/generated/rect_frag.glsl"));
         glUseProgram(RectShader);
         
         GL_LoadTextureFromImage(Render->Textures[0], Atlas->Width, Atlas->Height, Atlas->Data, GL_RED, RectShader, "Texture");
@@ -196,7 +197,7 @@ RenderDrawAllRectangles(gl_render_state *Render, v2 BufferDim, font_atlas *Atlas
         Render->ShadersCompiled = true;
     }
     
-#if MUZE_HOT_RELOAD_SHADERS
+#if RL_PLATFORM_HOT_RELOAD_SHADERS
     Render->ShadersCompiled = false;
 #endif
     

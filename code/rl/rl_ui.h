@@ -1,7 +1,6 @@
 /* date = February 23rd 2026 6:09 pm */
 
-#ifndef MUZE_UI_H
-#define MUZE_UI_H
+#pragma once
 
 //~ Types
 enum axis2
@@ -270,5 +269,3 @@ internal void UI_PopFontKind()                    { UI_StackPop(FontKind); }
 #define UI_SemanticFull() \
 UI_SemanticHeight(UI_SizeParent(1.f, 1.f)) \
 UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
-
-#endif //MUZE_UI_H

@@ -1,10 +1,7 @@
 /* date = January 26th 2026 11:00 am */
-
-#ifndef MUZE_GL_H
-#define MUZE_GL_H
+#pragma once
 
 //~ Types
-
 typedef GLuint gl_uint;
 typedef GLint gl_int;
 typedef GLenum gl_enum;
@@ -135,5 +132,3 @@ GL_LoadTextureFromImage(gl_uint Texture, s32 Width, s32 Height, u8 *Image, gl_en
     gl_int UTexture = glGetUniformLocation(ShaderProgram, TextureHandle); 
     glUniform1i(UTexture, 0);
 }
-
-#endif //MUZE_GL_H

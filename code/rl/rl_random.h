@@ -1,7 +1,6 @@
 /* date = December 21st 2025 1:11 pm */
 
-#ifndef MUZE_RANDOM_H
-#define MUZE_RANDOM_H
+#pragma once
 
 //~ Random 
 #include <math.h>
@@ -93,5 +92,3 @@ RandomBetween(random_series *Series, f32 Min, f32 Max)
     f32 Result = Min + RandomUnilateral(Series)*Range;
     return Result;
 }
-
-#endif //MUZE_RANDOM_H

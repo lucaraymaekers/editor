@@ -29,12 +29,15 @@ UI_BoxFlags:
     DrawDebugBorder,
     DrawShadow,
     DrawDisplayString,
+    DrawHotEffects,
+    DrawActiveEffects,
     CenterTextHorizontally,
     CenterTextVertically,
-    MouseClickability,
+    MouseClickable,
     FloatingX,
     FloatingY,
     Clip,
+    Scroll,
 }
 
 // TODO(luca): Metaprogram
@@ -248,3 +251,22 @@ void main()
     FragColor = Color;
 }
 ```
+
+MIDIKeyboardNotes:
+{
+    { a, C  }
+    { w, Cs }
+    { s, D  }
+    { e, Ds }
+    { d, E  }
+    { f, F  }
+    { t, Fs }
+    { g, G  }
+    { y, Gs }
+    { h, A  }
+    { u, As }
+    { j, B  }
+    { k, C  }
+    { i, Cs }
+    { l, D  }
+}

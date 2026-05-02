@@ -1,9 +1,8 @@
 # Now
-multiple panes
-sf2
+- multiple panes
+- sf2 and TSF
 
 # Muze (planned) features 
-- Snap BPM to bass notes 
 
 - Elongate & Shrink notes to their nearest musical length
   - When unsure, multiple possibilites make the user decide.
@@ -34,14 +33,14 @@ sf2
 - Lists of patterns you can choose from
   e.g., for accompaniments. arpeggio's etc.
 
-# TODO
-- Sheet music lines 
+# Next
+- Multiple panes
+- Autoscroll when playing
+- Go to End/Beginning
 - Sheet music show more than one octave
   - Raise an octave for selection
-- Scroll the roll and sheet with xdelta.
 
 # UI
-- UI vertical list that has same width for all children 
 - Show only selected notes.
 
 - UI slider for things settings
@@ -60,17 +59,12 @@ sf2
 
 # Other
 - Get all note timestamps in record time. 
-  
 - Nickname for MIDI devices.
-
-- codebase: Change to snake case for everything except types.
-- platform: Move window to unfocused monitor when other monitor is focused.
-- platform: Change key inputs to linked list so we can easily remove a key from it.
-- platform: Specify window name with P_Init
-- platform: Detect refresh rate
-- platform: Merge editor and muze
-- ui: DisplayString should be only string, and UI_Label should be what I need for displaying text fields.
 
 # Archived
 x Platform layer MIDI API
- x Trim silence
+  x Trim silence
+x UI vertical list that has same width for all children 
+x Snap BPM to bass notes 
+x Sheet music lines 
+x Scroll the roll and sheet with xdelta.

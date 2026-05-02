@@ -137,7 +137,7 @@ LinuxBuildCommand(str8 Source,
 }
 
 internal void
-MuzeBuildCommand(str8 Source, 
+BuildAndRun(str8 Source, 
                  str8 OutputName, 
                  b32 GCC, b32 Clang, b32 Asan, b32 Debug,
                  str8_array *ExtraFlags,
@@ -423,7 +423,7 @@ ENTRY_POINT(EntryPoint)
                 Log("Generating code...\n");
                 
                 GlobalMDArena = MD_ArenaAlloc();
-                MD_String8 FileName = MD_S8Lit("../code/editor/tables.mdesk");
+                MD_String8 FileName = MD_S8Lit("../code/rl/rl_tables.mdesk");
                 MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FileName);
                 
                 // Print metadesk errors
@@ -542,63 +542,68 @@ ENTRY_POINT(EntryPoint)
                         }
                     }
                     
-                    WriteStreamToFile(CStream, "../code/editor/generated/everything.c");
-                    WriteStreamToFile(VSStream, "../code/editor/generated/rect_vert.glsl");
-                    WriteStreamToFile(PSStream, "../code/editor/generated/rect_frag.glsl");
+                    WriteStreamToFile(CStream, "../code/rl/generated/everything.c");
+                    WriteStreamToFile(VSStream, "../code/rl/generated/rect_vert.glsl");
+                    WriteStreamToFile(PSStream, "../code/rl/generated/rect_frag.glsl");
                 }
             }
             
             // Editor build
             {
-                str8_array *CommonMuzeFlags = PushStr8Array(256);
-                Str8ArrayAppendTo(CommonMuzeFlags, S8("-I" CLING_CODE_PATH));
+                str8_array *CommonEditorFlags = PushStr8Array(256);
+                Str8ArrayAppendTo(CommonEditorFlags, S8("-I" CLING_CODE_PATH));
                 
                 if(OS_FileExists(CLING_CODE_PATH "base/base_build.h"))
                 {
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DBASE_PERSONAL=1"));
+                    Str8ArrayAppendTo(CommonEditorFlags, S8("-DBASE_PERSONAL=1"));
                 }
                 
                 char *LibsFileName = (OSWindows ? 
-                                      CLING_BUILD_PATH "editor_libs.obj" :
+                                      CLING_BUILD_PATH "rl_libs.obj" :
                                       (OSLinux ?
-                                       CLING_BUILD_PATH "editor_libs.o" :
+                                       CLING_BUILD_PATH "rl_libs.o" :
                                        0));
                 
                 if(!OS_FileExists(LibsFileName))
                 {
                     str8 ExtraLinkerFlags = {0};
-                    Str8ArrayPushCount(CommonMuzeFlags)
+                    Str8ArrayPushCount(CommonEditorFlags)
                     {
-                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=1"));
+                        Str8ArrayAppendTo(CommonEditorFlags, S8("-DRL_LIBS_SLOW_COMPILE=1"));
                         
-                        MuzeBuildCommand(S8("../code/editor/editor_libs.h"), 
-                                         S8("editor_libs"), 
+                        BuildAndRun(S8("../code/rl/rl_libs.h"), 
+                                         S8("rl_libs"), 
                                          GCC, Clang, Asan, Debug,
-                                         CommonMuzeFlags, ExtraLinkerFlags,
+                                         CommonEditorFlags, ExtraLinkerFlags,
                                          S8(""),
                                          false, true);
                     }
                 }
                 
-                Str8ArrayPushCount(CommonMuzeFlags)
+                str8 EditorAppName = S8("editor_app");
+                
+                Str8ArrayPushCount(CommonEditorFlags)
                 {
                     str8 ExtraLinkerFlags  = {0};
                     
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=0"));
+                    Str8ArrayAppendTo(CommonEditorFlags, S8("-DRL_LIBS_SLOW_COMPILE=0"));
                     
-                    MuzeBuildCommand(S8("../code/editor/editor_app.c"), 
-                                     S8("editor_app"),
+                    BuildAndRun(S8("../code/editor/editor_app.c"), 
+                                     EditorAppName,
                                      GCC, Clang, Asan, Debug,
-                                     CommonMuzeFlags, ExtraLinkerFlags,
+                                     CommonEditorFlags, ExtraLinkerFlags,
                                      S8FromCString(LibsFileName),
                                      true, false);
                 }
                 
-                Str8ArrayPushCount(CommonMuzeFlags)
+                Str8ArrayPushCount(CommonEditorFlags)
                 {
                     str8 ExtraLinkerFlags = {0};
                     
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=0"));
+                    Str8ArrayAppendTo(CommonEditorFlags, Str8Fmt("-DRL_LIBS_SLOW_COMPILE=0 "
+                                                                              "-DRL_PLATFORM_WINDOW_NAME=\"%s\" "
+                                                                                 "-DRL_PLATFORM_APP_NAME=\"" S8Fmt "\"",
+                                                                                   "Editor", S8Arg(EditorAppName)));
                     
                     if(0) {}
                     else if(OSLinux)
@@ -610,10 +615,10 @@ ENTRY_POINT(EntryPoint)
                         ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
                     }
                     
-                    MuzeBuildCommand(S8("../code/editor/editor_platform.c"),
+                    BuildAndRun(S8("../code/rl/rl_platform.c"),
                                      S8("editor"),
                                      GCC, Clang, Asan, Debug,
-                                     CommonMuzeFlags, ExtraLinkerFlags,
+                                     CommonEditorFlags, ExtraLinkerFlags,
                                      S8FromCString(LibsFileName), 
                                      false, false);
                 }
@@ -629,7 +634,7 @@ ENTRY_POINT(EntryPoint)
                 Log("Generating code...\n");
                 
                 GlobalMDArena = MD_ArenaAlloc();
-                MD_String8 FileName = MD_S8Lit("../code/muze/tables.mdesk");
+                MD_String8 FileName = MD_S8Lit("../code/rl/rl_tables.mdesk");
                 MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FileName);
                 
                 // Print metadesk errors
@@ -748,16 +753,18 @@ ENTRY_POINT(EntryPoint)
                         }
                     }
                     
-                    WriteStreamToFile(CStream, "../code/muze/generated/everything.c");
-                    WriteStreamToFile(VSStream, "../code/muze/generated/rect_vert.glsl");
-                    WriteStreamToFile(PSStream, "../code/muze/generated/rect_frag.glsl");
+                    WriteStreamToFile(CStream, "../code/rl/generated/everything.c");
+                    WriteStreamToFile(VSStream, "../code/rl/generated/rect_vert.glsl");
+                    WriteStreamToFile(PSStream, "../code/rl/generated/rect_frag.glsl");
                 }
             }
             
             // Compile
             {            
+                    str8 MuzeAppName = S8("muze_app");
                 str8_array *CommonMuzeFlags = PushStr8Array(256);
                 Str8ArrayAppendTo(CommonMuzeFlags, S8("-I" CLING_CODE_PATH));
+                
                 
                 if(OS_FileExists(CLING_CODE_PATH "base/base_build.h"))
                 {
@@ -765,19 +772,19 @@ ENTRY_POINT(EntryPoint)
                 }
                 
                 char *LibsFileName = (OSWindows ? 
-                                      CLING_BUILD_PATH "muze_libs.obj" :
+                                      CLING_BUILD_PATH "rl_libs.obj" :
                                       (OSLinux ?
-                                       CLING_BUILD_PATH "muze_libs.o" :
+                                       CLING_BUILD_PATH "rl_libs.o" :
                                        0));
                 
                 if(!OS_FileExists(LibsFileName))
                 {
                     Str8ArrayPushCount(CommonMuzeFlags)
                     {
-                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=1"));
+                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DRL_LIBS_COMPILE=1"));
                         
-                        MuzeBuildCommand(S8("../code/muze/muze_libs.h"), 
-                                         S8("muze_libs"), 
+                        BuildAndRun(S8("../code/rl/rl_libs.h"), 
+                                         S8("rl_libs"), 
                                          GCC, Clang, Asan, Debug,
                                          CommonMuzeFlags, S8(""), S8(""),
                                          false, true);
@@ -786,17 +793,16 @@ ENTRY_POINT(EntryPoint)
                 
                 Str8ArrayPushCount(CommonMuzeFlags)
                 {
-                    str8 ExtraLinkerFlags  = {0};
+                    str8 ExtraLinkerFlags = {0};
+                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DRL_LIBS_SLOW_COMPILE=0"));
                     
                     if(OSWindows)
                     {
                         ExtraLinkerFlags = S8("winmm.lib");
                     }
                     
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=0"));
-                    
-                    MuzeBuildCommand(S8("../code/muze/muze_app.c"), 
-                                     S8("muze_app"),
+                    BuildAndRun(S8("../code/muze/muze_app.c"), 
+                                     MuzeAppName,
                                      GCC, Clang, Asan, Debug,
                                      CommonMuzeFlags, ExtraLinkerFlags, S8FromCString(LibsFileName),
                                      true, false);
@@ -805,8 +811,10 @@ ENTRY_POINT(EntryPoint)
                 Str8ArrayPushCount(CommonMuzeFlags)
                 {
                     str8 ExtraLinkerFlags = {0};
-                    
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=0"));
+                    Str8ArrayAppendTo(CommonMuzeFlags, Str8Fmt("-DRL_LIBS_SLOW_COMPILE=0 "
+                                                               "-DRL_PLATFORM_WINDOW_NAME=\"%s\" "
+                                                               "-DRL_PLATFORM_APP_NAME=\"" S8Fmt "\"",
+                                                               "Muze", S8Arg(MuzeAppName)));
                     
                     if(0) {}
                     else if(OSLinux)
@@ -818,7 +826,7 @@ ENTRY_POINT(EntryPoint)
                         ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
                     }
                     
-                    MuzeBuildCommand(S8("../code/muze/muze_platform.c"),
+                    BuildAndRun(S8("../code/rl/rl_platform.c"),
                                      S8("muze"),
                                      GCC, Clang, Asan, Debug,
                                      CommonMuzeFlags, ExtraLinkerFlags, S8FromCString(LibsFileName), 

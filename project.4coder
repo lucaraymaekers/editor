@@ -29,6 +29,7 @@ paths =
     { .path = "code/lib",     .recursive = true,  .relative = true, },
     { .path = "code/shaders", .recursive = true,  .relative = true, },
     { .path = "code/cling/",  .recursive = false, .relative = true, },
+    { .path = "code/rl/",     .recursive = true,  .relative = true, },
     { .path = "code/muze/",   .recursive = true,  .relative = true, },
     //{ .path = "code/editor/", .recursive = true,  .relative = true, },
     //{ .path = "code/computerenhance/", .recursive = true,  .relative = true, },

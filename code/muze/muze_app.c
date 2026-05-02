@@ -3,20 +3,21 @@
 #include "base/base.h"
 #include "base/base.c"
 
-#include "muze/generated/everything.c"
+#include "rl/generated/everything.c"
+#include "rl/rl_platform.h"
+#include "rl/rl_libs.h"
+#include "rl/rl_font.h"
+#include "rl/rl_random.h"
+#include "rl/rl_gl.h"
+#include "rl/rl_renderer.h"
+#include "rl/rl_ui.h"
+#include "rl/rl_midi.h"
 
-#include "muze/muze_platform.h"
-#include "muze/muze_libs.h"
-#include "muze/muze_font.h"
-#include "muze/muze_random.h"
-#include "muze/muze_gl.h"
-#include "muze/muze_renderer.h"
-#include "muze/muze_ui.h"
 #include "muze/muze_app.h"
-#include "muze/muze_midi.h"
 
-#include "muze/muze_renderer.c"
-#include "muze/muze_ui.c"
+#include "rl/rl_renderer.c"
+#include "rl/rl_ui.c"
+#include "rl/rl_widgets.c"
 
 #if OS_WINDOWS
 # pragma comment(linker, "/export:GetAudioSamples")
@@ -1149,7 +1150,6 @@ StopRecording(app_memory *Memory, song *Song, f32 dtForFrame)
 }
 
 //~ UI 
-#include "muze/muze_widgets.c"
 
 typedef struct muze_box_data muze_box_data;
 struct muze_box_data
@@ -2663,22 +2663,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
 
 GET_AUDIO_SAMPLES(GetAudioSamples)
 {
-    local_persist f32 Time = 0.f;
+    s16 *Samples = Buffer;
+    umm SampleRate = 48000;
     
-    f32 *Samples = (f32 *)Buffer;
     
-    f32 SampleRate = 48000.0f;
-    f32 Frequency = 440.0f;
-    
-    f32 dt = 1.0f / SampleRate;
-    
-    for EachIndex(Idx, FramesCount)
-    {
-        f32 Amplitude = sinf(2.0f*Pi32*Frequency*Time);
-        
-        Samples[2*Idx + 0] = Amplitude;
-        Samples[2*Idx + 1] = Amplitude;
-        
-        Time += dt;
-    } 
 }

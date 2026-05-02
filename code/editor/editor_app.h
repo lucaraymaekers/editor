@@ -95,6 +95,4 @@ struct app_state
 //~ Globals
 #define DefaultHeightPx 24
 
-global_variable arena *FrameArena = 0;
-
 #endif //EDITOR_APP_H

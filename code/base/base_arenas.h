@@ -1,7 +1,11 @@
 /* date = December 6th 2025 2:11 pm */
 
+
+
 #if !defined(ARENAS_H)
 #define ARENAS_H
+
+// TODO(luca): Marker to not have to clear to 0 from freshly allocated pages (OS cleared them).
 
 typedef struct arena arena;
 struct arena

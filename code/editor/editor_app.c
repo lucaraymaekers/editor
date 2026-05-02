@@ -2,21 +2,24 @@
 #define BASE_NO_ENTRYPOINT 1
 #include "base/base.h"
 #include "base/base.c"
-#include "editor/generated/everything.c"
-#include "editor/editor_platform.h"
-#include "editor/editor_libs.h"
-#include "editor/editor_font.h"
-#include "editor/editor_random.h"
-#include "editor/editor_gl.h"
-#include "editor/editor_renderer.h"
+#include "rl/generated/everything.c"
+#include "rl/rl_platform.h"
+#include "rl/rl_libs.h"
+#include "rl/rl_font.h"
+#include "rl/rl_random.h"
+#include "rl/rl_gl.h"
+#include "rl/rl_renderer.h"
+#include "rl/rl_ui.h"
 #include "editor/editor_app.h"
-#include "editor/editor_ui.h"
+NO_WARNINGS_BEGIN
 #include "editor/editor_lexer.h"
 #include "editor/editor_parser.h"
 #include "editor/editor_lexer.c"
 #include "editor/editor_parser.c"
-#include "editor/editor_renderer.c"
-#include "editor/editor_ui.c"
+NO_WARNINGS_END
+#include "rl/rl_renderer.c"
+#include "rl/rl_ui.c"
+#include "rl/rl_widgets.c"
 
 //- Globals
 global_variable panel *NilPanel = 0;
@@ -1413,6 +1416,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
                 switch(Key.Symbol)
                 {
+                    default: break;
+                    
                     case PlatformKey_Return: 
                     {
                         DeleteSelection(Text);
@@ -1749,7 +1754,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                          UI_BoxFlag_DrawDisplayString |
                          UI_BoxFlag_CenterTextVertically |
                          UI_BoxFlag_CenterTextHorizontally);
-            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickability);
+            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickable);
             
             // NOTE(luca): Adding an extra parent like this makes it easy to override defaults
             UI_LayoutAxis(Axis2_Y) 
@@ -1778,12 +1783,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             UI_BackgroundColor(Color_ButtonBackground)
                             {
-                                if(UI_AddBox(S8("Open"), ButtonFlags)->Clicked)
+                                if(UI_Button(S8("Open")))
                                 {
                                     LoadFileToText(Text, S8("./hello.c"));
                                 }
                                 
-                                if(UI_AddBox(S8("Clear"), ButtonFlags)->Clicked)
+                                if(UI_Button(S8("Clear")))
                                 {
                                     Text->Count = 0;
                                     Text->Cursor = 0;
@@ -1791,7 +1796,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     Text->CurRelLine = 0;
                                 }
                                 
-                                if(UI_AddBox(S8("Save"), ButtonFlags)->Clicked)
+                                if(UI_Button(S8("Save")))
                                 {
                                     SaveTextToFile(Text, S8("./hello.c"));
                                 }
@@ -1883,7 +1888,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                          UI_BoxFlag_DrawBackground |
                          UI_BoxFlag_DrawDisplayString |
                          UI_BoxFlag_CenterTextVertically);
-            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickability);
+            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickable);
             
             UI_LayoutAxis(Axis2_Y)
                 UI_SemanticFull()

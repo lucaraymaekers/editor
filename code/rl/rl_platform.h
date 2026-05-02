@@ -5,33 +5,31 @@
 
 // TODO(luca): So that everyone has the same sense of what the "release" version is of the app maybe the sets of flags set in release mode should be defined?
 
-#if 0
 // NOTE(luca): Adds some debug information and interactions that a normal user shouldn't be able to see.
-#if !defined(MUZE_INTERNAL)
-# define MUZE_INTERNAL 0
+#if !defined(RL_PLATFORM_INTERNAL)
+# define RL_PLATFORM_INTERNAL 0
 #endif
 
-// NOTE(luca): Toggles the compiliation of the debug GUI in the platform layer, this is separate from MUZE_INTERNAL because sometimes we want to test the "release" version of our app with our platform debug tools. 
-#if !defined(MUZE_PLATFORM_DEBUG_UI)
-# define MUZE_PLATFORM_DEBUG_UI 0
+// NOTE(luca): Toggles the compiliation of the debug GUI in the platform layer, this is separate from RL_PLATFORM_INTERNAL because sometimes we want to test the "release" version of our app with our platform debug tools. 
+#if !defined(RL_PLATFORM_DEBUG_UI)
+# define RL_PLATFORM_DEBUG_UI 0
 #endif
 
 // NOTE(luca): For performance (specifically on my laptop).
-#if !defined(MUZE_HOT_RELOAD_SHADERS)
-# define MUZE_HOT_RELOAD_SHADERS 0
+#if !defined(RL_PLATFORM_HOT_RELOAD_SHADERS)
+# define RL_PLATFORM_HOT_RELOAD_SHADERS 0
 #endif
 
-#if !defined(MUZE_FORCE_X11)
-# define MUZE_FORCE_X11 0
+#if !defined(RL_PLATFORM_FORCE_X11)
+# define RL_PLATFORM_FORCE_X11 0
 #endif
 
-#if !defined(MUZE_FORCE_SMALL_RESOLUTION)
-# define MUZE_FORCE_SMALL_RESOLUTION 0
-#endif
+#if !defined(RL_PLATFORM_FORCE_SMALL_RESOLUTION)
+# define RL_PLATFORM_FORCE_SMALL_RESOLUTION 0
 #endif
 
 //~ Globals
-#if MUZE_INTERNAL
+#if RL_PLATFORM_INTERNAL
 global_variable b32 IsEditorBuildInternal = true;
 #else
 global_variable b32 IsEditorBuildInternal = false;
@@ -311,7 +309,7 @@ struct app_code
 //~ Platform API
 typedef u64  P_context;
 
-internal P_context P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running);
+internal P_context P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running, char *WindowName);
 internal void      P_UpdateImage(P_context Context, app_offscreen_buffer *Buffer);
 internal void      P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buffer, b32 *Running);
 internal void      P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory);

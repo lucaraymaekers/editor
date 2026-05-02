@@ -352,7 +352,7 @@ PLATFORM_MIDI_CLOSE(P_MIDIClose)
 //~ Platform API
 
 internal P_context 
-P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
+P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running, char *WindowName)
 {
     P_context Result = {0};
     
@@ -375,7 +375,7 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
     WindowClass.hInstance = Instance;
     WindowClass.hCursor = LoadCursor(0, IDC_ARROW);
     //    WindowClass.hIcon;
-    WindowClass.lpszClassName = "HandmadeHeroWindowClass";
+    WindowClass.lpszClassName = "RLWindowClass";
     if(RegisterClassA(&WindowClass))
     {
         RECT WindowRect = { 0, 0, Buffer->Width, Buffer->Height };
@@ -391,7 +391,7 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
         HWND Window = CreateWindowExA(
                                       0,
                                       WindowClass.lpszClassName,
-                                      "Muze",
+                                      WindowName,
                                       Style,
                                       0,
                                       0,
@@ -608,7 +608,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                             }
                             
                             // TODO(luca): Metaprogram
-#if defined(MUZE_COLEMAK)
+#if defined(RL_COLEMAK)
                             uint Symbols[] = { 'A', 'W', 'R', 'F', 'S', 'T', 'G', 'D', 'J', 'H', 'L', 'N', 'E', 'Y', 'I', };
 #else
                             uint Symbols[] = { 'A', 'W', 'S', 'E', 'D', 'F', 'T', 'G', 'Y', 'H', 'U', 'J', 'K', 'I', 'L', };

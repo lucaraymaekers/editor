@@ -1,5 +1,5 @@
 #include "base/base.h"
-#include "muze/muze_midi.h"
+#include "rl/rl_midi.h"
 
 //- ALSA 
 #define ALSA_RECOVER_SILENT false
@@ -265,8 +265,6 @@ global_variable u64 MIDIDevicesCount = 0;
 global_variable u64 MIDIListenDevId = 0;
 global_variable b32 MIDIListenDevInitialized = false;
 
-#define TSF_DEVICE_ID 0
-
 PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
 {
     platform_midi_get_devices_result Result = {0};
@@ -277,11 +275,7 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
     {
         linux_midi_device *LnxDev = MIDIDevices + Idx;
         
-        // NOTE(luca): Special case for TSF
-        // TODO(luca): Only if there is the same name multiple times should there be the port added.
-            str8 Name = (LnxDev->Id == TSF_DEVICE_ID ? LnxDev->Name : Str8Fmt(S8Fmt ": %d", 
-                                                                            S8Arg(LnxDev->Name),
-                                                                            LnxDev->Port));
+            str8 Name = Str8Fmt(S8Fmt ": %d", S8Arg(LnxDev->Name), LnxDev->Port);
             if(LnxDev->CanRead)
     {            
             platform_midi_device *Dev = Result.Devices + Result.Count;
@@ -311,23 +305,6 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
     {
         midi_message MIDIMessage = {Message};
             
-        if(Device.Id == TSF_DEVICE_ID)
-        {
-            u8 Type = MIDIMessage.U8[0];
-            u8 Pitch = MIDIMessage.U8[1]; 
-            u8 Velocity = MIDIMessage.U8[2];
-                    
-            if(Type == MIDIEventType_NoteOn)
-            {
-                tsf_note_on(GlobalTSF, 0, Pitch, (f32)Velocity/127.f);
-            }
-            else if(Type == MIDIEventType_NoteOff)
-            {
-                tsf_note_off(GlobalTSF, 0, Pitch);
-            }
-        }
-        else
-        {
             linux_midi_device *Dev = MIDIDevices + Device.Id;
                     
             snd_seq_connect_to(MIDISeq, MIDIOutPort, Dev->Client, Dev->Port);
@@ -345,13 +322,10 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
         
         snd_seq_event_output(MIDISeq, &Event);
         snd_seq_drain_output(MIDISeq);
-    }
 }
 
 PLATFORM_MIDI_LISTEN(P_MIDIListen)
 {
-    Assert(Device.Id != TSF_DEVICE_ID);
-    
     b32 DeviceChanged = (Device.Id != MIDIListenDevId);
     
     if(MIDIListenDevInitialized && DeviceChanged)
@@ -372,14 +346,14 @@ PLATFORM_MIDI_LISTEN(P_MIDIListen)
 
 //~ Platform API
 internal P_context
-P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
+P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running, char *WindowName)
 {
     OS_ProfileInit("S_L");
     
     // Sound
 {
         snd_seq_open(&MIDISeq, "default", SND_SEQ_OPEN_DUPLEX, 0);
-        snd_seq_set_client_name(MIDISeq, "Muze");
+        snd_seq_set_client_name(MIDISeq, WindowName);
         
         snd_seq_client_info_alloca(&MIDIClientInfo);
         snd_seq_port_info_alloca(&MIDIPortInfo);
@@ -396,15 +370,6 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
 {        
             MIDIDevices = PushArrayZero(Arena, linux_midi_device, MaxMIDIDevicesCount); 
             
-            {    
-            linux_midi_device *Dev = MIDIDevices + MIDIDevicesCount;
-            Dev->Id = MIDIDevicesCount;
-            MIDIDevicesCount += 1;
-            
-            Dev->Name = Str8DupCString(Arena, "TSF");
-            Dev->CanWrite = true;
-        }
-        
         snd_seq_client_info_set_client(MIDIClientInfo, -1);
         while(snd_seq_query_next_client(MIDISeq, MIDIClientInfo) >= 0)
         {
@@ -441,11 +406,9 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
             }
         }
         }
-
-        
 }
     
-#if MUZE_FORCE_X11
+#if RL_PLATFORM_FORCE_X11
     b32 OpenGLMode = false;
 #else
     b32 OpenGLMode = true;
@@ -453,7 +416,6 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
     
     P_context Result = 0;
     s32 XRet = 0;
-    char *WindowName = "Muze";
     
     linux_x11_context *Context = PushStruct(Arena, linux_x11_context);
     
@@ -565,7 +527,7 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
         {
             XSetWindowAttributes WindowAttributes = {0};
             WindowAttributes.bit_gravity = StaticGravity;
-#if MUZE_INTERNAL            
+#if RL_PLATFORM_INTERNAL            
             WindowAttributes.background_pixel = 0xFF00FF;
 #endif
             WindowAttributes.colormap = XCreateColormap(DisplayHandle, RootWindow, WindowVisualInfo.visual, AllocNone);
@@ -1196,7 +1158,7 @@ P_ProcessMessages(P_context Context, app_input *Input, app_offscreen_buffer *Buf
                     else if(Symbol == XK_r) ProcessKeyPress(&Input->MoveDown, IsDown);
                     
                     // TODO(luca): Metaprogram
-#if defined(MUZE_COLEMAK)
+#if defined(RL_PLATFORM_COLEMAK)
                     uint Symbols[] = { XK_a, XK_w, XK_r, XK_f, XK_s, XK_t, XK_g, XK_d, XK_j, XK_h, XK_l, XK_n, XK_e, XK_y, XK_i, };
                     #else
                     uint Symbols[] = { XK_a, XK_w, XK_s, XK_e, XK_d, XK_f, XK_t, XK_g, XK_y, XK_h, XK_u, XK_j, XK_k, XK_i, XK_l, };
@@ -1401,44 +1363,40 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
             Library = dlopen(Code->LibraryPath, RTLD_NOW);
         }
         
+        Code->Loaded = false;
+        
         if(Library)
         {
             // Load code from library
-            Code->Loaded = false;
             Code->UpdateAndRender = (update_and_render *)dlsym(Library, "UpdateAndRender");
             Code->GetAudioSamples = (get_audio_samples *)dlsym(Library, "GetAudioSamples");
             
-            if(Code->UpdateAndRender)
+            if(!Code->UpdateAndRender)
+            {
+                Code->UpdateAndRender = UpdateAndRenderStub;
+                ErrorLog("Could not load UpdateAndRender.");
+            }
+            else
             {
                 Code->Loaded = true;
             }
             
-            if(Code->GetAudioSamples)
+            if(!Code->GetAudioSamples)
             {
-                Code->Loaded = (Code->Loaded && true);
+                Code->GetAudioSamples = GetAudioSamplesStub;
+                ErrorLog("Could not load GetAudioSamples.");
             }
             
-            if(Code->Loaded)
-            {
                 Memory->Reloaded = true;
                 Code->LibraryHandle = (u64)Library;
-                Log("\nLibrary reloaded.\n");
-            }
-                else
-            {
-                ErrorLog("Could not load functions.");
-            }
+            Log("\nLibrary reloaded.\n");
+            
         }
         else
         {
-            Code->Loaded = false;
             Code->LibraryHandle = 0;
             ErrorLog("%s", dlerror());
         }
     }
     
-    if(!Code->Loaded)
-    {
-        Code->UpdateAndRender = UpdateAndRenderStub;
-    }
 }

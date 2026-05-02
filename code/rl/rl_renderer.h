@@ -1,7 +1,6 @@
 /* date = April 9th 2026 7:52 pm */
 
-#ifndef MUZE_RENDERER_H
-#define MUZE_RENDERER_H
+#pragma once
 //~ Types
 
 typedef struct font_atlas font_atlas;
@@ -65,5 +64,3 @@ internal void RenderCleanup(gl_render_state *Render);
 internal void RenderBeginFrame(arena *Arena, s32 Width, s32 Height);
 internal void RenderClear(void);
 internal void RenderDrawAllRectangles(gl_render_state *Render, v2 BufferDim, font_atlas *Atlas);
-
-#endif //MUZE_RENDERER_H

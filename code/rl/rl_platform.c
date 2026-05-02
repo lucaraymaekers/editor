@@ -1,35 +1,29 @@
 //~ Libraries 
-#if MUZE_INTERNAL
+#if RL_PLATFORM_INTERNAL
 # define BASE_CONSOLE_APPLICATION 0
 #endif
 #include "base/base.h"
 #include "base/base.c"
 
-#include "muze/muze_libs.h"
-#include "muze/muze_midi.h"
+#include "rl/rl_libs.h"
+#include "rl/rl_midi.h"
 
-#define TSF_IMPLEMENTATION
-NO_WARNINGS_BEGIN
-#include "lib/tsf.h"
-NO_WARNINGS_END
-global_variable tsf *GlobalTSF = 0;
-
-#include "muze/muze_platform.h"
+#include "rl/rl_platform.h"
 #if OS_LINUX
-# include "muze/muze_platform_linux.c"
+# include "rl/rl_platform_linux.c"
 #elif OS_WINDOWS
-# include "muze/muze_platform_windows.c"
+# include "rl/rl_platform_windows.c"
 #endif
 
 //- For rendering debug UI 
-#include "muze/generated/everything.c"
-#include "muze/muze_gl.h"
-#include "muze/muze_font.h"
-#include "muze/muze_renderer.h"
-#include "muze/muze_ui.h"
-#include "muze/muze_renderer.c"
-#include "muze/muze_ui.c"
-#include "muze/muze_widgets.c"
+#include "rl/generated/everything.c"
+#include "rl/rl_gl.h"
+#include "rl/rl_font.h"
+#include "rl/rl_renderer.h"
+#include "rl/rl_ui.h"
+#include "rl/rl_renderer.c"
+#include "rl/rl_ui.c"
+#include "rl/rl_widgets.c"
 
 //- Third party 
 #if OS_WINDOWS
@@ -267,7 +261,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         *Running = true;
         
         app_offscreen_buffer Buffer = {0};
-#if MUZE_FORCE_SMALL_RESOLUTION
+#if RL_PLATFORM_FORCE_SMALL_RESOLUTION
         Buffer.Width = 1920/2;
         Buffer.Height = 1080/2;
 #else
@@ -281,7 +275,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         Buffer.Width = 1600;
         Buffer.Height = 900;
         
-        P_context PlatformContext = P_Init(PermanentArena, &Buffer, Running);
+        P_context PlatformContext = P_Init(PermanentArena, &Buffer, Running, RL_PLATFORM_WINDOW_NAME);
         
         OS_ProfileAndPrint("Context");
         
@@ -312,7 +306,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         AppMemory.Memory = PushArray(PermanentArena, u8, AppMemory.MemorySize);
         AppMemory.ThreadCtx = ThreadContext;
         AppMemory.ExeDirPath = ExeDirPath;
-#if MUZE_INTERNAL
+#if RL_PLATFORM_INTERNAL
         AppMemory.IsDebuggerAttached = GlobalDebuggerIsAttached;
 #endif
 #if OS_WINDOWS
@@ -330,10 +324,11 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         f64 LastCounter = OS_GetWallClock();
         f64 FlipWallClock = LastCounter;
-#if defined(MUZE_FORCE_UPDATE_HZ)
-        f32 GameUpdateHz = MUZE_FORCE_UPDATE_HZ;
+								// TODO(luca): Detect refresh rate
+#if defined(RL_PLATFORM_FORCE_UPDATE_HZ)
+        f32 GameUpdateHz = RL_PLATFORM_FORCE_UPDATE_HZ;
 #else
-        f32 GameUpdateHz = 144.0f;
+        f32 GameUpdateHz = 60.0f;
 #endif
         f32 TargetSecondsPerFrame = 1.0f/GameUpdateHz; 
         
@@ -394,10 +389,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         char *Path = PathFromExe(FrameArena, S8("../data/sounds.sf2"));
         str8 File = OS_ReadEntireFileIntoMemory(Path);
-        GlobalTSF = tsf_load_memory(File.Data, (int)File.Size);
-        Assert(GlobalTSF);
-        
-        tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, (int)SampleRate, -10);
         
         //- 
         app_code Code = {0};
@@ -407,7 +398,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         CurrentOSLinux = true;
 #endif
         
-        str8 LibraryPath = Str8Fmt("muze_app.%s", (CurrentOSLinux ? "so" : "dll"));
+        str8 LibraryPath = Str8Fmt(RL_PLATFORM_APP_NAME ".%s", (CurrentOSLinux ? "so" : "dll"));
         Code.LibraryPath = PathFromExe(PermanentArena, LibraryPath);
         
         b32 ShowDebugUI = false;
@@ -521,7 +512,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
                 OS_ProfileAndPrint("Messages");
                 
-#if MUZE_PLATFORM_DEBUG_UI                
+#if RL_PLATFORM_DEBUG_UI                
                 for EachIndex(Idx, NewInput->Text.Count)
                 {
                     app_text_button Key = NewInput->Text.Buffer[Idx];
@@ -951,11 +942,13 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                         AppInput->PlatformWindowIsFocused = PlatformWindowIsFocused;
                         AppInput->SkipRendering = Replay.IsSkipping;
                     }
-                    
+                    if(Code.UpdateAndRender)
+{
                     b32 ShouldQuit = Code.UpdateAndRender(ThreadContext, &AppMemory, &Buffer, AppInput);
                     // NOTE(luca): Since UpdateAndRender can take some time, there could have been a signal sent to INT the app.
                     ReadWriteBarrier();
                     *Running = *Running && !ShouldQuit;
+}
                     
                     OS_ProfileAndPrint("Update and render");
                 }
@@ -1028,12 +1021,11 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
                 OS_ProfileAndPrint("Sound setup");
                 
-#if 1   
-                tsf_render_short(GlobalTSF, Samples, (s32)SamplesToWrite, 0);
-#else
+                if(Code.GetAudioSamples)
+{                
                 Code.GetAudioSamples(ThreadContext, Samples, (s64)SamplesToWrite);
-#endif
-                
+                }
+
                 OS_ProfileAndPrint("Get samples");
                 
 #if 0                

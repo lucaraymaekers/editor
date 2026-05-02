@@ -1,16 +1,15 @@
-#ifndef MUZE_LIBS_H
-#define MUZE_LIBS_H
+#pragma once
 
 #include "base/base_core.h"
 
-#if MUZE_SLOW_COMPILE
+#if RL_LIBS_SLOW_COMPILE
 C_LINKAGE_BEGIN
 # define GLAD_GL_IMPLEMENTATION
 # define STB_IMAGE_IMPLEMENTATION
 # define STB_IMAGE_WRITE_IMPLEMENTATION
 # define STB_TRUETYPE_IMPLEMENTATION
 # define STB_SPRINTF_IMPLEMENTATION
-# define MUZE_FONT_IMPLEMENTATION
+# define RL_FONT_IMPLEMENTATION
 
 # define XXH_STATIC_LINKING_ONLY
 # define XXH_IMPLEMENTATION
@@ -33,7 +32,7 @@ NO_WARNINGS_END
 
 //~ GLAD helper functions
 
-#if MUZE_SLOW_COMPILE
+#if RL_LIBS_SLOW_COMPILE
 
 void GLADNullPreCallback(const char *name, GLADapiproc apiproc, int len_args, ...) {}
 void GLADNullPostCallback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...) {}
@@ -51,6 +50,4 @@ void GLADEnableCallbacks()
 }
 
 C_LINKAGE_END
-#endif // MUZE_SLOW_COMPILE
-
-#endif // MUZE_LIBS_H
+#endif // RL_LIBS_SLOW_COMPILE

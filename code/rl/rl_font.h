@@ -1,5 +1,5 @@
-#if !defined(MUZE_FONT_H)
-#define MUZE_FONT_H
+#if !defined(RL_FONT_H)
+#define RL_FONT_H
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -134,4 +134,4 @@ DrawCharacter(app_offscreen_buffer *Buffer,  u8 *FontBitmap,
 }
 
 
-#endif //MUZE_FONT_H
+#endif //RL_FONT_H

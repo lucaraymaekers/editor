@@ -6,10 +6,10 @@ It runs on Linux and Windows (OpenGL) with nice debug features such as code prof
 ### Demo's
 
 A "midi editor".
-![Watch the demo](https://github.com/lucaraymaekers/editor/blob/main/data/showcase_muze_260423.gif)
+![Watch the demo](https://github.com/lucaraymaekers/editor/blob/main/data/muze/showcase_muze_260423.gif)
 
 A "text editor".
-![Watch the demo](https://github.com/lucaraymaekers/editor/blob/main/data/showcase_editor_260404.gif)
+![Watch the demo](https://github.com/lucaraymaekers/editor/blob/main/data/editor/showcase_editor_260404.gif)
 
 ### Building 
 This will ultimately run "cling", a self-hosted C build script that is also acts as the metaprogram when required.
