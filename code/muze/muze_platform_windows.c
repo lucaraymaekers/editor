@@ -1,9 +1,19 @@
 #include <mmsystem.h>
-#include "muze/muze_midi.h"
+#include <dsound.h>
 
-//~ Midi
-typedef struct app_midi_notes_queue app_midi_notes_queue;
-struct app_midi_notes_queue
+#include "lib/win32_wasapi.h"
+
+//~ Types
+typedef struct win32_context win32_context;
+struct win32_context
+{
+    HWND Window;
+    HDC OwnDC;
+    u8 ClipboardBuffer[KB(64)];
+};
+
+typedef struct win32_midi_notes_queue win32_midi_notes_queue;
+struct win32_midi_notes_queue
 {
     app_midi_note *Notes;
     u64 Size;
@@ -11,8 +21,20 @@ struct app_midi_notes_queue
     u64 WritePos;
 };
 
-global_variable app_midi_notes_queue *NotesQueue = 0;
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND8 *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
+//~ Globals
+global_variable b32 *GlobalRunning;
+global_variable LPSTR GlobalCursor;
+global_variable s32 GlobalBufferWidth;
+global_variable s32 GlobalBufferHeight;
+global_variable b32 GlobalWindowIsFocused;
+global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
+global_variable win32_midi_notes_queue *NotesQueue;
+global_variable WasapiAudio GlobalAudioBuffer;
+
+//~ Midi
 #define MIDI_LogIfError(Code, In) MIDI_LogIfError_(Code, In, __FILE__, __LINE__)
 
 internal b32 
@@ -41,7 +63,7 @@ MIDI_LogIfError_(MMRESULT Code, b32 In,
     return Result;
 }
 
-void CALLBACK
+internal void 
 MIDI_InCallback(HMIDIIN Device, UINT Msg, DWORD_PTR Instance, DWORD_PTR Param1, DWORD_PTR Param2)
 {
     if(0) {}
@@ -73,21 +95,6 @@ MIDI_InCallback(HMIDIIN Device, UINT Msg, DWORD_PTR Instance, DWORD_PTR Param1, 
 }
 
 //~ Helpers 
-
-typedef struct win32_context win32_context;
-struct win32_context
-{
-    HWND Window;
-    HDC OwnDC;
-    u8 ClipboardBuffer[KB(64)];
-};
-
-global_variable b32 *GlobalRunning;
-global_variable LPSTR GlobalCursor;
-global_variable s32 GlobalBufferWidth;
-global_variable s32 GlobalBufferHeight;
-global_variable b32 GlobalWindowIsFocused;
-
 internal rune
 ConvertUTF8StringToRune(u8 UTF8String[4])
 {
@@ -349,7 +356,9 @@ P_Init(arena *Arena, app_offscreen_buffer *Buffer, b32 *Running)
 {
     P_context Result = {0};
     
-    NotesQueue = PushStruct(Arena, app_midi_notes_queue);
+    // NOTE(luca): This arena is the PermanentArena, which means that across hot reloads this memory should still be correct.
+    // This has to happen since we will be passing the NotesQueue memory to the app.
+    NotesQueue = PushStruct(Arena, win32_midi_notes_queue);
     NotesQueue->Size = KB(1);
     NotesQueue->Notes = PushArray(Arena, app_midi_note, NotesQueue->Size);
     
@@ -803,7 +812,8 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
             if(Library)
             {
                 Code->UpdateAndRender = (update_and_render *)GetProcAddress(Library, "UpdateAndRender");
-                if(Code->UpdateAndRender)
+                Code->GetAudioSamples = (get_audio_samples *)GetProcAddress(Library, "GetAudioSamples");
+                if(Code->UpdateAndRender && Code->GetAudioSamples)
                 {
                     Code->LastWriteTime = WriteTime;
                     
@@ -814,7 +824,7 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
                 else
                 {
                     Code->Loaded = false;
-                    ErrorLog("Could not find UpdateAndRender.");
+                    ErrorLog("Could not find UpdateAndRender or GetAudioSamples.");
                 }
                 Memory->Reloaded = true;
             }
@@ -830,5 +840,6 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
     if(!Code->Loaded)
     {
         Code->UpdateAndRender = UpdateAndRenderStub;
+        Code->GetAudioSamples = GetAudioSamplesStub;
     }
 }

@@ -72,10 +72,10 @@ WindowsBuild(str8 Source, str8_array *ExtraCompilerFlags, str8 ExtraLinkerFlags)
 
 internal void
 LinuxBuildCommand(str8 Source, 
-                      str8 OutputName, 
-                      b32 GCC, b32 Clang, b32 Asan, b32 Debug,
-                      str8_array *ExtraFlags,
-                      b32 Run)
+                  str8 OutputName, 
+                  b32 GCC, b32 Clang, b32 Asan, b32 Debug,
+                  str8_array *ExtraFlags,
+                  b32 Run)
 {
     Log(S8Fmt "\n", S8Arg(Cng_GetBaseFileName(Source)));
     
@@ -365,10 +365,10 @@ ENTRY_POINT(EntryPoint)
                 Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
                 
                 LinuxBuildCommand(S8("../code/computerenhance/haversine_generator/haversine_generator.c"), 
-                                      S8("haversine_generator"),
-                                      GCC, Clang, Asan, Debug,
-                                      ExtraFlags,
-                                      false);
+                                  S8("haversine_generator"),
+                                  GCC, Clang, Asan, Debug,
+                                  ExtraFlags,
+                                  false);
                 
                 RunCommand();
                 
@@ -386,10 +386,10 @@ ENTRY_POINT(EntryPoint)
                                                  " -std=c++11"));
                 
                 LinuxBuildCommand(S8("../code/computerenhance/haversine_processor/haversine_processor.c"), 
-                                      S8("haversine_processor"),
-                                      GCC, Clang, Asan, Debug,
-                                      ExtraFlags,
-                                      false);
+                                  S8("haversine_processor"),
+                                  GCC, Clang, Asan, Debug,
+                                  ExtraFlags,
+                                  false);
                 
                 RunCommand();
             }
@@ -405,10 +405,10 @@ ENTRY_POINT(EntryPoint)
                 Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
                 
                 LinuxBuildCommand(S8("../code/computerenhance/sim86/sim86.cpp"), 
-                                      S8("sim86"),
-                                      GCC, Clang, Asan, Debug,
-                                      ExtraFlags,
-                                      false);
+                                  S8("sim86"),
+                                  GCC, Clang, Asan, Debug,
+                                  ExtraFlags,
+                                  false);
                 
                 RunCommand();
             }
@@ -583,12 +583,6 @@ ENTRY_POINT(EntryPoint)
                 Str8ArrayPushCount(CommonMuzeFlags)
                 {
                     str8 ExtraLinkerFlags  = {0};
-                    
-                    if(OSWindows)
-                    {
-                        
-                        ExtraLinkerFlags = S8("/EXPORT:UpdateAndRender");
-                    }
                     
                     Str8ArrayAppendTo(CommonMuzeFlags, S8("-DEDITOR_SLOW_COMPILE=0"));
                     
@@ -796,7 +790,7 @@ ENTRY_POINT(EntryPoint)
                     
                     if(OSWindows)
                     {
-                        ExtraLinkerFlags = S8("/EXPORT:UpdateAndRender winmm.lib");
+                        ExtraLinkerFlags = S8("winmm.lib");
                     }
                     
                     Str8ArrayAppendTo(CommonMuzeFlags, S8("-DMUZE_SLOW_COMPILE=0"));

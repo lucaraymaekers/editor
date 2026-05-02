@@ -6,6 +6,7 @@
 #include "base/base.c"
 
 #include "muze/muze_libs.h"
+#include "muze/muze_midi.h"
 
 #define TSF_IMPLEMENTATION
 NO_WARNINGS_BEGIN
@@ -289,18 +290,11 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
             ErrorLog("Could not initialize graphical context, running in headless mode.");
         }
         
-        {        
+        // Get ExeDirPath
+        {
             u64 OnePastLastSlash = 0;
-#if OS_LINUX || OS_ANDROID
             char *FileName = Params->Args[0];
             u64 SizeOfFileName = StringLength(FileName);
-#elif OS_WINDOWS
-            char *FileName = PushArray(PermanentArena, char, 1024);
-            u64 SizeOfFileName = GetModuleFileNameA(0, FileName, 1024);
-            Win32LogIfError();
-#else
-# error "OS not supported" 
-#endif
             for EachIndex(Idx, SizeOfFileName)
             {
                 if(FileName[Idx] == OS_SlashChar)
@@ -345,7 +339,14 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         //- Sound 
         
-#if OS_LINUX
+#if OS_WINDOWS
+        umm SampleRate = 48000;
+        umm ChannelsCount = 2;
+        umm BytesPerSample = sizeof(s16)*ChannelsCount;
+        
+        WA_Start(&GlobalAudioBuffer, SampleRate, ChannelsCount, SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT);
+        
+#elif OS_LINUX
         uint DesiredSampleRate = 48000;
         uint DesiredChannelsCount = 2;
         
@@ -389,8 +390,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         u64 SamplesCount = (u64)roundf(3.f*(f32)SampleRate*TargetSecondsPerFrame);
         s16 *Samples = PushArrayZero(PermanentArena, s16, SamplesCount);
-#elif OS_WINDOWS
-        uint SampleRate = 48000;
 #endif
         
         char *Path = PathFromExe(FrameArena, S8("../data/sounds.sf2"));
@@ -401,16 +400,14 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, (int)SampleRate, -10);
         
         //- 
-        
         app_code Code = {0};
         
-#if OS_LINUX        
-        str8 LibraryPath = S8("muze_app.so");
-#elif OS_WINDOWS
-        str8 LibraryPath = S8("muze_app.dll");
-#else
-# error "OS not supported."
+        b32 CurrentOSLinux = false;
+#if OS_LINUX
+        CurrentOSLinux = true;
 #endif
+        
+        str8 LibraryPath = Str8Fmt("muze_app.%s", (CurrentOSLinux ? "so" : "dll"));
         Code.LibraryPath = PathFromExe(PermanentArena, LibraryPath);
         
         b32 ShowDebugUI = false;
@@ -976,7 +973,45 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
                 OS_ProfileAndPrint("UpdateImage");
                 
+#if OS_WINDOWS
+                
+                {
+                    WA_LockBuffer(&GlobalAudioBuffer);
+                    
+                    umm PlayCount = GlobalAudioBuffer.playCount;
+                    umm WriteCount = Min(SampleRate/10, GlobalAudioBuffer.sampleCount);
+                    
+                    s16 *Samples = GlobalAudioBuffer.sampleBuffer;
+                    MemorySet(Samples, 0, WriteCount * BytesPerSample);
+                    
+                    // Play sine wave
 #if 0
+                    {
+                        local_persist f32 Time = 0.f;
+                        
+                        f32 Frequency = 440.0f;
+                        f32 dt = 1.0f / (f32)SampleRate;
+                        f32 Period = 1.0f / Frequency;
+                        Time += PlayCount*dt;
+                        Time = fmodf(Time, Period);
+                        
+                        f32 StartTime = Time;
+                        
+                        for EachIndex(Idx, WriteCount)
+                        {
+                            f32 Amplitude = sinf(2.0f * Pi32 * Frequency * StartTime);
+                            
+                            Samples[2*Idx + 0] = Amplitude;
+                            Samples[2*Idx + 1] = Amplitude;
+                            
+                            StartTime += dt;
+                            if(StartTime >= Period) StartTime -= Period;
+                        }
+                    }
+#endif
+                    WA_UnlockBuffer(&GlobalAudioBuffer, WriteCount);
+                }
+                
 #elif OS_LINUX
                 local_persist b32 FirstTimeSound = true;
                 snd_pcm_sframes_t AvailableFrames = snd_pcm_avail_update(SoundHandle);
@@ -1028,8 +1063,8 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     }
                 }
                 
-                OS_ProfileAndPrint("Sound output");
 #endif
+                OS_ProfileAndPrint("Sound output");
                 
                 f64 WorkCounter = OS_GetWallClock();
                 f64 WorkMSPerFrame = OS_MSElapsed(LastCounter, WorkCounter);

@@ -3,11 +3,6 @@
 #include "base/base.h"
 #include "base/base.c"
 
-#if OS_WINDOWS 
-#include <windows.h>
-#include <mmsystem.h>
-#endif
-
 #include "muze/generated/everything.c"
 
 #include "muze/muze_platform.h"
@@ -22,6 +17,11 @@
 
 #include "muze/muze_renderer.c"
 #include "muze/muze_ui.c"
+
+#if OS_WINDOWS
+# pragma comment(linker, "/export:GetAudioSamples")
+# pragma comment(linker, "/export:UpdateAndRender")
+#endif
 
 //~ Globals
 // TODO(luca): Metaprogram
@@ -2321,15 +2321,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             Diff = (End->Timestamp - Start->Timestamp);
                             
-                             Node = Node->Next;
+                            Node = Node->Next;
                             
                             // Time that goes in a bar
-                        f32 SecondsPerBeat = Diff/(f32)Song->TimeSig;
-                        Song->BPM = (1.f/SecondsPerBeat)*60.f;
+                            f32 SecondsPerBeat = Diff/(f32)Song->TimeSig;
+                            Song->BPM = (1.f/SecondsPerBeat)*60.f;
                         }
-
+                        
                     }
-                    }
+                }
                 
                 UI_List(Axis2_Y, S8("Set Length"))
                 {
@@ -2663,22 +2663,22 @@ UPDATE_AND_RENDER(UpdateAndRender)
 
 GET_AUDIO_SAMPLES(GetAudioSamples)
 {
-    s16 *Samples = (s16 *)Buffer;
+    local_persist f32 Time = 0.f;
     
-#if 0
-    uint SampleRate = 48000;
+    f32 *Samples = (f32 *)Buffer;
     
-    f32 nfreq = (Pi32 * 2.f) / (f32)SampleRate;
-    f32 Volume   = (1 << 15) * .5f;
-    f32 Pitch  = 440.f;
-    local_persist f32 ctr = 0.0;
+    f32 SampleRate = 48000.0f;
+    f32 Frequency = 440.0f;
+    
+    f32 dt = 1.0f / SampleRate;
     
     for EachIndex(Idx, FramesCount)
     {
-        s16 SampleValue = (s16)(Volume * sinf(Pitch * nfreq * ctr));
-        ctr += 1.f;
-        Samples[2*Idx + 0] = SampleValue;
-        Samples[2*Idx + 1] = SampleValue;
-    }
-#endif
+        f32 Amplitude = sinf(2.0f*Pi32*Frequency*Time);
+        
+        Samples[2*Idx + 0] = Amplitude;
+        Samples[2*Idx + 1] = Amplitude;
+        
+        Time += dt;
+    } 
 }
