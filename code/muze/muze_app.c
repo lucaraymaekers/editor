@@ -3,6 +3,11 @@
 #include "base/base.h"
 #include "base/base.c"
 
+#define TSF_IMPLEMENTATION
+NO_WARNINGS_BEGIN
+#include "lib/tsf.h"
+NO_WARNINGS_END
+
 #include "rl/generated/everything.c"
 #include "rl/rl_platform.h"
 #include "rl/rl_libs.h"
@@ -18,11 +23,6 @@
 #include "rl/rl_renderer.c"
 #include "rl/rl_ui.c"
 #include "rl/rl_widgets.c"
-
-#define TSF_IMPLEMENTATION
-NO_WARNINGS_BEGIN
-#include "lib/tsf.h"
-NO_WARNINGS_END
 
 #if OS_WINDOWS
 # pragma comment(linker, "/export:GetAudioSamples")
@@ -953,6 +953,22 @@ PanelRecDepthFirstPreOrder(panel *Panel)
 }
 
 //~ Muze
+internal void
+PlayNote(app_memory *Memory, song *Song, note *Note)
+{
+    
+    {
+        if(Song->IsOutputSynth)
+        {
+            tsf_note_on(GlobalTSF, 0, Note->Pitch, (f32)Note->Velocity/127.f);
+        }
+        else
+        {
+            Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
+        }
+    }
+    
+}
 
 internal void
 ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 Count)
@@ -1004,8 +1020,7 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
                     OutMessage.U8[2] = Velocity;
                     OutMessage.U8[3] = 0;
                     
-                    tsf_note_on(GlobalTSF, 0, Note->Pitch, Note->Velocity);
-                    Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
+                    PlayNote();
                 }
             }
             else if(Type == MIDIEventType_NoteOff || 
@@ -1038,6 +1053,7 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
                         OutMessage.U8[1] = Pitch;
                         OutMessage.U8[2] = 0;
                         OutMessage.U8[3] = 0;
+                        
                         
                         tsf_note_off(GlobalTSF, 0, Pitch);
                         Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
@@ -1780,9 +1796,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
         {        
             char *Path = PathFromExe(FrameArena, S8("../data/muze/sounds.sf2"));
             str8 File = OS_ReadEntireFileIntoMemory(Path);
-            GlobalTSF = tsf_load_memory(File.Data, (int)File.Size);
-            
-            tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 48000, 0);
+            App->TrackerForTSF = GlobalTSF = tsf_load_memory(File.Data, (int)File.Size);
+            Assert(GlobalTSF);
+            tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 48000, -10);
         }
         
         //- Init Muze 
@@ -1860,6 +1876,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     UI_NilBox = App->TrackerForUI_NilBox;
     UI_State = App->TrackerForUI_State;
     NilPanel = App->TrackerForNilPanel;
+    GlobalTSF = App->TrackerForTSF;
     
     StringsScratch = FrameArena;
     
@@ -2548,7 +2565,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = Note->Velocity;
                 Message.U8[3] = 0;
                 
-                tsf_note_on(GlobalTSF, 0, Note->Pitch, Note->Velocity);
+                tsf_note_on(GlobalTSF, 0, Note->Pitch, (f32)Note->Velocity/127.f);
                 Memory->PlatformMIDISend(Song->Out, Message.U32[0]);
             }
             
@@ -2668,7 +2685,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
 GET_AUDIO_SAMPLES(GetAudioSamples)
 {
     s16 *Samples = Buffer;
-    umm SampleRate = 48000;
+    
+    const f32 SampleRate = 48000.0f;
+    const f32 Frequency  = 440.0f;   // A4
+    const f32 Amplitude  = 0.2f;     // keep low to avoid clipping
     
     tsf_render_short(GlobalTSF, Samples, (int)FramesCount, 0);
 }

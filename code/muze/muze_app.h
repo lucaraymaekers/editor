@@ -131,6 +131,8 @@ struct song
 {
     platform_midi_device In;
     platform_midi_device Out;
+    b32 InputSynth;
+    b32 InputVirtualKeyboard;
     
     s64 NotesCount;
     note *Notes;
@@ -188,6 +190,7 @@ struct app_state
     gl_render_state Render;
     
     // Nils
+    tsf *TrackerForTSF;
     ui_box *TrackerForUI_NilBox;
     ui_state *TrackerForUI_State;
     panel *TrackerForNilPanel;
