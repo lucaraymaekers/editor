@@ -19,31 +19,18 @@
 #include "rl/rl_ui.c"
 #include "rl/rl_widgets.c"
 
+#define TSF_IMPLEMENTATION
+NO_WARNINGS_BEGIN
+#include "lib/tsf.h"
+NO_WARNINGS_END
+
 #if OS_WINDOWS
 # pragma comment(linker, "/export:GetAudioSamples")
 # pragma comment(linker, "/export:UpdateAndRender")
 #endif
 
 //~ Globals
-// TODO(luca): Metaprogram
-typedef enum note_pitch note_pitch;
-enum note_pitch
-{
-    Note_C = 0,
-    Note_Cs,
-    Note_D,
-    Note_Ds,
-    Note_E,
-    Note_F,
-    Note_Fs,
-    Note_G,
-    Note_Gs,
-    Note_A,
-    Note_As,
-    Note_B,
-    
-    Note_Count
-};
+global_variable tsf *GlobalTSF;
 
 global_variable str8 NotePitchStrings[] =
 {
@@ -1017,8 +1004,8 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
                     OutMessage.U8[2] = Velocity;
                     OutMessage.U8[3] = 0;
                     
+                    tsf_note_on(GlobalTSF, 0, Note->Pitch, Note->Velocity);
                     Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
-                    
                 }
             }
             else if(Type == MIDIEventType_NoteOff || 
@@ -1052,6 +1039,7 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
                         OutMessage.U8[2] = 0;
                         OutMessage.U8[3] = 0;
                         
+                        tsf_note_off(GlobalTSF, 0, Pitch);
                         Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
                     }
                 }
@@ -1137,6 +1125,7 @@ StopAllPlayingNotes(app_memory *Memory, song *Song, f32 dtForFrame)
             OutMessage.U8[2] = 0;
             OutMessage.U8[3] = 0;
             
+            tsf_note_off(GlobalTSF, 0, Note->Pitch);
             Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
         }
     }
@@ -1787,19 +1776,39 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     if(!Memory->Initialized)
     {
+//- Init TSF 
+        {        
+            char *Path = PathFromExe(FrameArena, S8("../data/muze/sounds.sf2"));
+            str8 File = OS_ReadEntireFileIntoMemory(Path);
+            GlobalTSF = tsf_load_memory(File.Data, (int)File.Size);
+            
+            tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 48000, 0);
+        }
+        
+        //- Init Muze 
+{
         MuzeInit(&App->Song);
         App->Song.TimeSig = 3;
         App->Song.BPM = 100.f;
+        }
         
-        // NOTE(luca): Hardcoded for my windows setup
+        //- Init Fonts
+{
+{
         char *FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
         InitFont(&App->Font, FontPath);
-        
+            }
+            {
+                char *FontPath = PathFromExe(FrameArena, S8("../data/icons.ttf"));
+                InitFont(&App->IconsFont, FontPath);
+            }
+            
         App->PreviousHeightPx = DefaultHeightPx + 1.f;
         App->HeightPx = DefaultHeightPx;
         App->FrameIdx = 0;
-        
-        // Nil read only structs 
+        }
+
+        //- Nil read only structs 
         {        
             arena *Arena = ArenaAlloc(.Size = MB(1), .Offset = TB(3));
             
@@ -2033,14 +2042,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     {
         App->PreviousHeightPx = App->HeightPx;
         
-        local_persist font IconsFont = {0};
-        if(!IconsFont.Initialized)
-        {
-            char *FontPath = PathFromExe(FrameArena, S8("../data/icons.ttf"));
-            InitFont(&IconsFont, FontPath);
-        }
-        
-        RenderBuildAtlas(App->FontAtlasArena, &App->FontAtlas, &App->Font, &IconsFont, 
+        RenderBuildAtlas(App->FontAtlasArena, &App->FontAtlas, &App->Font, &App->IconsFont, 
                          App->HeightPx);
     }
     
@@ -2546,6 +2548,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = Note->Velocity;
                 Message.U8[3] = 0;
                 
+                tsf_note_on(GlobalTSF, 0, Note->Pitch, Note->Velocity);
                 Memory->PlatformMIDISend(Song->Out, Message.U32[0]);
             }
             
@@ -2561,6 +2564,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Message.U8[2] = 0;
                 Message.U8[3] = 0;
                 
+                tsf_note_off(GlobalTSF, 0, Note->Pitch);
                 Memory->PlatformMIDISend(Song->Out, Message.U32[0]);
             }
         }
@@ -2666,5 +2670,5 @@ GET_AUDIO_SAMPLES(GetAudioSamples)
     s16 *Samples = Buffer;
     umm SampleRate = 48000;
     
-    
+    tsf_render_short(GlobalTSF, Samples, (int)FramesCount, 0);
 }

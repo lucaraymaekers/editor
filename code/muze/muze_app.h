@@ -4,6 +4,26 @@
 #define MUZE_APP_H
 
 //~ Types
+// TODO(luca): Metaprogram
+typedef enum note_pitch note_pitch;
+enum note_pitch
+{
+    Note_C = 0,
+    Note_Cs,
+    Note_D,
+    Note_Ds,
+    Note_E,
+    Note_F,
+    Note_Fs,
+    Note_G,
+    Note_Gs,
+    Note_A,
+    Note_As,
+    Note_B,
+    
+    Note_Count
+};
+
 typedef struct app_text app_text; 
 struct app_text
 {
@@ -138,6 +158,7 @@ struct app_state
 {
     // TODO(luca): This is already in the FontAtlas, so it should go away?
     font Font;
+    font IconsFont;
     font_atlas FontAtlas;
     arena *FontAtlasArena; 
     f32 PreviousHeightPx;

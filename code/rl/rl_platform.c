@@ -387,9 +387,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         s16 *Samples = PushArrayZero(PermanentArena, s16, SamplesCount);
 #endif
         
-        char *Path = PathFromExe(FrameArena, S8("../data/sounds.sf2"));
-        str8 File = OS_ReadEntireFileIntoMemory(Path);
-        
         //- 
         app_code Code = {0};
         
