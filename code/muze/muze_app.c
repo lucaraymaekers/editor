@@ -956,18 +956,18 @@ PanelRecDepthFirstPreOrder(panel *Panel)
 internal void
 PlayNote(app_memory *Memory, song *Song, note *Note)
 {
-    
-    {
         if(Song->IsOutputSynth)
         {
             tsf_note_on(GlobalTSF, 0, Note->Pitch, (f32)Note->Velocity/127.f);
         }
         else
-        {
-            Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
+    {
+        midi_message Message = {0};
+        Message.U8[0] = MIDIEventType_NoteOn;
+        Message.U8[1] = Note->Pitch;
+        Message.U8[2] = Note->Velocity;
+        Memory->PlatformMIDISend(Song->Out, Message.U32[0]);
         }
-    }
-    
 }
 
 internal void
@@ -1009,19 +1009,7 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
                 Song->MaxPitch = Max(Note->Pitch, Song->MaxPitch);
                 Song->MinPitch = Min(Note->Pitch, Song->MinPitch);
                 
-                {
-                    midi_message OutMessage = {0};
-                    
-                    u8 Pitch = Data1;
-                    u8 Velocity = Data2;
-                    
-                    OutMessage.U8[0] = MIDIEventType_NoteOn;
-                    OutMessage.U8[1] = Pitch;
-                    OutMessage.U8[2] = Velocity;
-                    OutMessage.U8[3] = 0;
-                    
-                    PlayNote();
-                }
+                    PlayNote(Memory, Song, Note);
             }
             else if(Type == MIDIEventType_NoteOff || 
                     (Type == MIDIEventType_NoteOn && Data2 == 0))
@@ -2144,39 +2132,62 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
                 UI_List(Axis2_Y, S8("Input Devices"))
                 {
-                    
                     b32 DeviceChanged = !Memory->Initialized;
+                    
+                    if(UI_ToggleButton(S8("Virtual Keyboard"), Song->IsInputVirtualKeyboard, Color_Yellow))
+                    {
+                        if(!Song->IsInputVirtualKeyboard)
+                        {
+                            Song->IsInputVirtualKeyboard = true;
+                        }
+                    }
+                    
                     
                     for EachIndex(Idx, DevicesArray.Count)
                     {
                         platform_midi_device *Device = DevicesArray.Devices + Idx;
                         if(!Device->IsOutput)
                         {
-                            if(UI_ToggleButton(Device->Name, (Device->Id == Song->In.Id), Color_Yellow))
+                            b32 Selected = (!Song->IsInputVirtualKeyboard && 
+                                            (Device->Id == Song->In.Id));
+                            
+                            if(UI_ToggleButton(Device->Name, Selected, Color_Yellow))
                             {
-                                DeviceChanged = (Song->In.Id != Device->Id);
-                                Song->In = *Device;
+                                if(!Selected)
+                                {
+                                    Memory->PlatformMIDIListen(Song->In);
+                                    Song->In = *Device;
+                                    Song->IsInputVirtualKeyboard = false;
+                                }
                             }
                         }
                     }
                     
-                    if(DeviceChanged)
-                    {
-                        Memory->PlatformMIDIListen(Song->In);
-                    }
                 }
                 
                 UI_List(Axis2_Y, S8("Output Devices"))
                 {
+                    if(UI_ToggleButton(S8("Virtual Synth"), Song->IsOutputSynth, Color_Yellow))
+                    {
+                        if(!Song->IsOutputSynth)
+{
+                        StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
+                        Song->IsOutputSynth = true;
+}
+}
+                        
                     for EachIndex(Idx, DevicesArray.Count)
                     {         
                         platform_midi_device *Device = DevicesArray.Devices + Idx;
                         if(Device->IsOutput)
                         {                            
-                            if(UI_ToggleButton(Device->Name, (Device->Id == Song->Out.Id), Color_Yellow))
+                            b32 Selected = (!Song->IsOutputSynth && (Device->Id == Song->Out.Id));
+                            
+                            if(UI_ToggleButton(Device->Name, Selected, Color_Yellow))
                             {
-                                if(Song->Out.Id != Device->Id)
+                                if(!Selected)
                                 {
+                                    Song->IsOutputSynth = false;
                                     StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
                                     Song->Out = *Device;
                                 }
@@ -2607,7 +2618,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     // MIDI Processing
     {    
-        // Virtual MIDI keyboard (piano)
+        //- MIDI notes from virtual keyboard 
+        if(Song->IsInputVirtualKeyboard)
         {
             u64 MaxNotesPerFrame = 128; 
             app_midi_note *Notes = PushArray(FrameArena, app_midi_note, MaxNotesPerFrame);
@@ -2653,6 +2665,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             ProcessMIDINotes(Memory, Song, Notes, NotesCount);
         }
         
+        //- MIDI notes from Input 
         ProcessMIDINotes(Memory, Song, Input->MIDI.Notes, Input->MIDI.Count);
     }
     

@@ -131,8 +131,8 @@ struct song
 {
     platform_midi_device In;
     platform_midi_device Out;
-    b32 InputSynth;
-    b32 InputVirtualKeyboard;
+    b32 IsOutputSynth;
+    b32 IsInputVirtualKeyboard;
     
     s64 NotesCount;
     note *Notes;
