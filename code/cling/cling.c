@@ -231,6 +231,7 @@ ENTRY_POINT(EntryPoint)
         b32 Clean = false;
         b32 Clang = true;
         b32 GCC = false;
+        // NOTE(luca): Do not compile libs in separate .o
         b32 Slow = false;
         b32 Wine = false;
         //-
@@ -569,7 +570,7 @@ ENTRY_POINT(EntryPoint)
                     str8 ExtraLinkerFlags = {0};
                     Str8ArrayPushCount(CommonEditorFlags)
                     {
-                        Str8ArrayAppendTo(CommonEditorFlags, S8("-DRL_LIBS_SLOW_COMPILE=1"));
+                        Str8ArrayAppendTo(CommonEditorFlags, S8("-DRL_LIBS_IMPLEMENTATION=1"));
                         
                         BuildAndRun(S8("../code/rl/rl_libs.h"), 
                                          S8("rl_libs"), 
@@ -586,7 +587,7 @@ ENTRY_POINT(EntryPoint)
                 {
                     str8 ExtraLinkerFlags  = {0};
                     
-                    Str8ArrayAppendTo(CommonEditorFlags, S8("-DRL_LIBS_SLOW_COMPILE=0"));
+                    Str8ArrayAppendTo(CommonEditorFlags, S8("-DRL_LIBS_IMPLEMENTATION=0"));
                     
                     BuildAndRun(S8("../code/editor/editor_app.c"), 
                                      EditorAppName,
@@ -600,7 +601,7 @@ ENTRY_POINT(EntryPoint)
                 {
                     str8 ExtraLinkerFlags = {0};
                     
-                    Str8ArrayAppendTo(CommonEditorFlags, Str8Fmt("-DRL_LIBS_SLOW_COMPILE=0 "
+                    Str8ArrayAppendTo(CommonEditorFlags, Str8Fmt("-DRL_LIBS_IMPLEMENTATION=0 "
                                                                               "-DRL_PLATFORM_WINDOW_NAME=\"%s\" "
                                                                                  "-DRL_PLATFORM_APP_NAME=\"" S8Fmt "\"",
                                                                                    "Editor", S8Arg(EditorAppName)));
@@ -781,7 +782,7 @@ ENTRY_POINT(EntryPoint)
                 {
                     Str8ArrayPushCount(CommonMuzeFlags)
                     {
-                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DRL_LIBS_COMPILE=1"));
+                        Str8ArrayAppendTo(CommonMuzeFlags, S8("-DRL_LIBS_IMPLEMENTATION=1"));
                         
                         BuildAndRun(S8("../code/rl/rl_libs.h"), 
                                          S8("rl_libs"), 
@@ -794,7 +795,7 @@ ENTRY_POINT(EntryPoint)
                 Str8ArrayPushCount(CommonMuzeFlags)
                 {
                     str8 ExtraLinkerFlags = {0};
-                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DRL_LIBS_SLOW_COMPILE=0"));
+                    Str8ArrayAppendTo(CommonMuzeFlags, S8("-DRL_LIBS_IMPLEMENTATION=0"));
                     
                     if(OSWindows)
                     {
@@ -811,7 +812,7 @@ ENTRY_POINT(EntryPoint)
                 Str8ArrayPushCount(CommonMuzeFlags)
                 {
                     str8 ExtraLinkerFlags = {0};
-                    Str8ArrayAppendTo(CommonMuzeFlags, Str8Fmt("-DRL_LIBS_SLOW_COMPILE=0 "
+                    Str8ArrayAppendTo(CommonMuzeFlags, Str8Fmt("-DRL_LIBS_IMPLEMENTATION=0 "
                                                                "-DRL_PLATFORM_WINDOW_NAME=\"%s\" "
                                                                "-DRL_PLATFORM_APP_NAME=\"" S8Fmt "\"",
                                                                "Muze", S8Arg(MuzeAppName)));

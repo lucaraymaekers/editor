@@ -1,8 +1,9 @@
-#pragma once
+#ifndef RL_LIBS_H
+#define RL_LIBS_H
 
 #include "base/base_core.h"
 
-#if RL_LIBS_SLOW_COMPILE
+#if RL_LIBS_IMPLEMENTATION
 C_LINKAGE_BEGIN
 # define GLAD_GL_IMPLEMENTATION
 # define STB_IMAGE_IMPLEMENTATION
@@ -32,7 +33,7 @@ NO_WARNINGS_END
 
 //~ GLAD helper functions
 
-#if RL_LIBS_SLOW_COMPILE
+#if RL_LIBS_IMPLEMENTATION
 
 void GLADNullPreCallback(const char *name, GLADapiproc apiproc, int len_args, ...) {}
 void GLADNullPostCallback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...) {}
@@ -50,4 +51,6 @@ void GLADEnableCallbacks()
 }
 
 C_LINKAGE_END
-#endif // RL_LIBS_SLOW_COMPILE
+#endif // RL_LIBS_IMPLEMENTATION
+
+#endif // RL_LIBS_H

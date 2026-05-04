@@ -958,10 +958,20 @@ PlayNote(app_memory *Memory, song *Song, note *Note)
 {
         if(Song->IsOutputSynth)
         {
-            tsf_note_on(GlobalTSF, 0, Note->Pitch, (f32)Note->Velocity/127.f);
+        if(Note->Velocity > 0)
+{
+        tsf_note_on(GlobalTSF, 0, Note->Pitch, (f32)Note->Velocity/127.f);
+        }
+        else
+        {
+            tsf_note_off(GlobalTSF, 0, Note->Pitch);
+        }
         }
         else
     {
+        // TODO(luca): Channel ?
+        // 1. Equip parameters to the Song struct and use them to create messages here.
+        
         midi_message Message = {0};
         Message.U8[0] = MIDIEventType_NoteOn;
         Message.U8[1] = Note->Pitch;
@@ -1021,92 +1031,86 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
                 // NOTE(luca): NotesCount can be 0 if we start recording when a note is still playing.
                 if(Song->NotesCount > 0)
                 {
+                    b32 NoteFound = false;
                     for(s64 NoteIdx = Song->NotesCount - 1; NoteIdx >= 0; NoteIdx -= 1)
                     {
                         note *Note = Song->Notes + NoteIdx;
                         if(Note->Pitch == Pitch)
                         {
+                            NoteFound = true;
                             Note->Duration = ((Timestamp - Song->RecordStart)- Note->Timestamp);
                             break;
                         }
                     }
+                    Assert(NoteFound);
                     
                     // Send this note out to the output device
                     {                
-                        midi_message OutMessage = {0};
-                        u8 OutChannel = 0;
-                        
-                        Assert(OutChannel < 16);
-                        OutMessage.U8[0] = MIDIEventType_NoteOff | OutChannel;
-                        OutMessage.U8[1] = Pitch;
-                        OutMessage.U8[2] = 0;
-                        OutMessage.U8[3] = 0;
-                        
-                        
-                        tsf_note_off(GlobalTSF, 0, Pitch);
-                        Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
+                        note OffNote = {0};
+                        OffNote.Pitch = Pitch;
+                        PlayNote(Memory, Song, &OffNote);
+                        }
                     }
                 }
-            }
-            else if(Status == 0xB0) 
-            {
-                // Control Change
-                
-                //Log("CC       - Channel: %d, Controller: %d, Value: %d\n", Channel, Data1, Data2);
+                else if(Status == 0xB0) 
+                {
+                    // Control Change
+                                    
+                    //Log("CC       - Channel: %d, Controller: %d, Value: %d\n", Channel, Data1, Data2);
+                }
             }
         }
+            
     }
     
-}
-
-
-
-internal void
-MuzeInit(song *Song)
-{
-    Song->NotesCount = 0;
-    Song->MaxPitch = 75;
-    Song->MinPitch = 40;
-    Song->RecordStart = 0.f;
-    Song->RecordEnd = 0.f;
-    Song->PlayPos = 0.f;
-    Song->NoteSel = 0;
-}
-
-internal void
-StartRecording(song *Song)
-{
-    MuzeInit(Song);
-    Song->RecordStart = GetWallTime();
-    Song->PlayPos = 0.f;
-    Song->IsRecording = true;
-    Song->IsPlaying = false;
-}
-
-internal b32
-IsNotePlaying(note *Note, song *Song, f32 dtForFrame)
-{
-    b32 Result = false;
     
-    if(Song->IsPlaying)
+    
+    internal void
+    MuzeInit(song *Song)
     {
-        f32 NoteStart = (Note->Timestamp);
-        f32 NoteEnd = (NoteStart + Note->Duration);
-        
-        Result = (Song->PlayPos >= NoteStart - dtForFrame &&
-                  Song->PlayPos < NoteEnd + dtForFrame);
+        Song->NotesCount = 0;
+        Song->MaxPitch = 75;
+        Song->MinPitch = 40;
+        Song->RecordStart = 0.f;
+        Song->RecordEnd = 0.f;
+        Song->PlayPos = 0.f;
+        Song->NoteSel = 0;
     }
     
-    if(Song->IsRecording)
+    internal void
+    StartRecording(song *Song)
     {
-        Result = (Note->Duration == 0.f);
+        MuzeInit(Song);
+        Song->RecordStart = GetWallTime();
+        Song->PlayPos = 0.f;
+        Song->IsRecording = true;
+        Song->IsPlaying = false;
     }
     
-    return Result;
-}
-
-internal void
-StopAllPlayingNotes(app_memory *Memory, song *Song, f32 dtForFrame)
+    internal b32
+    IsNotePlaying(note *Note, song *Song, f32 dtForFrame)
+    {
+        b32 Result = false;
+            
+        if(Song->IsPlaying)
+        {
+            f32 NoteStart = (Note->Timestamp);
+            f32 NoteEnd = (NoteStart + Note->Duration);
+                    
+            Result = (Song->PlayPos >= NoteStart - dtForFrame &&
+                    Song->PlayPos < NoteEnd + dtForFrame);
+        }
+            
+        if(Song->IsRecording)
+        {
+            Result = (Note->Duration == 0.f);
+        }
+            
+        return Result;
+    }
+    
+    internal void
+    StopAllPlayingNotes(app_memory *Memory, song *Song, f32 dtForFrame)
 {
     for EachNote(Note, Song->Notes, Song->NotesCount)
     {
@@ -1121,16 +1125,9 @@ StopAllPlayingNotes(app_memory *Memory, song *Song, f32 dtForFrame)
                 Note->Duration = ClampTop(Now-  Note->Timestamp, NoteMaxDuration);
             }
             
-            union { u32 U32[1]; u8 U8[4]; } OutMessage;
-            u8 OutChannel = 0;
-            
-            OutMessage.U8[0] = 0x80 | OutChannel;
-            OutMessage.U8[1] = Note->Pitch;
-            OutMessage.U8[2] = 0;
-            OutMessage.U8[3] = 0;
-            
-            tsf_note_off(GlobalTSF, 0, Note->Pitch);
-            Memory->PlatformMIDISend(Song->Out, OutMessage.U32[0]);
+            note OffNote = *Note;
+            OffNote.Velocity = 0;
+            PlayNote(Memory, Song, &OffNote);
         }
     }
 }
@@ -1793,8 +1790,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
 {
         MuzeInit(&App->Song);
         App->Song.TimeSig = 3;
-        App->Song.BPM = 100.f;
-        }
+            App->Song.BPM = 100.f;
+            App->Song.IsOutputSynth = true;
+            App->Song.IsInputVirtualKeyboard = true;}
         
         //- Init Fonts
 {
@@ -2561,39 +2559,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
             f32 NoteStart = Note->Timestamp;
             f32 NoteEnd = NoteStart + Note->Duration;
             
-            // TODO(luca): If a note is really short it could skip it.  But how else would you do this.
+            // TODO(luca): If a note is really shorter than dtForFrame it could skip it.  But how else would you do this.
             // NOTE(luca): We need to  use midiStream instead?
-            
-            if(NoteStart <= Song->PlayPos &&
-               NoteStart > (Song->PlayPos - Input->dtForFrame))
-            {
-                midi_message Message = {0};
-                
-                u8 Channel = 0;
-                
-                Message.U8[0] = MIDIEventType_NoteOn | Channel;
-                Message.U8[1] = Note->Pitch;
-                Message.U8[2] = Note->Velocity;
-                Message.U8[3] = 0;
-                
-                tsf_note_on(GlobalTSF, 0, Note->Pitch, (f32)Note->Velocity/127.f);
-                Memory->PlatformMIDISend(Song->Out, Message.U32[0]);
-            }
-            
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
             if(NoteEnd <= Song->PlayPos &&
                NoteEnd > (Song->PlayPos - Input->dtForFrame))
             {
-                midi_message Message = {0};
-                
-                u8 Channel = 0;
-                
-                Message.U8[0] = MIDIEventType_NoteOn | Channel;
-                Message.U8[1] = Note->Pitch;
-                Message.U8[2] = 0;
-                Message.U8[3] = 0;
-                
-                tsf_note_off(GlobalTSF, 0, Note->Pitch);
-                Memory->PlatformMIDISend(Song->Out, Message.U32[0]);
+                PlayNote(Memory, Song, Note);
             }
         }
         
