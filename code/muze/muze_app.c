@@ -990,9 +990,9 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
         
 #if MUZE_INTERNAL
         // NOTE(luca): This is a hack to get loop editing to work properly.
-        // TODO(luca): "SongTime" concept.
-        Timestamp = GetWallTime();
+        Timestamp = (f32)GetWallTime();
 #endif
+        Timestamp -= Song->RecordStart;
         
         midi_message Message = {MIDINote->Message};
         
@@ -1012,7 +1012,7 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
                 MemoryZero(Note);
                 Song->NotesCount += 1;
                 
-                Note->Timestamp = Timestamp - Song->RecordStart;
+                Note->Timestamp = Timestamp;
                 Note->Pitch = Data1;
                 Note->Velocity = Data2;
                 
@@ -1038,7 +1038,7 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
                         if(Note->Pitch == Pitch)
                         {
                             NoteFound = true;
-                            Note->Duration = ((Timestamp - Song->RecordStart)- Note->Timestamp);
+                            Note->Duration = (Timestamp - Note->Timestamp);
                             break;
                         }
                     }
@@ -1072,7 +1072,7 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
         Song->MaxPitch = 75;
         Song->MinPitch = 40;
         Song->RecordStart = 0.f;
-        Song->RecordEnd = 0.f;
+        Song->RecordLength = 0.f;
         Song->PlayPos = 0.f;
         Song->NoteSel = 0;
     }
@@ -1085,7 +1085,7 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
         Song->PlayPos = 0.f;
         Song->IsRecording = true;
         Song->IsPlaying = false;
-    }
+}
     
     internal b32
     IsNotePlaying(note *Note, song *Song, f32 dtForFrame)
@@ -1119,10 +1119,9 @@ ProcessMIDINotes(app_memory *Memory, song *Song, app_midi_note *MIDINotes, u64 C
         {
             if(Song->IsRecording)
             {
-                f32 RecordLength = (Song->RecordEnd - Song->RecordStart);
-                f32 NoteMaxDuration = (RecordLength - Note->Timestamp);
+                f32 NoteMaxDuration = (Song->RecordLength - Note->Timestamp);
                 f32 Now = (GetWallTime() - Song->RecordStart);
-                Note->Duration = ClampTop(Now-  Note->Timestamp, NoteMaxDuration);
+                Note->Duration = ClampTop(Now - Note->Timestamp, NoteMaxDuration);
             }
             
             note OffNote = *Note;
@@ -1249,7 +1248,6 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     v2 BoxPos = V2(Box->FixedPosition.X - ScrollX, Box->FixedPosition.Y);
     v2 BoxSize = Box->FixedSize;
     
-    f32 RecordLength = (Song->RecordEnd - Song->RecordStart);
     f32 BPS = (Song->BPM/60.f);
     
     // Staff Lines
@@ -1261,7 +1259,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     // Bars
     f32 WholeBarWidth = 200.f;;
     f32 BarDuration = (1.f/BPS)*(f32)Song->TimeSig;
-    f32 BarsCount = ceilf(RecordLength/BarDuration);
+    f32 BarsCount = ceilf(Song->RecordLength/BarDuration);
     v2 BarDim = V2(2.f, StaffHeight);
     
     // Draw staff
@@ -1500,7 +1498,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
             // NOTE(luca): This is also the current time when recording.
             f32 RecordMarkerX;
             {
-                f32 Timestamp = Max(Song->RecordEnd - Song->RecordStart, 0.f);
+                f32 Timestamp = Max(Song->RecordLength, 0.f);
                 f32 ZoomedTimestamp = Timestamp*Zoom;
                 RecordMarkerX = RollX + roundf(ZoomedTimestamp);
             }
@@ -2256,7 +2254,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                 LastNoteEnd = Max(LastNoteEnd, (Note->Timestamp + Note->Duration));
                             }
                             
-                            Song->RecordEnd = Song->RecordStart + LastNoteEnd;
+                            Song->RecordLength = LastNoteEnd;
                             
                             note *FirstNote = Song->Notes;
                             f32 StartSilence = FirstNote->Timestamp;
@@ -2266,18 +2264,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                 Note->Timestamp -= StartSilence;
                             }
                             
-                            Song->RecordEnd -= StartSilence;
+                            Song->RecordLength -= StartSilence;
                             
-                            
-                            f32 SongLength = (Song->RecordEnd - Song->RecordStart);
                             
                             f32 BeatsPerSecond = Song->BPM/60.f;
                             f32 SecondsPerBeat = 1.f/BeatsPerSecond;
                             
                             f32 BarTime = SecondsPerBeat*(f32)Song->TimeSig;
-                            f32 Pad = ceilf(SongLength/BarTime)*BarTime;
+                            f32 Pad = ceilf(Song->RecordLength/BarTime)*BarTime;
                             
-                            Song->RecordEnd = Song->RecordStart + Pad;
+                            Song->RecordLength = Pad;
                             
                             Song->PlayPos = 0.f;
                         }
@@ -2429,8 +2425,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
 #if MUZE_INTERNAL                
                 UI_List(Axis2_Y, S8("Recording"))
                 {                  
-                    f32 RecordLength = (Song->RecordEnd - Song->RecordStart);
-                    UI_Labelf("Length: %.2f/%.2f###RecordLength", RecordLength, ((f32)Song->BPM/60.f)*RecordLength);
+                    UI_Labelf("Length: %.2f/%.2f###RecordLength", Song->RecordLength, ((f32)Song->BPM/60.f)*Song->RecordLength);
                 }
                 
                 UI_List(Axis2_Y, S8("Playing"))
@@ -2559,18 +2554,25 @@ UPDATE_AND_RENDER(UpdateAndRender)
             f32 NoteStart = Note->Timestamp;
             f32 NoteEnd = NoteStart + Note->Duration;
             
-            // TODO(luca): If a note is really shorter than dtForFrame it could skip it.  But how else would you do this.
-            // NOTE(luca): We need to  use midiStream instead?
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+            // TODO(luca): If a note is shorter than dtForFrame it could skip it.
+            
+            if(NoteStart <= Song->PlayPos &&
+               NoteStart > (Song->PlayPos - Input->dtForFrame))
+            {
+                PlayNote(Memory, Song, Note);
+            }
+            
             if(NoteEnd <= Song->PlayPos &&
                NoteEnd > (Song->PlayPos - Input->dtForFrame))
             {
-                PlayNote(Memory, Song, Note);
+                note OffNote = *Note;
+                OffNote.Velocity = 0;
+                PlayNote(Memory, Song, &OffNote);
             }
         }
         
         Song->PlayPos += Input->dtForFrame;
-        if(Song->PlayPos >= (Song->RecordEnd - Song->RecordStart))
+        if(Song->PlayPos >= Song->RecordLength)
         {
             StopAllPlayingNotes(Memory, Song, Input->dtForFrame);
             
@@ -2580,9 +2582,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     if(Song->IsRecording)
     {
-        Song->RecordEnd = GetWallTime();
+        Song->RecordLength = (GetWallTime() - Song->RecordStart);
         
-        if(Song->RecordEnd - Song->RecordStart >= MaxRecordingLength)
+        if(Song->RecordLength >= MaxRecordingLength)
         {
             StopRecording(Memory, Song, Input->dtForFrame);
         }
@@ -2614,7 +2616,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     app_midi_note *Note = Notes + NotesCount;
                     NotesCount += 1;
-                    Note->Timestamp = (f32)OS_GetWallClock();
+                    Note->Timestamp = ((f32)OS_GetWallClock() - Song->RecordStart);
                     
                     midi_message Message = {0};
                     

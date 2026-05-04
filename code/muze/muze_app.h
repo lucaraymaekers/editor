@@ -141,7 +141,7 @@ struct song
     note_node *FreeNode;
     
     f32 RecordStart;
-    f32 RecordEnd;
+    f32 RecordLength;
     
     u8 MaxPitch;
     u8 MinPitch;
