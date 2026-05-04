@@ -236,8 +236,7 @@ RectFromSize(v2 TopLeft, v2 Size)
 internal inline v2
 SizeFromRect(v4 Rec)
 {
-    v2 Result = V2(Rec.Max.X - Rec.Min.X,
-                   Rec.Max.Y - Rec.Min.Y);
+    v2 Result = V2SubV2(Rec.Max, Rec.Min);
     return Result;
 }
 

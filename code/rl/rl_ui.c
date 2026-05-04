@@ -367,6 +367,8 @@ UI_MeasureTextWidth(str8 String, font_kind FontKind)
 internal void
 UI_DefaultState(ui_box *Root, f32 HeightPx)
 {
+    Assert(!UI_IsNilBox(Root));
+    
     UI_State->Current = Root;
     UI_State->Root = Root;
     UI_State->AppendToParent = true;
@@ -393,14 +395,13 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
 {
     switch(Box->SemanticSize[Axis].Kind)
     {
-        default: {}break;
+        default: break;
         case UI_SizeKind_Pixels:
         {
             Box->FixedSize.e[Axis] = Box->SemanticSize[Axis].Value;
         } break;
         case UI_SizeKind_TextContent:
         {
-            // TODO(luca): This is the only part that needs the UI_State variable, if we can rid of it, we could get totally UI_State agnostic layout computation. 
             if(Axis == Axis2_X)
             {
                 Box->FixedSize.e[Axis] = (UI_MeasureTextWidth(Box->DisplayString, Box->FontKind) + 
@@ -408,7 +409,7 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
             }
             else
             {
-                Box->FixedSize.e[Axis] = (UI_State->Atlas->HeightPx + 
+                Box->FixedSize.e[Axis] = (Box->HeightPx + 
                                           2.f*Box->SemanticSize[Axis].Value);
             }
         } break;

@@ -74,6 +74,10 @@ DrawRect(v4 Dest, v4 Color, f32 CornerRadius, f32 BorderThickness, f32 Softness)
 {
     rect_instance *Result = GlobalRectsInstances + GlobalRectsCount;
     
+    b32 RecIsValid = (Dest.Min.X < Dest.Max.X &&
+       Dest.Min.Y < Dest.Max.Y);
+    if(RecIsValid)
+{    
     GlobalRectsCount += 1;
     
     MemoryZero(Result);
@@ -86,7 +90,12 @@ DrawRect(v4 Dest, v4 Color, f32 CornerRadius, f32 BorderThickness, f32 Softness)
     Result->CornerRadii = V4F32(CornerRadius);
     Result->Border = BorderThickness;
     Result->Softness = Softness;
-    
+    }
+    else
+    {
+        NoOp();
+    }
+
     return Result;
 }
 
@@ -100,7 +109,8 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
     
     b32 Supported = (Codepoint >= Atlas->FirstCodepoint && 
                      Codepoint < Atlas->CodepointsCount - Atlas->FirstCodepoint);
-    if(1 || Supported)
+    // TODO(luca): Proper glyph cache
+    if(Supported)
     {        
         rune CharIdx = Codepoint - Atlas->FirstCodepoint;
         stbtt_packedchar *PackedChar = &Atlas->PackedChars[CharIdx];
@@ -116,9 +126,9 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
                         floorf(Pos.Y + PackedChar->yoff + Baseline + Descent));
             v2 Max = V2(Min.X + Width, Min.Y + Height);
             
-            Result = DrawRect(Dest, Color, 0.f, 0.f, 0.f);
+                Dest = Rect(Min.X, Min.Y, Max.X, Max.Y);
             
-            Result->Dest = Rect(Min.X, Min.Y, Max.X, Max.Y);
+            Result = DrawRect(Dest, Color, 0.f, 0.f, 0.f);
             Result->TexSrc = Rect(Quad->s0, Quad->t0, Quad->s1, Quad->t1);
         }
         

@@ -337,7 +337,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
 #if OS_WINDOWS
         umm SampleRate = 48000;
         umm ChannelsCount = 2;
-        umm BytesPerSample = sizeof(s16)*ChannelsCount;
+        umm BytesPerSample = sizeof(sample_format)*ChannelsCount;
         
         WA_Start(&GlobalAudioBuffer, SampleRate, ChannelsCount, SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT);
         
@@ -364,7 +364,11 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         snd_pcm_hw_params_any(SoundHandle, SoundHandleParams);
         
         snd_pcm_hw_params_set_access(SoundHandle, SoundHandleParams, SND_PCM_ACCESS_RW_INTERLEAVED);
+#if SAMPLE_FORMAT == f32
+        snd_pcm_hw_params_set_format(SoundHandle, SoundHandleParams, SND_PCM_FORMAT_FLOAT_LE);
+        #elif SAMPLE_FORMAT == s16
         snd_pcm_hw_params_set_format(SoundHandle, SoundHandleParams, SND_PCM_FORMAT_S16_LE);
+#endif
         snd_pcm_hw_params_set_channels(SoundHandle, SoundHandleParams, DesiredChannelsCount);
         snd_pcm_hw_params_set_rate_near(SoundHandle, SoundHandleParams, &DesiredSampleRate, 0);
         snd_pcm_hw_params_set_period_size_near(SoundHandle, SoundHandleParams, &DesiredPeriodSize, 0);
@@ -384,7 +388,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         snd_pcm_status_malloc(&SoundHandleStatus);
         
         u64 SamplesCount = (u64)roundf(3.f*(f32)SampleRate*TargetSecondsPerFrame);
-        s16 *Samples = PushArrayZero(PermanentArena, s16, SamplesCount);
+        sample_format *Samples = PushArrayZero(PermanentArena, sample_format, SamplesCount);
 #endif
         
         //- 
@@ -941,7 +945,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     }
                     if(Code.UpdateAndRender)
 {
-                    b32 ShouldQuit = Code.UpdateAndRender(ThreadContext, &AppMemory, &Buffer, AppInput);
+                    b32 ShouldQuit = Code.UpdateAndRender(&AppMemory, &Buffer, AppInput);
                     // NOTE(luca): Since UpdateAndRender can take some time, there could have been a signal sent to INT the app.
                     ReadWriteBarrier();
                     *Running = *Running && !ShouldQuit;
@@ -971,10 +975,14 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     umm PlayCount = GlobalAudioBuffer.playCount;
                     umm WriteCount = Min(SampleRate/10, GlobalAudioBuffer.sampleCount);
                     
-                    s16 *Samples = GlobalAudioBuffer.sampleBuffer;
+                    sample_format *Samples = GlobalAudioBuffer.sampleBuffer;
                     MemorySet(Samples, 0, WriteCount * BytesPerSample);
                     
-                    // Play sine wave
+                    if(Code.GetAudioSamples)
+{
+                        Code.GetAudioSamples(Samples, WriteCount);
+}
+                    // Play sine wave (floats)
 #if 0
                     {
                         local_persist f32 Time = 0.f;
@@ -1020,7 +1028,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                 
                 if(Code.GetAudioSamples)
 {                
-                Code.GetAudioSamples(ThreadContext, Samples, (s64)SamplesToWrite);
+                Code.GetAudioSamples(Samples, (s64)SamplesToWrite);
                 }
 
                 OS_ProfileAndPrint("Get samples");

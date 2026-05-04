@@ -1,8 +1,15 @@
 # Now
 - multiple panes
-- sf2 and TSF
 
-# Muze (planned) features 
+# Next
+- Better scrolling
+  - Autoscroll when playing
+  - Scroll to End/Beginning
+- Sheet music show more than one octave
+  - Raise an octave for selection
+- Delete notes
+
+# Future 
 
 - Elongate & Shrink notes to their nearest musical length
   - When unsure, multiple possibilites make the user decide.
@@ -12,6 +19,8 @@
 - Expand selection based on pattern.
 
 - Metronome & sound output
+- Stretch/Shrink BPM 
+- Convert TimeSig?
 
 - Multiple voices
   - Add a voice to a selection
@@ -32,13 +41,6 @@
 
 - Lists of patterns you can choose from
   e.g., for accompaniments. arpeggio's etc.
-
-# Next
-- Multiple panes
-- Autoscroll when playing
-- Go to End/Beginning
-- Sheet music show more than one octave
-  - Raise an octave for selection
 
 # UI
 - Show only selected notes.
@@ -68,3 +70,4 @@ x UI vertical list that has same width for all children
 x Snap BPM to bass notes 
 x Sheet music lines 
 x Scroll the roll and sheet with xdelta.
+x sf2 and TSF

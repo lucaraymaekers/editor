@@ -4,6 +4,8 @@
 #define MUZE_APP_H
 
 //~ Types
+
+//- Muze 
 // TODO(luca): Metaprogram
 typedef enum note_pitch note_pitch;
 enum note_pitch
@@ -22,76 +24,6 @@ enum note_pitch
     Note_B,
     
     Note_Count
-};
-
-typedef struct app_text app_text; 
-struct app_text
-{
-    u64 Cursor;
-    u64 Count;
-    u64 Capacity;
-    u64 Trail;
-    u64 CurRelLine;
-    f32 CursorAnimTime;
-    rune *Data;
-    
-    u64 PrevCursor;
-    // Computed each frame
-    u64 Lines;
-};
-
-typedef enum panel_kind panel_kind;
-enum panel_kind
-{
-    PanelKind_Free,
-    PanelKind_Text,
-    PanelKind_Muze,
-};
-
-typedef struct panel panel;
-struct panel
-{
-    panel *First;
-    panel *Last;
-    panel *Next;
-    panel *Prev;
-    panel *Parent;
-    
-    s32 Axis;
-    f32 ParentPct;
-    
-    ui_box *Root;
-    v4 Region;
-    
-    b32 CannotClose;
-    
-    panel_kind Kind;
-    app_text *Text;
-};
-raddbg_type_view(panel, 
-                 no_addr(rows($,
-                              (&First == NilPanel || &First == 0),
-                              ParentPct,
-                              Kind,
-                              (Axis == Axis2_X ? "X" : "Y"))));
-#define EachChildPanel(Child, Parent) (panel *Child = Parent->First; !IsNilPanel(Child); Child = Child->Next)
-
-typedef struct panel_node panel_node;
-struct panel_node
-{
-    panel *Value;
-    
-    // TODO(luca): Double Linked List
-    panel_node *Next;
-};
-#define EachPanel(Index, First) EachNode(Index, panel_node, First)
-
-typedef struct panel_rec panel_rec;
-struct panel_rec
-{
-    panel *Next;
-    s32 PushCount;
-    s32 PopCount;
 };
 
 typedef enum note_kind note_kind;
@@ -126,35 +58,101 @@ for (note *Index = _node->Value, *_note = _node->Value; _note; _note = 0)
 #define EachNote(Note, Notes, Count) \
 (note *Note = Notes; Note != (Notes + Count); Note = Note + 1)
 
+// TODO(luca): Rename to voice
 typedef struct song song;
 struct song
 {
-    platform_midi_device In;
-    platform_midi_device Out;
-    b32 IsOutputSynth;
-    b32 IsInputVirtualKeyboard;
-    
-    s64 NotesCount;
+    u64 MaxNotesCount;
     note *Notes;
-    note_node *NoteSel;
-    arena *NoteNodesArena;
-    note_node *FreeNode;
-    
-    f32 RecordStart;
-    f32 RecordLength;
-    
-    u8 MaxPitch;
-    u8 MinPitch;
+    s64 NotesCount;
     
     b32 IsRecording;
     b32 IsPlaying;
     
+    f32 RecordStart;
+    f32 RecordLength;
     f32 PlayPos;
     
-    s32 TimeSig;
-    f32 BPM;
+    u8 MaxPitch;
+    u8 MinPitch;
+    
+    note_node *NoteSel;
 };
 
+//- Text 
+typedef struct app_text app_text; 
+struct app_text
+{
+    u64 Cursor;
+    u64 Count;
+    u64 Capacity;
+    u64 Trail;
+    u64 CurRelLine;
+    f32 CursorAnimTime;
+    rune *Data;
+    
+    u64 PrevCursor;
+    // Computed each frame
+    u64 Lines;
+};
+
+//- Panels
+typedef enum panel_kind panel_kind;
+enum panel_kind
+{
+    PanelKind_Free,
+    PanelKind_Text,
+    PanelKind_Muze,
+};
+
+typedef struct panel panel;
+struct panel
+{
+    panel *First;
+    panel *Last;
+    panel *Next;
+    panel *Prev;
+    panel *Parent;
+    
+    s32 Axis;
+    f32 ParentPct;
+    
+    ui_box *Root;
+    v4 Region;
+    
+    b32 CannotClose;
+    
+    panel_kind Kind;
+    app_text *Text;
+    song *Song;
+};
+raddbg_type_view(panel, 
+                 no_addr(rows($,
+                              (&First == NilPanel || &First == 0),
+                              ParentPct,
+                              Kind,
+                              (Axis == Axis2_X ? "X" : "Y"))));
+#define EachChildPanel(Child, Parent) (panel *Child = Parent->First; !IsNilPanel(Child); Child = Child->Next)
+
+typedef struct panel_node panel_node;
+struct panel_node
+{
+    panel *Value;
+    
+    // TODO(luca): Double Linked List
+    panel_node *Next;
+};
+#define EachPanel(Index, First) EachNode(Index, panel_node, First)
+
+typedef struct panel_rec panel_rec;
+struct panel_rec
+{
+    panel *Next;
+    s32 PushCount;
+    s32 PopCount;
+};
+
+//- State 
 typedef struct app_state app_state;
 struct app_state
 {
@@ -169,8 +167,26 @@ struct app_state
     // TODO(luca): Move to UI state ?
     arena *UIArena;
     
-    song Song;
-    
+    struct
+{    
+    platform_midi_device In;
+        platform_midi_device Out;
+        
+    b32 IsOutputSynth;
+    b32 IsInputVirtualKeyboard;
+        
+        u64 MaxSongsCount;
+        s64 SongsCount;
+    song *Songs;
+        song *SelectedSong;
+        
+        s32 TimeSig;
+        f32 BPM;
+        
+        arena *Arena;
+        note_node *FreeNode;
+    } Muze;
+
     struct
     {
         arena *TextArena;

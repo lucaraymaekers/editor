@@ -40,6 +40,9 @@ global_variable str8 ExeDirPath = {0};;
 global_variable arena *FrameArena = 0;
 
 //~ Types
+#define SAMPLE_FORMAT f32
+typedef SAMPLE_FORMAT sample_format;
+
 typedef struct app_offscreen_buffer app_offscreen_buffer;
 struct app_offscreen_buffer
 {
@@ -286,11 +289,11 @@ struct app_memory
     b32 Initialized;
 };
 
-#define UPDATE_AND_RENDER(Name) b32 Name(thread_context *Context, app_memory *Memory, app_offscreen_buffer *Buffer, app_input *Input)
+#define UPDATE_AND_RENDER(Name) b32 Name(app_memory *Memory, app_offscreen_buffer *Buffer, app_input *Input)
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) { return false; }
 
-#define GET_AUDIO_SAMPLES(Name) void Name(thread_context *Context, void *Buffer, s64 FramesCount)
+#define GET_AUDIO_SAMPLES(Name) void Name(void *Buffer, s64 FramesCount)
 typedef GET_AUDIO_SAMPLES(get_audio_samples);
 GET_AUDIO_SAMPLES(GetAudioSamplesStub) {}
 

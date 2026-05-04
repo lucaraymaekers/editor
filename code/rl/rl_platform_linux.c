@@ -1395,6 +1395,8 @@ P_LoadAppCode(arena *Arena, app_code *Code, app_memory *Memory)
         else
         {
             Code->LibraryHandle = 0;
+            Code->GetAudioSamples = GetAudioSamplesStub;
+            Code->UpdateAndRender = UpdateAndRenderStub;
             ErrorLog("%s", dlerror());
         }
     }
