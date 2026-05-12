@@ -1,13 +1,3 @@
-/* TODO(luca): 
-- Cng_PathFromExe should return char *
-- Cng_InitAndRebuildSelf should be compressed between OS versions
-- Cgn_RunCommand should take a str8_array instead of str8 since that seems to be the more common case
-- Provide a path to execute a command asynchronously and check later if it has completed.
-- Instead of passing argument "norebuild" set an environment variable
-
-- On Windows find a truly self-hosting solution.
-*/
-
 //~ Libraries
 // Standard library (TODO(luca): get rid of it) 
 #include <stdio.h>
@@ -34,40 +24,60 @@ struct str8_array
 };
 typedef struct str8_array str8_array;
 
+enum cng_os_kind
+{
+    CngOS_Windows,
+    CngOS_Linux,
+};
+typedef enum cng_os_kind cng_os_kind;
+
 //~ Globals
 global_variable arena *GlobalClingArena = 0;
 global_variable str8_array *GlobalSelectedArray = 0;
 global_variable char **GlobalEnv = 0;
+global_variable cng_os_kind GlobalCurrentOS = 0;
+
+//~ Platform API
+// NOTE(luca): Implement these when adding a new platform.
+internal void Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[]);
+internal void Cng_RunCommand(str8 Command);
 
 //~ Functions
+internal b32
+Cng_IsOs(cng_os_kind Kind)
+{
+    b32 Result = (GlobalCurrentOS == Kind);
+    return Result;
+}
+
 //- Strings
 internal void
-SetClingArena(arena *Arena)
+Cng_SetArena(arena *Arena)
 {
     GlobalClingArena = Arena;
 }
 
 internal void
-SetSelectedArray(str8_array *Array)
+Cng_SetSelectedArray(str8_array *Array)
 {
     GlobalSelectedArray = Array;
 }
 
 internal str8_array *
-PushStr8Array(u64 Capacity)
+Cng_PushStr8Array(u64 Capacity)
 {
-    str8_array *Result = PushStruct(GlobalClingArena, str8_array);
+    str8_array *Result = PushArray(GlobalClingArena, str8_array, 1);
     Result->Capacity = Capacity;
     Result->Strings = PushArray(GlobalClingArena, str8, Result->Capacity);
     return Result;
 }
 
-#define Str8ArrayPushCount(Array) for(u64 _Count_ = Array->Count, _i_ = 0; \
+#define Cng_Str8ArrayPushCount(Array) for(u64 _Count_ = Array->Count, _i_ = 0; \
 _i_ == 0; \
 _i_ = _i_ + 1, Array->Count = _Count_)
 
 internal void 
-Str8ArrayAppendTo(str8_array *Array, str8 String)
+Cng_Str8ArrayAppendTo(str8_array *Array, str8 String)
 {
     if(String.Size > 0)
     {
@@ -78,82 +88,82 @@ Str8ArrayAppendTo(str8_array *Array, str8 String)
 }
 
 internal void
-Str8ArrayAppend(str8 String)
+Cng_Str8ArrayAppend(str8 String)
 {
-    Str8ArrayAppendTo(GlobalSelectedArray, String);
+    Cng_Str8ArrayAppendTo(GlobalSelectedArray, String);
 }
 
-#define Str8ArrayAppendMultipleTo(Array, ...) \
+#define Cng_Str8ArrayAppendMultipleTo(Array, ...) \
 do \
 { \
 str8 Strings[] = {__VA_ARGS__}; \
-_Str8ArrayAppendMultiple(Array, ArrayCount(Strings), Strings); \
+_Cng_Str8ArrayAppendMultiple(Array, ArrayCount(Strings), Strings); \
 } while(0);
-void _Str8ArrayAppendMultiple(str8_array *Array, u64 Count, str8 *Strings)
+void _Cng_Str8ArrayAppendMultiple(str8_array *Array, u64 Count, str8 *Strings)
 {
     for EachIndex(At, Count)
     {
-        Str8ArrayAppendTo(Array, Strings[At]);
+        Cng_Str8ArrayAppendTo(Array, Strings[At]);
     }
 }
 
-#define Str8ArrayAppendMultiple(...) Str8ArrayAppendMultipleTo(GlobalSelectedArray, __VA_ARGS__) 
+#define Cng_Str8ArrayAppendMultiple(...) Cng_Str8ArrayAppendMultipleTo(GlobalSelectedArray, __VA_ARGS__) 
 
 internal str8 
-Str8ArrayJoinFrom(str8_array *Array, u8 Char)
+Cng_Str8ArrayJoinFrom(str8_array *Array, u8 Char)
 {
     str8 Result = {0};
     
     if(Array)
-{    
-    u64 TotalSize = 0;
-    for EachIndex(Idx, Array->Count)
-    {
-        TotalSize += Array->Strings[Idx].Size;
-    }
-    
-    if(Char)
-    {
-        TotalSize += (Array->Count - 1);
-    }
-    
-    str8 Buffer = PushS8(GlobalClingArena, TotalSize);
-    
-    u64 BufferIndex = 0;
-    for EachIndex(At, Array->Count)
-    {
-        str8 *StringAt = Array->Strings + At;
+    {    
+        u64 TotalSize = 0;
+        for EachIndex(Idx, Array->Count)
+        {
+            TotalSize += Array->Strings[Idx].Size;
+        }
         
-        MemoryCopy(Buffer.Data + BufferIndex, StringAt->Data, StringAt->Size);
-        BufferIndex += StringAt->Size;
         if(Char)
         {
-            if(At + 1 != Array->Count)
+            TotalSize += (Array->Count - 1);
+        }
+        
+        str8 Buffer = PushS8(GlobalClingArena, TotalSize);
+        
+        u64 BufferIndex = 0;
+        for EachIndex(At, Array->Count)
+        {
+            str8 *StringAt = Array->Strings + At;
+            
+            MemoryCopy(Buffer.Data + BufferIndex, StringAt->Data, StringAt->Size);
+            BufferIndex += StringAt->Size;
+            if(Char)
             {
-                Buffer.Data[BufferIndex] = Char;
-                BufferIndex += 1;
+                if(At + 1 != Array->Count)
+                {
+                    Buffer.Data[BufferIndex] = Char;
+                    BufferIndex += 1;
+                }
             }
         }
+        
+        Result.Data = Buffer.Data;
+        Result.Size = BufferIndex;
     }
     
-    Result.Data = Buffer.Data;
-    Result.Size = BufferIndex;
-    }
-
     
     return Result;
 }
 
 internal str8 
-Str8ArrayJoin(u8 Char)
+Cng_Str8ArrayJoin(u8 Char)
 {
-    str8 Result = Str8ArrayJoinFrom(GlobalSelectedArray, Char);
+    str8 Result = Cng_Str8ArrayJoinFrom(GlobalSelectedArray, Char);
     return Result;
 }
 
 //~ Helpers
 internal void 
-CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug)
+Cng_CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug)
 {
     str8_array *Command = GlobalSelectedArray;
     
@@ -184,56 +194,50 @@ CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug)
     else if(Clang)
     {
         Compiler = S8("clang");
-        Str8ArrayAppend(Compiler);
+        Cng_Str8ArrayAppend(Compiler);
         if(Debug)
         {
-            Str8ArrayAppend(S8("-g -ggdb -g3"));
+            Cng_Str8ArrayAppend(S8("-g -ggdb -g3"));
         }
         else if(Release)
         {
-            Str8ArrayAppend(S8("-O3"));
+            Cng_Str8ArrayAppend(S8("-O3"));
         }
-        Str8ArrayAppend(CommonCompilerFlags);
-        Str8ArrayAppend(S8("-fdiagnostics-absolute-paths -ftime-trace"));
-        Str8ArrayAppend(CommonWarningFlags);
-        Str8ArrayAppend(S8("-Wno-null-dereference -Wno-missing-braces -Wno-vla-cxx-extension -Wno-writable-strings -Wno-missing-designated-field-initializers -Wno-address-of-temporary -Wno-int-to-void-pointer-cast"));
+        Cng_Str8ArrayAppend(CommonCompilerFlags);
+        Cng_Str8ArrayAppend(S8("-fdiagnostics-absolute-paths -ftime-trace"));
+        Cng_Str8ArrayAppend(CommonWarningFlags);
+        Cng_Str8ArrayAppend(S8("-Wno-null-dereference -Wno-missing-braces -Wno-vla-cxx-extension -Wno-writable-strings -Wno-missing-designated-field-initializers -Wno-address-of-temporary -Wno-int-to-void-pointer-cast"));
     }
     else if(GCC)
     {
         Compiler = S8("g++");
-        Str8ArrayAppend(Compiler);
+        Cng_Str8ArrayAppend(Compiler);
         
         if(Debug)
         {
-            Str8ArrayAppend(S8("-g -ggdb -g3"));
+            Cng_Str8ArrayAppend(S8("-g -ggdb -g3"));
         }
         else if(Release)
         {
-            Str8ArrayAppend(S8("-O3"));
+            Cng_Str8ArrayAppend(S8("-O3"));
         }
-        Str8ArrayAppend(CommonCompilerFlags);
-        Str8ArrayAppend(CommonWarningFlags);
-        Str8ArrayAppend(S8("-Wno-cast-function-type -Wno-missing-field-initializers -Wno-int-to-pointer-cast"));
+        Cng_Str8ArrayAppend(CommonCompilerFlags);
+        Cng_Str8ArrayAppend(CommonWarningFlags);
+        Cng_Str8ArrayAppend(S8("-Wno-cast-function-type -Wno-missing-field-initializers -Wno-int-to-pointer-cast"));
     }
     
-    Str8ArrayAppend(LinuxLinkerFlags);
+    Cng_Str8ArrayAppend(LinuxLinkerFlags);
 #elif OS_WINDOWS    
-    Str8ArrayAppend(S8("cmd /c \"C:\\msvc\\setup_x64.bat"));
-    Str8ArrayAppend(S8("&&"));
+    Cng_Str8ArrayAppend(S8("cmd /c \"C:\\msvc\\setup_x64.bat"));
+    Cng_Str8ArrayAppend(S8("&&"));
     
-    Str8ArrayAppend(S8("cl"));
-    Str8ArrayAppend(S8("-MTd -Gm- -nologo -GR- -EHa- -Oi -FC -Z7"));
-    Str8ArrayAppend(S8("-Zc:strictStrings-"));
-    Str8ArrayAppend(S8("-WX -W4 -wd4459 -wd4456 -wd4201 -wd4100 -wd4101 -wd4189 -wd4505 -wd4996 -wd4389 -wd4244 -wd5287"));
-    Str8ArrayAppend(S8("-I" CLING_CODE_PATH));
+    Cng_Str8ArrayAppend(S8("cl"));
+    Cng_Str8ArrayAppend(S8("-MTd -Gm- -nologo -GR- -EHa- -Oi -FC -Z7"));
+    Cng_Str8ArrayAppend(S8("-Zc:strictStrings-"));
+    Cng_Str8ArrayAppend(S8("-WX -W4 -wd4459 -wd4456 -wd4201 -wd4100 -wd4101 -wd4189 -wd4505 -wd4996 -wd4389 -wd4244 -wd5287"));
+    Cng_Str8ArrayAppend(S8("-I" CLING_CODE_PATH));
 #endif
 }
-
-//~ API
-internal str8 Cng_PathFromExe(char *ExePath, str8 Path);
-internal str8 Cng_GetBaseFileName(str8 FileName);
-internal void Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[]);
-internal void Cng_RunCommand(str8 Command);
 
 internal str8
 Cng_PathFromExe(char *ExePath, str8 Path)
@@ -332,9 +336,17 @@ Cng_RunCommand(str8 Command)
 internal void
 Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
 {
-    GlobalEnv = Env;
-    StringsScratch = ArenaAlloc();
-    SetClingArena(ArenaAlloc());
+    // Globals
+    {
+#if OS_WINDOWS
+        GlobalCurrentOS = CngOS_Windows;
+#elif OS_LINUX
+        GlobalCurrentOS = CngOS_Linux;
+#endif
+        GlobalEnv = Env;
+        SetStringsScratch(ArenaAlloc());
+        Cng_SetArena(ArenaAlloc());
+    }
     
     b32 Rebuild = true;
     for(int ArgsIndex = 1;
@@ -368,24 +380,24 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
         {
             Log("[self build]\n");
             
-            SetSelectedArray(PushStr8Array(256));
-            CommonBuildCommand(false, true, true);
+            Cng_SetSelectedArray(Cng_PushStr8Array(256));
+            Cng_CommonBuildCommand(false, true, true);
             
-            Str8ArrayAppendMultiple(S8("-I"), ClingCodePath);
+            Cng_Str8ArrayAppendMultiple(S8("-I"), ClingCodePath);
             
-            Str8ArrayAppend(ClingSourcePath);
+            Cng_Str8ArrayAppend(ClingSourcePath);
             
-            Str8ArrayAppend(S8Cat(S8("/link /out:"), OutputFileName));
+            Cng_Str8ArrayAppend(S8Cat(S8("/link /out:"), OutputFileName));
             
-            str8 BuildCommand = Str8ArrayJoin(' ');
+            str8 BuildCommand = Cng_Str8ArrayJoin(' ');
             Cng_RunCommand(BuildCommand);
         }
         
         // Run new cling.exe
         {
-            SetSelectedArray(PushStr8Array(256));
+            Cng_SetSelectedArray(Cng_PushStr8Array(256));
             
-            Str8ArrayAppend(OutputFileName);
+            Cng_Str8ArrayAppend(OutputFileName);
             
             for(s32 At = 1;
                 At < ArgsCount;
@@ -395,13 +407,13 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
                 if(strcmp(Args[At], "rebuild"))
                 {
                     str8 Arg = S8FromCString(Args[At]);
-                    if(Arg.Size) Str8ArrayAppend(Arg); 
+                    if(Arg.Size) Cng_Str8ArrayAppend(Arg); 
                 }
             }
             
-            Str8ArrayAppend(S8("norebuild"));
+            Cng_Str8ArrayAppend(S8("norebuild"));
             
-            str8 Command = Str8ArrayJoin(' ');
+            str8 Command = Cng_Str8ArrayJoin(' ');
             Cng_RunCommand(Command);
         }
         
@@ -572,7 +584,6 @@ LinuxRunCommand(char *Args[])
 }
 
 //- OS implementation
-
 internal void 
 Cng_RunCommand(str8 Command)
 {
@@ -629,9 +640,17 @@ Cng_RunCommand(str8 Command)
 internal void
 Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
 {
-    GlobalEnv = Env;
-    StringsScratch = ArenaAlloc();
-    SetClingArena(ArenaAlloc());
+    // Globals
+    {
+#if OS_WINDOWS
+        GlobalCurrentOS = CngOS_Windows;
+#elif OS_LINUX
+        GlobalCurrentOS = CngOS_Linux;
+#endif
+        GlobalEnv = Env;
+        SetStringsScratch(ArenaAlloc());
+        Cng_SetArena(ArenaAlloc());
+    }
     
     arena *Arena = GlobalClingArena;
     str8 OutputBuffer = PushS8(Arena, KB(2));
@@ -653,18 +672,18 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
     {
         Log("[self build]\n");
         
-        SetSelectedArray(PushStr8Array(256));
-        CommonBuildCommand(false, true, true);
+        Cng_SetSelectedArray(Cng_PushStr8Array(256));
+        Cng_CommonBuildCommand(false, true, true);
         
         str8 ClingSourcePath = Cng_PathFromExe(CommandName, S8(CLING_SOURCE_PATH));
         str8 ClingCodePath = Cng_PathFromExe(CommandName, S8(CLING_CODE_PATH));
         
         Log(S8Fmt "\n", S8Arg(Cng_GetBaseFileName(ClingSourcePath)));
         
-        Str8ArrayAppendMultiple(S8("-o"), S8FromCString(CommandName),
-                                S8("-I"), ClingCodePath,
-                                ClingSourcePath);
-        str8 BuildCommand = Str8ArrayJoin(' ');
+        Cng_Str8ArrayAppendMultiple(S8("-o"), S8FromCString(CommandName),
+                                    S8("-I"), ClingCodePath,
+                                    ClingSourcePath);
+        str8 BuildCommand = Cng_Str8ArrayJoin(' ');
         
         //Log("%*s\n", (int)BuildCommand.Size, BuildCommand.Data);
         

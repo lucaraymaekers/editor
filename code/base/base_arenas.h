@@ -1,7 +1,5 @@
 /* date = December 6th 2025 2:11 pm */
 
-
-
 #if !defined(ARENAS_H)
 #define ARENAS_H
 
@@ -41,14 +39,15 @@ internal void *ArenaPush(arena *Arena, u64 Size, u64 Alignment, b32 Zero);
 internal void ArenaSetPos(arena *Arena, u64 Pos);
 internal u64 BeginScratch(arena *Arena);
 internal void EndScratch(arena *Arena, u64 BackPos);
+internal void ArenaFree(arena *Arena, u64 Size);
 
-#define Scratch(Arena) for(u64 _J_ = BeginScratch((Arena)), _I_ = 0; \
-!_I_; \
-_I_ += 1, (EndScratch(Arena, _J_)))
+#define Scratch_(Arena, BackPos, Idx) \
+for(u64 BackPos = BeginScratch((Arena)), Idx = 0; \
+!Idx; \
+Idx += 1, (EndScratch(Arena, BackPos)))
+#define Scratch(Arena) Scratch_(Arena, Glue(BackPos, __COUNTER__), Glue(Idx, __COUNTER__))
 
 #define PushArray(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), false)
-#define PushStruct(Arena, t) PushArray(Arena, t, 1)
 #define PushArrayZero(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), true)
-#define PushStructZero(Arena, t) PushArrayZero(Arena, t, 1)
 
 #endif //ARENAS_H

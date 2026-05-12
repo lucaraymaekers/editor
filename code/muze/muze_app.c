@@ -32,23 +32,10 @@ NO_WARNINGS_END
 //~ Globals
 global_variable tsf *GlobalTSF;
 global_variable tsf *NilTSF;
-global_variable panel *NilPanel = 0;
+global_variable panel *NilPanel;
+global_variable drag_data *DragData;
+global_variable ui_size GlobalItemPadding;
 
-global_variable str8 NotePitchStrings[] =
-{
-    {(u8*)"C", 1},
-    {(u8*)"C#", 2},
-    {(u8*)"D", 1},
-    {(u8*)"D#", 2},
-    {(u8*)"E", 1},
-    {(u8*)"F", 1},
-    {(u8*)"F#", 2},
-    {(u8*)"G", 1},
-    {(u8*)"G#", 2},
-    {(u8*)"A", 1},
-    {(u8*)"A#", 2},
-    {(u8*)"B", 1},
-};
 StaticAssert(ArrayCount(NotePitchStrings) == Note_Count, NotePitchStringsSizeCheck);
 
 global_variable note_pitch NoteBasePitches[] =
@@ -112,9 +99,9 @@ internal void
 InitReadOnlyGlobals(arena *Arena)
 {
     ArenaSetPos(Arena, 0);
-    UI_NilBox = PushStruct(Arena, ui_box);
-    NilPanel = PushStruct(Arena, panel);
-    NilNote = PushStruct(Arena, note);
+    UI_NilBox = PushArray(Arena, ui_box, 1);
+    NilPanel = PushArray(Arena, panel, 1);
+    NilNote = PushArray(Arena, note, 1);
 }
 
 //~ Panels
@@ -136,254 +123,6 @@ global_variable panel *PanelDragging = 0;
 global_variable s32 PanelDebugIndentation = 0;
 
 global_variable axis2_stack_node *PanelAxisTop = 0; 
-
-//~ Text editing 
-internal void
-DeleteChar(app_text *Text)
-{
-    if(Text->Cursor)
-    {
-        MemoryCopy(Text->Data + (Text->Cursor - 1),
-                   Text->Data + Text->Cursor,
-                   sizeof(rune)*((Text->Count - Text->Cursor) + 1));
-        
-        Text->Count -= 1;
-        Text->Cursor -= 1;
-    }
-}
-
-internal range_u64
-GetSelection(app_text *Text)
-{
-    range_u64 Range = {0};
-    
-    u64 Start = Text->Cursor;
-    u64 End = Text->Trail;
-    if(Start > End) Swap(Start, End);
-    
-    Range.Min = Start;
-    Range.Max = End;
-    
-    return Range;
-};
-
-internal void
-SaveTextToFile(app_text *Text, str8 FileName)
-{
-    str8 Source = PushS8(FrameArena, Text->Count);
-    for EachIndex(Idx, Source.Size)
-    {
-        Source.Data[Idx] = (u8)Text->Data[Idx];
-    }
-    char *Path = PathFromExe(FrameArena, FileName);
-    OS_WriteEntireFile(Path, Source);
-}
-
-internal void
-LoadFileToText(app_text *Text, str8 FileName)
-{
-    char *Path = PathFromExe(FrameArena, FileName);
-    str8 Source = OS_ReadEntireFileIntoMemory(Path);
-    if(Source.Size)
-    {
-        Text->PrevCursor = Text->Cursor = Text->Trail = 0;
-        Text->Count = Source.Size;
-        Text->CurRelLine = 0;
-        for EachIndex(Idx, Source.Size)
-        {
-            Text->Data[Idx] = Source.Data[Idx];
-        }
-        OS_FreeFileMemory(Source);
-    }
-}
-
-internal void
-CopySelection(app_text *Text, app_input *Input)
-{
-    range_u64 Selection = GetSelection(Text);
-    u64 Size = GetRangeU64Count(Selection);
-    
-    Input->PlatformSetClipboard = true;
-    
-    Input->PlatformClipboard.Size = Size;;
-    
-    for EachIndex(Idx, Size)
-    {
-        Input->PlatformClipboard.Data[Idx] = (u8)Text->Data[Selection.Min + Idx];
-    }
-    
-}
-
-internal void
-UpdateCursorRelLine(app_text *Text)
-{
-    if(Text->PrevCursor != Text->Cursor)
-    {    
-        // TODO(luca): Merge for loops
-        if(Text->PrevCursor < Text->Cursor)
-        {        
-            for(u64 Idx = Text->PrevCursor; Idx < Text->Cursor; Idx += 1)
-            {
-                if(Text->Data[Idx] == '\n')
-                {
-                    // TODO(luca): What when text->lines = 0
-                    Text->CurRelLine += !!(Text->CurRelLine < Text->Lines - 1);
-                }
-            }
-        }
-        else
-        {
-            for(u64 Idx = Text->PrevCursor - 1; Idx >= Text->Cursor; Idx -= 1)
-            {
-                if(Text->Data[Idx] == '\n')
-                {
-                    Text->CurRelLine -= !!(Text->CurRelLine > 0);
-                }
-                if(Idx == 0)
-                {
-                    break;
-                }
-            }
-        }
-    }
-    
-    Text->PrevCursor = Text->Cursor;
-}
-
-internal void
-DeleteSelection(app_text *Text)
-{
-    range_u64 Selection = GetSelection(Text);
-    u64 SelectionSize = GetRangeU64Count(Selection);
-    
-    u64 CharsAfterEnd = Text->Count - Selection.Max;
-    
-    Text->Cursor = Selection.Min;
-    
-    // NOTE(luca): We need to update CurRelLine before the text is altered.
-    UpdateCursorRelLine(Text);
-    
-    MemoryCopy(Text->Data + Selection.Min, Text->Data + Selection.Max,
-               sizeof(rune)*(CharsAfterEnd));
-    
-    Text->Count -= SelectionSize;
-    Text->CursorAnimTime = 0.f;
-    
-    Text->PrevCursor = Text->Cursor;
-}
-
-internal void
-
-AppendChar(app_text *Text, rune Codepoint)
-{
-    MemoryCopy(Text->Data + (Text->Cursor + 1),
-               Text->Data + (Text->Cursor),
-               sizeof(rune)*((Text->Count - Text->Cursor) + 1));
-    
-    Text->Data[Text->Cursor] = Codepoint;
-    
-    Text->Count += 1;
-    Text->Cursor += 1;
-    Text->CursorAnimTime = 0.f;
-    Text->Trail = Text->Cursor;
-    
-    Assert(Text->Count < Text->Capacity);
-}
-
-internal void
-TextMoveRight(app_text *Text)
-{
-    Text->Cursor += (Text->Cursor < Text->Count);
-    Text->CursorAnimTime = 0.f;
-}
-
-internal void
-TextMoveLeft(app_text *Text)
-{
-    Text->Cursor -= (Text->Cursor > 0);
-    Text->CursorAnimTime = 0.f;
-}
-
-internal void
-MoveTrail(app_text *Text, b32 Shift)
-{
-    if(!Shift)
-    {
-        Text->Trail = Text->Cursor;
-        Text->CursorAnimTime = 0.f;
-    }
-}
-
-internal void
-MoveDown(app_text *Text, b32 Shift)
-{
-    u64 Next = Text->Cursor + !!(Text->Cursor < Text->Count);
-    while(Next < Text->Count && Text->Data[Next] != '\n') Next += 1;
-    
-    // NOTE(luca): If the text cursor was on the next new line we search before it
-    u64 Begin = Text->Cursor - !!(Text->Cursor > 0 && Text->Cursor == Next);
-    while(Begin > 0 && Text->Data[Begin] != '\n') Begin -= 1;
-    
-    u64 End = Next + !!(Next < Text->Count);
-    while(End < Text->Count && Text->Data[End] != '\n') End += 1;
-    
-    u64 ColumnPos = (Text->Cursor - Begin);
-    u64 NewPos = Next + ColumnPos;
-    
-    if(Text->Data[Begin] != '\n') NewPos += 1;
-    
-    if(Next == Text->Count)
-    {
-        NewPos = Text->Count;
-    }
-    
-    Text->Cursor = Min(NewPos, End);
-    
-    Text->CursorAnimTime = 0.f;
-    
-    MoveTrail(Text, Shift);
-}
-
-internal void
-MoveUp(app_text *Text, b32 Shift)
-{
-    u64 End = Text->Cursor - !!(Text->Cursor > 0);
-    
-    while(End > 0 && Text->Data[End] != '\n') End -= 1;
-    
-    u64 Begin = End - !!(End > 0);
-    
-    while(Begin > 0 && Text->Data[Begin] != '\n') Begin -= 1;
-    
-    u64 ColumnPos = (Text->Cursor - End);
-    u64 NewPos = Begin + ColumnPos;
-    
-    if(Text->Data[Begin] != '\n') NewPos -= 1;
-    
-    // NOTE(luca): Special case, we go to the beginning of the line.
-    if(End == 0) NewPos = 0;
-    
-    // NOTE(luca): If the cursor would end up after the newline clamp it to the end of it. 
-    Text->Cursor = Min(NewPos, End);
-    
-    MoveTrail(Text, Shift);
-}
-
-internal void
-DeleteWordLeft(app_text *Text)
-{
-    while(Text->Cursor > 0 && 
-          IsWhiteSpace((u8)Text->Data[Text->Cursor - 1]))
-    {
-        DeleteChar(Text);
-    }
-    
-    while(Text->Cursor > 0 && 
-          !IsWhiteSpace((u8)Text->Data[Text->Cursor - 1]))
-    {
-        DeleteChar(Text);
-    }
-}
 
 //~ Misc
 typedef struct u64_array u64_array;
@@ -426,51 +165,78 @@ GetWrapPositions(arena *Arena, str8 Text, font_atlas *Atlas, f32 MaxWidth)
 
 //~ Panels 
 internal inline f32 
-SizeOnAxis(v4 Rec, s32 Axis)
+SizeOnAxis(v4 Rec, axis2 Axis)
 {
     f32 Result = (Rec.Max.e[Axis] - Rec.Min.e[Axis]);
     return Result;
 }
 
-internal panel *
-PanelAlloc(arena *Arena)
+internal void
+ZeroPanel(panel *Panel)
 {
-    panel *New = PushStructZero(Arena, panel);
-    New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
-    return New;
+    MemoryZero(Panel);
+    Panel->First = Panel->Last = Panel->Next = Panel->Prev = Panel->Parent = NilPanel;
 }
 
-internal void PanelPush() { PanelAppendToParent = true; }
-internal void PanelPop(void) { PanelCurrent = PanelCurrent->Parent; }
-internal void PanelPushAxis(axis2 Axis) { StackPush(PanelArena, axis2_stack_node, Axis, PanelAxisTop); }
-internal void PanelPopAxis() 
-{
-    if(PanelAxisTop) PanelAxisTop = PanelAxisTop->Prev;
-}
+global_variable u64 PanelsAllocated;
 
 internal panel *
-PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 ParentPct)
+PanelAlloc(void)
 {
-    panel *New = PanelAlloc(Arena);
+    panel *Result = NilPanel;
     
-    New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
-    New->Root = UI_NilBox;
+    if(!IsNilPanel(PanelApp->FreePanel))
+    {
+        Result = PanelApp->FreePanel;
+        PanelApp->FreePanel = PanelApp->FreePanel->Next;
+    }
+    else
+    {
+        Result = PushArray(PanelArena, panel, 1);
+        PanelsAllocated += 1;
+    }
+    
+    ZeroPanel(Result);
+    
+    return Result;
+}
+
+internal void PanelPushAxis(axis2 Axis) { StackPush(PanelArena, axis2_stack_node, Axis, PanelAxisTop); }
+internal void PanelPopAxis() { PanelAxisTop = PanelAxisTop->Prev; }
+
+internal void PanelPushChildren() 
+{
+    PanelAppendToParent = true;
+    
+    axis2 Axis = 1 - PanelAxisTop->Value;
+    PanelPushAxis(Axis);
+}
+internal void PanelPopChildren(void)
+{ 
+    PanelCurrent = PanelCurrent->Parent; 
+    PanelPopAxis();
+}
+
+internal panel *
+PanelAdd(f32 ParentPct)
+{
+    panel *New = PanelAlloc();
     
     New->ParentPct = ParentPct;
-    New->Axis = (s32)Axis;
+    New->Axis = PanelAxisTop->Value;
     
-    if(!IsNilPanel(Current))
+    if(!IsNilPanel(PanelCurrent))
     {            
-        if(AppendToParent)
+        if(PanelAppendToParent)
         {
-            Current->First = New;
-            New->Parent = Current;
+            PanelCurrent->First = New;
+            New->Parent = PanelCurrent;
         }
         else
         {
-            Current->Next = New;
-            New->Prev = Current;
-            New->Parent = Current->Parent;
+            PanelCurrent->Next = New;
+            New->Prev = PanelCurrent;
+            New->Parent = PanelCurrent->Parent;
         }
         
         New->Parent->Last = New;
@@ -482,10 +248,8 @@ PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 Pare
     return New;
 }
 
-#define PanelGroup() DeferLoop(PanelPush(), PanelPop())
+#define PanelChildren() DeferLoop(PanelPushChildren(), PanelPopChildren())
 #define PanelAxis(Axis) DeferLoop(PanelPushAxis(Axis), PanelPopAxis())
-#define PanelAdd(ParentPct) PanelAdd_(PanelArena, PanelAxisTop->Value, PanelCurrent, PanelAppendToParent, ParentPct)
-
 internal inline b32 
 IsLeafPanel(panel *Panel)
 {
@@ -494,11 +258,11 @@ IsLeafPanel(panel *Panel)
 }
 
 internal panel *
-SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
+SplitPanel(panel *To, axis2 Axis, b32 Backwards)
 {
     panel *Result = To;
     
-    panel *New = PanelAlloc(Arena);
+    panel *New = PanelAlloc();
     panel *Parent = To->Parent;
     
     if(!IsNilPanel(To))
@@ -506,7 +270,24 @@ SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
         // NOTE(luca): Must be a leaf node.
         Assert(IsLeafPanel(To));
         
-        if(Axis == Parent->Axis)
+        if(IsNilPanel(Parent))
+        {
+            MemoryCopyStruct(New, To);
+            ZeroPanel(To);
+            
+            To->ParentPct = 1.f;
+            To->Axis = Axis;
+            
+            To->First = New;
+            To->Last = New;
+            New->Parent = To;
+            
+            New->Axis = 1 - Axis;
+            New->ParentPct = 1.f;
+            
+            Result = SplitPanel(New, Axis, Backwards);
+        }
+        else if(Axis == Parent->Axis)
         {
             //The new child's ParentPct becomes 1/n where n is the children count
             //Other children's ParentPct *= (1-1/n) 
@@ -610,13 +391,13 @@ SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
             //- Split To along the same axis 
             {
                 To->ParentPct = 1.f;
-                Result = SplitPanel(Arena, To, Axis, Backwards); 
+                Result = SplitPanel(To, Axis, Backwards); 
             }
             
             //- Move kind from parent over to new leaf child 
             {
                 Result->Kind = Result->Parent->Kind;
-                Result->Parent->Kind = PanelKind_Free;
+                Result->Parent->Kind = PanelKind_Empty;
             }
         }
     }
@@ -684,264 +465,86 @@ PanelNextLeaf(panel *Start, b32 Backwards)
     }
     
     if(IsLeaf)
-    { 
-        if(IsNilPanel(Search))
-        {
-            Result = Start;
-        }
-        else
-        {
-            Result = Search;
-        }
+    {
+        Result = (IsNilPanel(Search) ? Start : Search);
     }
     
     return Result;
 }
 
-// NOTE(luca): Returns the panel that absorbed its size
+// NOTE(luca): Returns the panel that absorbed the size of the closed panel
 internal panel *
 ClosePanel(app_state *App, panel *Panel)
 {
-    // NOTE(luca): The panel which will take over the side of the deleted one.
     panel *Collapse = NilPanel;
+    panel *Parent = Panel->Parent;
     
-    if(!Panel->CannotClose)
-    {    
-        panel *Parent = Panel->Parent;
-        
-        Panel->Kind = PanelKind_Free;
-        
-        if(!IsNilPanel(Panel))
+    if(!IsNilPanel(Panel->Next)) Collapse = Panel->Next;
+    if(!IsNilPanel(Panel->Prev)) Collapse = Panel->Prev;
+    
+    if(IsNilPanel(Collapse))
+    {
+        // If there is no other panel, just make this one an empty one.
+        {
+            Panel->Kind = PanelKind_Empty;
+            Collapse = Panel;
+        }
+    }
+    else if(Collapse != Panel)
+    {
+        // Remove the panel from the tree.
         {        
-            if(Parent->First == Panel)
+            if(!IsNilPanel(Panel->Next)) Panel->Next->Prev = Panel->Prev;
+            if(!IsNilPanel(Panel->Prev)) Panel->Prev->Next = Panel->Next;
+            if(!IsNilPanel(Parent))
             {
-                Parent->First = Panel->Next;
+                if(Parent->First == Panel) Parent->First = Parent->First->Next;
+                if(Parent->Last  == Panel) Parent->Last  = Parent->Last->Prev;
             }
-            
-            if(Parent->Last == Panel)
-            {
-                Parent->Last = Panel->Prev;
-            }
-            
-            if(!IsNilPanel(Panel->Next)) 
-            {
-                Panel->Next->Prev = Panel->Prev;
-                
-                Collapse = Panel->Next;
-            }
-            
-            if(!IsNilPanel(Panel->Prev)) 
-            {
-                Panel->Prev->Next = Panel->Next;
-                
-                Collapse = Panel->Prev;
-            }
-            
-            if(!IsNilPanel(Collapse))
-            {
-                Collapse->ParentPct += Panel->ParentPct;
-                
-                // TODO(luca): If this collapsed into 100%, we should collapse it with the parent and overwrite the parent's Axis with ours, this will keep the tree compact.
-            }
-            else
-            {
-                // NOTE(luca): Last node of its parent, parent should get deleted.  End of the bloodline.
-                Collapse = ClosePanel(App, Panel->Parent);
-            }
-            
-            if(Panel == App->FirstPanel)
-            {
-                App->FirstPanel = NilPanel;
-            }
-            // TODO(luca): Push onto the free list
         }
         
-        if(!IsLeafPanel(Collapse))
+        // Absorb the size of the closed panel
+        {        
+            Collapse->ParentPct += Panel->ParentPct;
+        }
+        
+        // Collapse could be a non-leaf panel, use the next leaf from there.
         {
-            Collapse = PanelNextLeaf(Collapse, false);
+            if(!IsLeafPanel(Collapse)) Collapse = PanelNextLeaf(Collapse, false);
+            Assert(!IsNilPanel(Collapse));
+            Assert(IsLeafPanel(Collapse));
+        }
+        
+        // If this is the only child of the parent, collapse the child into the parent.
+        {
+            if(Collapse == Parent->First && 
+               Collapse == Parent->Last)
+            {
+                Assert(EqualsWithEpsilon(Collapse->ParentPct, 1.f, 0.001f));
+                
+                Parent->First = NilPanel;
+                Parent->Last = NilPanel;
+                
+                Parent->Kind = Collapse->Kind;
+                Parent->Voice = Collapse->Voice;
+                Parent->Scroll = Collapse->Scroll;
+                
+                Collapse = Parent;
+            }
+        }
+        
+        // Add removed panel to the free list
+        {
+            Panel->Next = App->FreePanel;
+            App->FreePanel = Panel;
         }
     }
     else
     {
-        Collapse = Panel;
+        InvalidPath();
     }
     
     return Collapse;
-}
-
-internal void
-PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
-{
-    panel *Parent = Panel->Parent;
-    s32 Axis = Panel->Parent->Axis;
-    s32 OtherAxis = 1 - Axis;
-    f32 GapSize = 1.f;
-    f32 PanelBorderSize = 2.f;
-    
-    v2 Pos = FreeRegion.Min;
-    v2 PanelSize = {0};
-    
-    f32 ParentSize = (Parent->Region.Max.e[Axis] - Parent->Region.Min.e[Axis]);
-    f32 OtherSize = (FreeRegion.Max.e[OtherAxis] - FreeRegion.Min.e[OtherAxis]);
-    
-    PanelSize.e[Axis] = (!IsNilPanel(Parent) ?
-                         (Panel->ParentPct*ParentSize) :
-                         (FreeRegion.Max.e[Axis] - FreeRegion.Min.e[Axis]));
-    PanelSize.e[OtherAxis] = OtherSize;
-    
-    
-    if(!IsNilPanel(Panel))
-    {       
-        Panel->Region = RectFromSize(Pos, PanelSize);
-        
-        if(!IsNilPanel(Panel->First))
-        {
-            PanelGetRegionAndInput(Panel->First, Panel->Region);
-        }
-        
-        if(!IsNilPanel(Panel->Next))
-        {
-            FreeRegion.Min.e[Axis] = Panel->Region.Max.e[Axis];
-            PanelGetRegionAndInput(Panel->Next, FreeRegion);
-        }
-        
-        app_input *Input = PanelInput;
-        v2 MouseP = MousePosFromInput(Input);
-        
-        b32 MouseIsDown = false;
-        b32 MouseWasPressed = false;
-        b32 IsInsidePanel = false;
-        
-        if(!Input->Consumed)
-        {    
-            MouseIsDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
-            MouseWasPressed = WasPressed(Input->Mouse.Buttons[PlatformMouseButton_Left]);
-            IsInsidePanel = IsInsideRectV2(MouseP, Panel->Region);
-        }
-        
-        b32 HasResizeBorder = !IsNilPanel(Panel->Next); 
-        
-        v4 PanelBorderColor = Color_Blue;
-        
-        if(Panel == PanelApp->SelectedPanel)
-        {
-            PanelBorderColor = Color_Yellow;
-        }
-        
-        // NOTE(luca): This happens post-order so that the borders are overlaid correctly.
-        b32 HasContents = IsNilPanel(Panel->First);
-        
-        // draw panel rectangle
-        if(HasContents)
-        {
-            if(IsInsidePanel && MouseWasPressed)
-            {
-                PanelApp->SelectedPanel = Panel;
-            }
-            
-            Panel->Region = RectShrink(Panel->Region, GapSize);
-            DrawRect(Panel->Region, PanelBorderColor, 0.f, PanelBorderSize, 0.f);
-            
-            Panel->Region = RectShrink(Panel->Region, PanelBorderSize);
-        }
-        
-        if(HasResizeBorder)
-        {
-            v4 BorderColor = Color_Red;
-            f32 BorderSize = 8.f;
-            
-            v4 Border = Panel->Region;
-            
-            Border.Max.e[Axis] += PanelBorderSize;
-            
-            Border.Min.e[Axis] = Border.Max.e[Axis];
-            
-            Border.Min.e[Axis] -= BorderSize; 
-            Border.Max.e[Axis] += BorderSize;
-            
-            b32 Down = false;
-            b32 Pressed = false;
-            b32 IsInsideBorder = false;
-            if(!Input->Consumed && (IsNilPanel(PanelDragging) || Panel == PanelDragging))
-            {
-                Pressed = WasPressed(Input->Mouse.Buttons[PlatformMouseButton_Left]);
-                Down = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
-                IsInsideBorder = IsInsideRectV2(MouseP, Border);
-                
-                if(PanelDragging == Panel && !Down) 
-                {
-                    PanelDragging = NilPanel;
-                }
-            }
-            
-            if(IsInsideBorder)
-            {
-                Input->Consumed = true;
-                Input->PlatformCursor = (PlatformCursorShape_ResizeHorizontal + Axis);
-                
-                BorderColor = Color_Blue;
-                
-                if(IsNilPanel(PanelDragging) && Pressed)
-                {                
-                    PanelDragging = Panel; 
-                }
-            }
-            
-            b32 IsDragging = (PanelDragging == Panel && Down); 
-            if(IsDragging)
-            {
-                Input->Consumed = true;
-                Input->PlatformCursor = (PlatformCursorShape_ResizeHorizontal + Axis);
-                
-                BorderColor = Color_Yellow;
-                
-                // Resize
-                {
-                    panel *Next = Panel->Next;
-                    AssertMsg(!IsNilPanel(Next), "Panel should have a next panel since it has a resize border");
-                    
-                    // NOTE(luca): This needs to be for the FirstPanel since the minimum width of a panel should always be the same.
-#if 0
-                    f32 Size = SizeOnAxis(PanelApp->FirstPanel->Region, Axis);
-#else
-                    f32 Size = SizeOnAxis(Panel->Parent->Region, Axis);
-#endif
-                    f32 Pct = MouseP.e[Axis]/Size;
-                    
-                    f32 dPPct = Pct;
-                    for(panel *Sibling = Panel; !IsNilPanel(Sibling); Sibling = Sibling->Prev)
-                    {
-                        dPPct -= Sibling->ParentPct;
-                    }
-                    
-                    // Take from this panel and give to next
-                    {                    
-                        f32 AbsMin = .05f;
-                        
-                        panel *Inc = Panel;
-                        panel *Dec = Next;
-                        if(dPPct < 0.f)
-                        {
-                            Swap(Inc, Dec);
-                            dPPct = -dPPct;
-                        }
-                        
-                        if(Dec->ParentPct - dPPct >= AbsMin)
-                        {                    
-                            Inc->ParentPct += dPPct;
-                            Dec->ParentPct -= dPPct;
-                        }
-                    }
-                    
-                }
-                
-            }
-            
-#if 0
-            DrawRect(Border, BorderColor, 0.f, 0.f, 0.f);
-#endif
-        }
-    }
 }
 
 internal panel_rec
@@ -976,13 +579,12 @@ IsNilNote(note *Note)
 }
 
 //~ Muze - Voices 
-
 internal void
 VoiceReset(voice *Voice)
 {
     Voice->NoteCount = 0;
-    Voice->MaxPitch = 75;
-    Voice->MinPitch = 40;
+    Voice->MaxPitch = 0;
+    Voice->MinPitch = (u8)-1;
     
     Voice->RecordStart = 0.f;
     Voice->RecordLength = 0.f;
@@ -992,18 +594,35 @@ VoiceReset(voice *Voice)
     Voice->LastNote = NilNote;
     Voice->NoteSel = 0;
     
+    Voice->NoteSetLength = 0.f;
+    
     ArenaSetPos(Voice->Arena, 0);
 }
 
 internal voice *
 VoiceAdd(app_state *App)
 {
-    voice *Voice = App->Muze.Voices + App->Muze.VoiceCount;
-    MemoryZero(Voice);
-    Voice->Arena = PushArena(App->Muze.Arena, KB(64), false);
-    VoiceReset(Voice);
+    voice *Voice = App->Voices + App->VoiceCount;
     
-    App->Muze.VoiceCount += 1;
+    if(App->VoiceCount < App->MaxVoiceCount)
+    {        
+        MemoryZero(Voice);
+        Voice->Arena = PushArena(App->Arena, KB(64), false);
+        
+        VoiceReset(Voice);
+        Voice->Channel = (int)App->VoiceCount;
+        tsf_channel_set_presetindex(GlobalTSF, Voice->Channel, Voice->PresetIdx);
+        
+        Voice->Volume = 1.f;
+        
+        App->VoiceCount += 1;
+    }
+    else
+    {
+        Assert(App->VoiceCount > 0);
+        Voice = App->Voices + App->VoiceCount - 1;
+        // TODO(luca): Show error message that max amount of voices has been reached.
+    }
     
     return Voice;
 }
@@ -1015,7 +634,7 @@ NoteAdd(voice *Voice)
     
     // Push on to the back
     {                
-        Note = PushStructZero(Voice->Arena, note);
+        Note = PushArrayZero(Voice->Arena, note, 1);
         
         if(IsNilNote(Voice->FirstNote))
         { 
@@ -1039,28 +658,29 @@ NoteAdd(voice *Voice)
 //~ Muze - Record and replay
 
 internal void
-PlayNote(app_memory *Memory, app_state *App, note *Note)
+PlayNote(app_memory *Memory, app_state *App, voice *Voice, note *Note)
 {
-    if(App->Muze.IsOutputSynth)
+    if(App->OutputSynthEnabled)
     {
         if(0) {}
         else if(Note->Kind == NoteKind_Note)
         {
             if(Note->Velocity > 0)
             {
-                tsf_channel_note_on(GlobalTSF, 0, Note->Pitch, (f32)Note->Velocity/127.f);
+                tsf_channel_note_on(GlobalTSF, Voice->Channel, Note->Pitch, (f32)Note->Velocity/127.f);
             }
             else
             {
-                tsf_channel_note_off(GlobalTSF, 0, Note->Pitch);
+                tsf_channel_note_off(GlobalTSF, Voice->Channel, Note->Pitch);
             }
         }
         else if(Note->Kind == NoteKind_Pedal)
         {
-            tsf_channel_midi_control(GlobalTSF, 0, Note->Controller, Note->Velocity);
+            tsf_channel_midi_control(GlobalTSF, Voice->Channel, Note->Controller, Note->Velocity);
         }
     }
-    else
+    
+    if(App->OutputMIDIEnabled)
     {
         // TODO(luca): Channel ?
         // 1. Equip parameters to the Voice struct and use them to create messages here.
@@ -1083,22 +703,12 @@ PlayNote(app_memory *Memory, app_state *App, note *Note)
             } break;
         }
         
-        Memory->PlatformMIDISend(App->Muze.Out, Message.U32[0]);
+        Memory->PlatformMIDISend(App->Out, Message.U32[0]);
     }
 }
 
-internal void
-StartRecording(voice *Voice)
-{
-    VoiceReset(Voice);
-    Voice->RecordStart = GetWallTime();
-    Voice->PlayPos = 0.f;
-    Voice->IsRecording = true;
-    Voice->IsPlaying = false;
-}
-
 internal b32
-IsNotePlaying(note *Note, voice *Voice, f32 dtForFrame)
+IsNotePlaying(note *Note, voice *Voice)
 {
     b32 Result = false;
     
@@ -1120,11 +730,11 @@ IsNotePlaying(note *Note, voice *Voice, f32 dtForFrame)
 }
 
 internal void
-StopAllPlayingNotes(app_memory *Memory, app_state *App, voice *Voice, f32 dtForFrame)
+StopAllPlayingNotes(app_memory *Memory, app_state *App, voice *Voice)
 {
     for EachNote(Note, Voice->FirstNote)
     {
-        b32 NoteIsPlaying = IsNotePlaying(Note, Voice, dtForFrame);
+        b32 NoteIsPlaying = IsNotePlaying(Note, Voice);
         if(NoteIsPlaying)
         {
             if(Voice->IsRecording)
@@ -1136,19 +746,30 @@ StopAllPlayingNotes(app_memory *Memory, app_state *App, voice *Voice, f32 dtForF
             
             note OffNote = *Note;
             OffNote.Velocity = 0;
-            PlayNote(Memory, App, &OffNote);
+            PlayNote(Memory, App, Voice, &OffNote);
         }
     }
 }
 
-internal void
-StopRecording(app_memory *Memory, app_state *App, voice *Voice, f32 dtForFrame)
-{
-    StopAllPlayingNotes(Memory, App, Voice, dtForFrame);
-    Voice->IsRecording = false;
-}
-
 //~ Muze - MIDI
+global_variable command NilCommand = {0};
+
+internal command *
+PushCommand(app_state *App, command_kind Kind)
+{
+    command *Result = &NilCommand;
+    
+    if(App->CommandCount < App->MaxCommandCount)
+    {
+        Result = App->Commands + App->CommandCount;
+        MemoryZero(Result);
+        
+        App->CommandCount += 1;
+        Result->Kind = Kind;
+    }
+    
+    return Result;
+}
 
 internal void
 ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_event *Events, u64 Count)
@@ -1162,6 +783,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
         // NOTE(luca): This is a hack to get loop editing to work properly.
         Timestamp = (f32)GetWallTime();
 #endif
+        
         Timestamp -= Voice->RecordStart;
         
         midi_message Message = {Event->Message};
@@ -1172,6 +794,8 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
         u8 Type = Status & 0xF0;
         u8 Channel = Status & 0x0F;
         
+        b32 IsOutputDeviceDifferent = !(!App->OutputSynthEnabled && 
+                                        App->In.Id == App->Out.Id);
         if(Voice->IsRecording)
         {
             if(0) {} 
@@ -1187,7 +811,11 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                 Voice->MaxPitch = Max(Note->Pitch, Voice->MaxPitch);
                 Voice->MinPitch = Min(Note->Pitch, Voice->MinPitch);
                 
-                PlayNote(Memory, App, Note);
+                
+                if(IsOutputDeviceDifferent)
+                {
+                    PlayNote(Memory, App, Voice, Note);
+                }
             }
             else if(Type == MIDIEventType_NoteOff || 
                     (Type == MIDIEventType_NoteOn && Data2 == 0))
@@ -1210,13 +838,19 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                             break;
                         }
                     }
-                    Assert(NoteFound);
                     
-                    // Send this note out to the output device
+                    if(NoteFound)
                     {                
                         note OffNote = {0};
                         OffNote.Pitch = Pitch;
-                        PlayNote(Memory, App, &OffNote);
+                        if(IsOutputDeviceDifferent)
+                        {
+                            PlayNote(Memory, App, Voice, &OffNote);
+                        }
+                    }
+                    else
+                    {
+                        // Discard.
                     }
                 }
             }
@@ -1237,7 +871,10 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                         Note->Velocity = Velocity;
                         Note->Timestamp = Timestamp;
                         
-                        PlayNote(Memory, App, Note);
+                        if(IsOutputDeviceDifferent)
+                        {
+                            PlayNote(Memory, App, Voice, Note);
+                        }
                     }
                     else
                     {
@@ -1262,15 +899,43 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                         {
                             note OffNote = *NoteFound;
                             OffNote.Velocity = 0;
-                            PlayNote(Memory, App, &OffNote);
+                            
+                            if(IsOutputDeviceDifferent)
+                            {
+                                PlayNote(Memory, App, Voice, &OffNote);
+                            }
                         }
-                        
                     }
-                    
                 }
             }
         }
     }
+}
+
+internal void 
+TogglePlayingAllVoices(app_memory *Memory, app_state *App)
+{
+    for EachIndex(VoiceIdx, App->VoiceCount)
+    {
+        voice *Voice = App->Voices + VoiceIdx;
+        
+        if(Voice->IsPlaying)
+        {
+            Voice->IsPlaying = false;
+        }
+        else
+        {
+            StopAllPlayingNotes(Memory, App, Voice);
+            Voice->IsPlaying = true;
+        }
+    }
+}
+
+
+internal void
+StopRecording(voice *Voice)
+{
+    Voice->IsRecording = false;
 }
 
 //~ UI 
@@ -1281,8 +946,6 @@ struct muze_box_data
     ui_box *Box;
     app_state *App;
     voice *Voice;
-    
-    f32 ScrollX;
 };
 
 internal ui_box *
@@ -1312,57 +975,159 @@ UI_Labelf(char *Format, ...)
     return Result;
 }
 
-internal void
-UI_PushList(axis2 Axis, str8 Name)
+typedef struct display_unit display_unit;
+struct display_unit
 {
-    UI_LayoutAxis(Axis) 
-        UI_SemanticWidth(UI_SizeChildren(1.f)) 
-        UI_SemanticHeight(UI_SizeChildren(1.f)) 
-        UI_AddBox(Name, UI_BoxFlag_Clip);
-    UI_PushBox();
+    u64 Value;
+    str8 Name;
+}; 
+
+internal display_unit
+DisplayUnitFromSize(f32 Size)
+{
+    display_unit Result = {0};
     
-    UI_Label(Name);
+    f32 X = Size;
+    if(X > 0.f)
+    {
+        X = Log10F32(X);
+        X = X/3.f; // Thousands
+        X = FloorF32(X);
+    }
     
-    UI_Spacer(UI_SizeEm(.2f, 1.f));
+    display_unit UnitTable[] = 
+    {
+        {   1,  S8("B")},
+        {KB(1), S8("KB")},
+        {MB(1), S8("MB")},
+        {GB(1), S8("GB")},
+        {TB(1), S8("TB")},
+    };
+    
+    Result = UnitTable[(s32)X];
+    
+    return Result;
 }
 
 internal void
-UI_PopList(void)
+DebugStringAddArena(app_state *App, str8 Name, arena *Arena)
 {
-    UI_PopBox();
-    
-    ui_box *Parent = UI_State->Current;
-    axis2 Axis = 1 - Parent->LayoutAxis;
-    
-    f32 MaxSize = 0.f;
-    for UI_EachBox(Box, Parent->First)
-    {
-        f32 Size = UI_MeasureTextWidth(Box->DisplayString, Box->FontKind);
-        MaxSize = Max(MaxSize, Size);
-    }
-    
-    f32 TextPadding = 4.f;
-    
-    for UI_EachBox(Box, Parent->First)
-    {
-        Box->SemanticSize[Axis].Kind = UI_SizeKind_Pixels;
-        Box->SemanticSize[Axis].Value = MaxSize + 2.f*TextPadding;
-        Box->SemanticSize[Axis].Strictness = 1.f;
+    if(Arena)
+        
+    {  
+        display_unit PosUnit = DisplayUnitFromSize((f32)Arena->Pos);
+        display_unit SizeUnit = DisplayUnitFromSize((f32)Arena->Size);
+        
+        str8 String = Str8Fmt("(mem) " S8Fmt 
+                              ": %.3f" S8Fmt 
+                              "/%.1f" S8Fmt, 
+                              S8Arg(Name), 
+                              (f32)Arena->Pos/(f32)PosUnit.Value, 
+                              S8Arg(PosUnit.Name), 
+                              (f32)Arena->Size/(f32)SizeUnit.Value,
+                              S8Arg(SizeUnit.Name));
+        
+        App->DebugStrings[App->DebugStringCount] = String;
+        App->DebugStringCount += 1;
     }
 }
 
-//- Stacks 
+//~ Custom draw UI elements 
+internal note_node *
+FindSelForNote(note_node *Selection, note *Note)
+{
+    note_node *Result = 0;
+    
+    for EachNode(Node, note_node, Selection)
+    {
+        if(Node->Value == Note)
+        {
+            Result = Node;
+            break;
+        }
+    }
+    
+    return Result;
+}
 
-#define UI_List(Axis, Name) DeferLoop(UI_PushList(Axis, Name), UI_PopList())
 
-//- Custom elements 
+internal void
+AddNoteToSelection(b32 MouseLeftDown, b32 MouseRightDown, b32 Adding,
+                   v4 Dest, v4 SelDest,
+                   app_state *App, voice *Voice, note_node *Sel, note *Note)
+{
+    // Draw selection rectangle
+    if(MouseLeftDown || MouseRightDown)
+    {
+        // NOTE(luca): @Command
+        if(RectOverlap(Dest, SelDest))
+        {
+            if(Adding && !Sel)
+            {
+                note_node *Node;
+                
+                // Allocate
+                {
+                    if(!App->FirstFreeNode)
+                    {
+                        Node = PushArray(App->Arena, note_node, 1);
+                    }
+                    else
+                    {
+                        Node = App->FirstFreeNode;
+                        App->FirstFreeNode = Node->Next;
+                    }
+                    MemoryZero(Node);
+                }
+                
+                // Add to selection
+                {                            
+                    Node->Value = Note;
+                    
+                    if(Voice->NoteSel) 
+                    {
+                        Voice->NoteSel->Prev = Node;
+                    }
+                    Node->Next = Voice->NoteSel;
+                    
+                    Voice->NoteSel = Node;
+                }
+            }
+            else if(!Adding && Sel)
+            {
+                // Remove from selection
+                {
+                    if(Sel->Prev)
+                    {
+                        Sel->Prev->Next = Sel->Next;
+                    }
+                    
+                    if(Sel->Next)
+                    {
+                        Sel->Next->Prev = Sel->Prev;
+                    }
+                    
+                    if(Sel == Voice->NoteSel)
+                    {
+                        Voice->NoteSel = (Sel->Next ? Sel->Next : Sel->Prev);
+                    }
+                }
+                
+                // Add to free list
+                {
+                    Sel->Next = App->FirstFreeNode;
+                    App->FirstFreeNode = Sel;
+                }
+            }
+        }
+    }
+}
 
 UI_CUSTOM_DRAW(CustomDrawSheetMusic)
 {
     muze_box_data *Data = (muze_box_data *)CustomDrawData;
     ui_box *Box = Data->Box;
     voice *Voice = Data->Voice;
-    f32 ScrollX = Data->ScrollX;
     app_input *Input = UI_State->Input;
     app_state *App = Data->App;
     
@@ -1378,13 +1143,12 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     // TODO(luca): Keep consistent with RecordMarkerX
     f32 SheetMusicWidth = (Box->FixedSize.X);
     
-    v4 NoteColor = ForegroundColor;
     v4 BarColor = ForegroundColor;
     
-    v2 BoxPos = V2(Box->FixedPosition.X - ScrollX, Box->FixedPosition.Y);
+    v2 BoxPos = V2(Box->FixedPos.X - Box->Scroll.X, Box->FixedPos.Y);
     v2 BoxSize = Box->FixedSize;
     
-    f32 BPS = (App->Muze.BPM/60.f);
+    f32 BPS = (App->BPM/60.f);
     
     // Staff Lines
     v2 StaffPos = BoxPos;
@@ -1393,13 +1157,50 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     f32 StaffHeight = (f32)(StaffLineCount-1)*NoteSize + StaffLineWidth;
     
     // Bars
-    f32 WholeBarWidth = 200.f;
-    f32 BarDuration = (1.f/BPS)*(f32)App->Muze.TimeSig;
+    f32 WholeBarWidth = 100.f;
+    f32 BarDuration = (1.f/BPS)*(f32)App->TimeSig;
     
     // NOTE(luca): When it is exactly the length it is wrong, so we add a little offset to unmatch it.
-    // TODO(luca): intrinsic
-    f32 BarCount = 1.f + floorf(Voice->RecordLength/(BarDuration + .001f));
+    f32 BarCount = 1.f + FloorF32(Voice->RecordLength/(BarDuration + 1e-6f));
     v2 BarDim = V2(2.f, StaffHeight);
+    
+    // Input
+    b32 MouseLeftDown = false;
+    b32 MouseRightDown = false;
+    b32 Adding = false;
+    v2 MouseP = {0};
+    v2 MouseStartP = {0};
+    v4 SelDest = {0};
+    
+    // Get Input
+    {
+        if(UI_IsActive(Box))
+        {
+            MouseLeftDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
+            MouseRightDown = Input->Mouse.Buttons[PlatformMouseButton_Right].EndedDown;
+            
+            UI_ConsumeInput(Input, Box);
+        }
+        
+        Adding = (MouseLeftDown && !MouseRightDown);
+        MouseP = MousePosFromInput(Input);
+        MouseStartP = V2V2S32(Input->Mouse.Start);
+        
+        // Get selection rectangle
+        if(IsInsideRectV2(MouseStartP, Box->Rec))
+        {        
+            SelDest = (v4){.Min = MouseP, .Max = MouseStartP};
+            if(SelDest.Min.X > SelDest.Max.X) Swap(SelDest.Min.X, SelDest.Max.X);
+            if(SelDest.Min.Y > SelDest.Max.Y) Swap(SelDest.Min.Y, SelDest.Max.Y);
+            SelDest = RectIntersect(Box->Rec, SelDest);
+        }
+        
+        if(MouseLeftDown || MouseRightDown)
+        {
+            DrawRect(SelDest, V4(V3Arg(Adding ? Color_Blue : Color_Snow2), .3f), 1.f, 0.f, 0.f);
+            DrawRect(SelDest, V4(V3Arg(Adding ? Color_Orange : Color_Black), 1.f), 1.f, 1.f, 0.f);
+        }
+    }
     
     // Draw staff
     {    
@@ -1426,7 +1227,9 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
         {
             v2 BarPos = V2(BoxPos.X + ((f32)(Idx + 1) * WholeBarWidth),
                            StaffPos.Y);
-            DrawRect(RectFromSize(BarPos, BarDim), BarColor, 0.f, 0.f, 0.f); 
+            
+            v4 Dest = RectIntersect(RectFromSize(BarPos, BarDim), Box->Rec);
+            DrawRect(Dest, BarColor, 0.f, 0.f, 0.f); 
         }
     }
     
@@ -1434,20 +1237,12 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     {        
         if(Note->Kind == NoteKind_Note)
         {
-            NoteColor = Box->TextColor;
-            for EachNode(Node, note_node, Voice->NoteSel)
-            {
-                if(Node->Value == Note)
-                {
-                    NoteColor = Color_Blue;
-                }
-            }
+            note_node *Sel = FindSelForNote(Voice->NoteSel, Note);
+            b32 NoteIsPlaying = IsNotePlaying(Note, Voice);
             
-            b32 NoteIsPlaying = IsNotePlaying(Note, Voice, Input->dtForFrame);
-            if(NoteIsPlaying)
-            {
-                NoteColor = Color_Yellow;
-            }
+            v4 NoteColor = (Sel ? Color_Blue : 
+                            (NoteIsPlaying ? Color_Yellow :
+                             ForegroundColor));
             
             Assert(!(Voice->IsPlaying && Note->Duration == 0.f));
             
@@ -1466,10 +1261,10 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
             }
             
             f32 NoteLength = (Duration*BPS);
-            f32 NoteStart = (Note->Timestamp);
-            // NOTE(luca): Get pos relative of time inside bar 
             
-            f32 NoteX = (NoteStart*BPS/(f32)App->Muze.TimeSig)*WholeBarWidth;
+            // NOTE(luca): Get pos relative of time inside bar 
+            f32 NoteStart = Note->Timestamp;
+            f32 NoteX = (NoteStart*BPS/(f32)App->TimeSig)*WholeBarWidth;
             
             s32 FirstNoteOctave = 6;
             s32 FirstNoteSteps = NoteBasePitchToStep[Note_F];
@@ -1490,30 +1285,38 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
                 
                 v4 Dest = RectFromSize(V2(X, Y - TailDim.Y),
                                        TailDim);
+                Dest = RectIntersect(Dest, Box->Rec);
+                
                 rect_instance *Inst = DrawRect(Dest, NoteColor, 0.f, 0.f, 0.f);
                 Inst->CornerRadii.e[2] = .5f;
                 
                 // NOTE(luca): Will be negative for notes longer than 1
-                s32 NumOfSideTails = (s32)roundf(-log2f(NoteLength));
+                s32 NumOfSideTails = (s32)RoundF32(-Log2F32(NoteLength));
                 for EachIndex(TailIdx, NumOfSideTails)
                 {
                     f32 SideTailWidth = (TailDim.X);
                     f32 SideTailY = ((Y + (2.f*SideTailWidth)*(f32)TailIdx) - TailDim.Y);
                     v4 TailDest = RectFromSize(V2(X, SideTailY), V2(8.f, SideTailWidth));
+                    TailDest = RectIntersect(TailDest, Box->Rec);
                     
                     DrawRect(TailDest, NoteColor, 0.f, 0.f, 0.f);
                 }
                 
             }
             
-            if(roundf(NoteLength) >= 2.f)
+            if(RoundF32(NoteLength) >= 2.f)
             {
                 NoteBorderSize = 2.f;
             }
             
+            // Draw note and do input
             {
                 v4 Dest = RectFromSize(NotePos, NoteDim);
+                Dest = RectIntersect(Dest, Box->Rec);
                 DrawRect(Dest, NoteColor, .5f*NoteSize, NoteBorderSize, .5);
+                
+                AddNoteToSelection(MouseLeftDown, MouseRightDown, Adding, 
+                                   Dest, SelDest, App, Voice, Sel, Note);
             }
             
             {
@@ -1548,7 +1351,53 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
         }
     }
     
+    // Draw the roll and markers
+    {
+        f32 X = (Box->FixedPos.X - Box->Scroll.X);
+        f32 Y = (Box->FixedPos.Y - Box->Scroll.Y);
+        f32 Height = Box->FixedSize.Y;
+        
+        f32 Zoom = (BPS/(f32)App->TimeSig*100.f);
+        
+        // NOTE(luca): This is also the current time when recording.
+        f32 RecordMarkerX;
+        {
+            f32 Timestamp = Max(Voice->RecordLength, 0.f);
+            f32 ZoomedTimestamp = Timestamp*Zoom;
+            RecordMarkerX = X + RoundF32(ZoomedTimestamp);
+        }
+        
+        f32 PlayMarkerX;
+        {
+            f32 Timestamp = Voice->PlayPos;
+            f32 ZoomedTimestamp = Timestamp*Zoom;
+            PlayMarkerX = X + RoundF32(ZoomedTimestamp); 
+        }
+        
+        v4 RecDest = RectFromSize(V2(PlayMarkerX, Y), 
+                                  V2(2.f, Height));
+        v4 RecordDest = RectFromSize(V2(RecordMarkerX, Y), 
+                                     V2(2.f, Height));
+        v4 PlayDest = RectFromSize(V2(PlayMarkerX, Y), 
+                                   V2(2.f, Height));
+        
+        DrawRect(RectIntersect(RecordDest, Box->Rec), Color_Red, 0.f, 0.f, 0.f);
+        DrawRect(RectIntersect(PlayDest, Box->Rec), Color_Green, 0.f, 0.f, 0.f);
+    }
+    
+    if(Box->Flags & UI_BoxFlag_DrawBorders)
+    {
+        DrawRect(Box->Rec, Box->BorderColor, 0.f, Box->BorderThickness, Box->Softness);
+    }
 }
+
+typedef struct custom_draw__single_line_text_input_params custom_draw__single_line_text_input_params;
+struct custom_draw__single_line_text_input_params
+{
+    ui_box *Box;
+    str8 Text;
+    f32 CursorAnimTime;
+};
 
 UI_CUSTOM_DRAW(CustomDrawPianoRoll)
 {
@@ -1561,23 +1410,27 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     
     b32 MouseLeftDown = false;
     b32 MouseRightDown = false;
+    b32 Adding = false;
     v2 MouseP = {0};
     v2 MouseStartP = {0};
     v4 SelDest = {0};
     
-    f32 BPS = App->Muze.BPM/60.f;
+    f32 BPS = App->BPM/60.f;
     
-    f32 Zoom = (BPS/(f32)App->Muze.TimeSig*200.f);
+    f32 Zoom = (BPS/(f32)App->TimeSig*100.f);
     
     // Get Input
     {    
-        if(!Input->Consumed)
+        if(UI_State->InputConsumerBox == Box)
         {
             MouseLeftDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
             MouseRightDown = Input->Mouse.Buttons[PlatformMouseButton_Right].EndedDown;
+            UI_ConsumeInput(Input, Box);
         }
+        
+        Adding = (MouseLeftDown && !MouseRightDown);
         MouseP = MousePosFromInput(Input);
-        MouseStartP = V2S32(Input->Mouse.StartX, Input->Mouse.StartY);
+        MouseStartP = V2V2S32(Input->Mouse.Start);
         
         // Get selection rectangle
         {        
@@ -1597,42 +1450,42 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
         
         if(MouseLeftDown || MouseRightDown)
         {
-            b32 Adding = (MouseLeftDown && !MouseRightDown);
             DrawRect(SelDest, V4(V3Arg(Adding ? Color_Blue : Color_Snow2), .3f), 1.f, 0.f, 0.f);
             DrawRect(SelDest, V4(V3Arg(Adding ? Color_Orange : Color_Black), 1.f), 1.f, 1.f, 0.f);
         }
     }
     
+    u8 MaxPitch = Max(Voice->MaxPitch, 75);
+    u8 MinPitch = Min(Voice->MinPitch, 40);
     
     // Piano roll
-    {    
-        u8 Range = (Voice->MaxPitch - Voice->MinPitch);
+    {
         // NOTE(luca): One extra note for pedal
-        Range += 1;
+        u8 Range = (MaxPitch - MinPitch) + 1;
         
-        f32 NoteHeight = (Box->FixedSize.Y/(f32)(Range + 1));
+        f32 NoteHeight = (Box->FixedSize.Y/(f32)Range);
         f32 NoteWidth = 1.5f*NoteHeight;
         f32 PianoKeyGap = 1.f;
         
-        f32 RollX = (Box->FixedPosition.X - Data->ScrollX);
-        f32 RollY = (Box->FixedPosition.Y + (Box->FixedSize.Y - Box->FixedSize.Y));
+        f32 RollX = (Box->FixedPos.X - Box->Scroll.X);
+        f32 RollY = (Box->FixedPos.Y - Box->Scroll.Y);
         f32 RollHeight = Box->FixedSize.Y;
         f32 RollWidth = Box->FixedSize.X;
         
         // Draw piano overlay
         {
             f32 PianoWidth = 1.5f*NoteWidth;
-            v2 PianoPos = Box->FixedPosition;
+            v2 PianoPos = Box->FixedPos;
             
             for EachIndex(Idx, Range)
             {
-                f32 YOffset = NoteHeight*(f32)(Range - Idx);
+                f32 YOffset = NoteHeight*(f32)(Range - Idx - 1);
                 
                 f32 X = (PianoPos.X);
                 f32 Y = (PianoPos.Y + YOffset);
                 
                 // NOTE(luca): Minus one for pedal
-                u8 PitchClass = ((Voice->MinPitch + (u8)Idx - 1)%Note_Count);
+                u8 PitchClass = ((MinPitch + (u8)Idx)%Note_Count);
                 b32 White = NotePianoColors[PitchClass];
                 
                 // NOTE(luca): First note is pedal.
@@ -1654,14 +1507,14 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
             {
                 f32 Timestamp = Max(Voice->RecordLength, 0.f);
                 f32 ZoomedTimestamp = Timestamp*Zoom;
-                RecordMarkerX = RollX + roundf(ZoomedTimestamp);
+                RecordMarkerX = RollX + RoundF32(ZoomedTimestamp);
             }
             
             f32 PlayMarkerX;
             {
                 f32 Timestamp = Voice->PlayPos;
                 f32 ZoomedTimestamp = Timestamp*Zoom;
-                PlayMarkerX = RollX + roundf(ZoomedTimestamp); 
+                PlayMarkerX = RollX + RoundF32(ZoomedTimestamp); 
             }
             
             for EachNote(Note, Voice->FirstNote)
@@ -1671,15 +1524,15 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                 // TODO(luca): Visualize
                 u8 Velocity = Note->Velocity;
                 
-                f32 StartX = roundf(Note->Timestamp*Zoom);
+                f32 StartX = RoundF32(Note->Timestamp*Zoom);
                 
                 // NOTE(luca): We have to flip the Y since we have TopDown coordinates for UI.
                 // NOTE(luca): Minus one for pedal note
-                f32 StartY = NoteHeight*(f32)((Range - 1) - (Note->Pitch - Voice->MinPitch));
+                f32 StartY = NoteHeight*(f32)((Range - 1) - (Note->Pitch - MinPitch));
                 
                 if(Note->Kind == NoteKind_Pedal)
                 {
-                    StartY = NoteHeight*(f32)Range;
+                    StartY = NoteHeight*(f32)(Range - 1);
                 }
                 
                 f32 Width;
@@ -1692,7 +1545,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                     else
                     {
                         // NOTE(luca): We might want to shrink this
-                        EndX = roundf((Note->Timestamp + Note->Duration)*Zoom);
+                        EndX = RoundF32((Note->Timestamp + Note->Duration)*Zoom);
                     }
                     
                     Width = (EndX - StartX);
@@ -1704,18 +1557,9 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                 u8 PitchClass = (Note->Pitch%Note_Count);
                 b32 White = NotePianoColors[PitchClass];
                 
-                // NOTE(luca): Find selection node for note
-                note_node *Sel = 0;
-                for EachNode(Node, note_node, Voice->NoteSel)
-                {
-                    if(Node->Value == Note)
-                    {
-                        Sel = Node;
-                        break;
-                    }
-                }
+                note_node *Sel = FindSelForNote(Voice->NoteSel, Note);
                 
-                v4 NoteColor = (IsNotePlaying(Note, Voice, Input->dtForFrame) ? Color_Yellow :
+                v4 NoteColor = (IsNotePlaying(Note, Voice) ? Color_Yellow :
                                 (Sel ? Color_Blue : 
                                  ((Note->Kind == NoteKind_Pedal) ? Color_Orange : 
                                   (White ? Color_Snow0 : Color_Black))));
@@ -1723,89 +1567,23 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                 v4 NoteDest = RectFromSize(NotePos, V2(Width, NoteHeight)); 
                 v4 Dest = RectIntersect(NoteDest, Box->Rec);
                 
+                AddNoteToSelection(MouseLeftDown, MouseRightDown, Adding, Dest, SelDest, App, Voice, Sel, Note);
+                
                 // Draw Note
-                
-                rect_instance *Instance = DrawRect(Dest, NoteColor, 5.f, 0.f, .5f);
-                Instance->Color0.A = .2f;
-                Instance->Color2.A = .2f;
-                
-                // Draw selection rectangle
-                if(MouseLeftDown || MouseRightDown)
-                {
-                    b32 Adding = (MouseLeftDown && !MouseRightDown);
+                {                
+                    rect_instance *Instance = DrawRect(Dest, NoteColor, 5.f, 0.f, .5f);
+                    Instance->Color0.A = .2f;
+                    Instance->Color2.A = .2f;
                     
-                    // NOTE(luca): @Command
-                    if(RectOverlap(Dest, SelDest))
+                    if(IsInsideRectV2(MouseP, Dest))
                     {
-                        if(Adding && !Sel)
-                        {
-                            note_node *Node;
-                            
-                            // Allocate
-                            {
-                                if(!App->Muze.FirstFreeNode)
-                                {
-                                    Node = PushStruct(App->Muze.Arena, note_node);
-                                }
-                                else
-                                {
-                                    Node = App->Muze.FirstFreeNode;
-                                    App->Muze.FirstFreeNode = Node->Next;
-                                }
-                                MemoryZero(Node);
-                            }
-                            
-                            // Add to selection
-                            {                            
-                                Node->Value = Note;
-                                
-                                if(Voice->NoteSel) 
-                                {
-                                    Voice->NoteSel->Prev = Node;
-                                }
-                                Node->Next = Voice->NoteSel;
-                                
-                                Voice->NoteSel = Node;
-                            }
-                        }
-                        else if(!Adding && Sel)
-                        {
-                            // Remove from selection
-                            {
-                                if(Sel->Prev)
-                                {
-                                    Sel->Prev->Next = Sel->Next;
-                                }
-                                
-                                if(Sel->Next)
-                                {
-                                    Sel->Next->Prev = Sel->Prev;
-                                }
-                                
-                                if(Sel == Voice->NoteSel)
-                                {
-                                    Voice->NoteSel = (Sel->Next ? Sel->Next : Sel->Prev);
-                                }
-                            }
-                            
-                            // Add to free list
-                            {
-                                Sel->Next = App->Muze.FirstFreeNode;
-                                App->Muze.FirstFreeNode = Sel;
-                            }
-                        }
+                        // Draw border around when hovered
+                        if(Sel) White = !White;
+                        v4 BorderColor = (!White ? Color_Snow0 : Color_Black);
+                        DrawRect(Dest, BorderColor, 5.f, 2.f, 0.5f);
                     }
                 }
-                
-                if(IsInsideRectV2(MouseP, Dest))
-                {
-                    // Draw border around whene hovered
-                    if(Sel) White = !White;
-                    v4 BorderColor = (!White ? Color_Snow0 : Color_Black);
-                    DrawRect(Dest, BorderColor, 5.f, 2.f, 0.5f);
-                }
             }
-            
             
             // Time markers
             {    
@@ -1821,86 +1599,162 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     }
 }
 
-internal f32
-UI_Slider(f32 MinSize, f32 MaxSize,
-          f32 SliderMinPct, 
-          f32 Value, 
-          str8 DisplayName)
+UI_CUSTOM_DRAW(CustomDrawSingleLineTextInput)
 {
-    f32 Result = 0.f;
-    ui_size Padding = UI_SizePx(UI_State->BorderThicknessTop->Value, 1.f);
-    ui_box *Box = 0;
+    custom_draw__single_line_text_input_params *Params = (custom_draw__single_line_text_input_params *)CustomDrawData;
+    ui_box *Box = Params->Box;
+    str8 Text = Params->Text;
+    font_atlas *Atlas = UI_State->Atlas;
+    f32 CursorAnimTime = Params->CursorAnimTime;
     
-    app_input *Input = UI_State->Input;
+    DrawRect(Box->Rec, Color_Cyan, 0.f, 0.f, 0.f);
     
-    // Fill level from value
-    f32 FillLevel = 0.f;
+    f32 HorizontalPadding = 5.f;
+    
+    v2 Cur = Box->FixedPos;
+    Cur.X += HorizontalPadding;
+    Cur.Y += RoundF32(.5f*(Box->FixedSize.Y - Box->HeightPx));
+    
+    f32 EllipsisWidth = Atlas->PackedChars[' ' - Atlas->FirstCodepoint].xadvance;
+    
+    f32 CurMaxX = (Box->FixedPos.X + Box->FixedSize.X - 
+                   (HorizontalPadding + EllipsisWidth));
+    
+    b32 Overflowed = false;
+    for EachIndex(Idx, Text.Size)
     {
-        f32 Pct = (Value - MinSize)/(MaxSize - MinSize);
-        FillLevel = Pct*(1.f - SliderMinPct) + SliderMinPct;
-    }
-    
-    UI_Softness(.5f) UI_CornerRadii(V4F32(3.f))
-    {        
-        UI_FillWidth()
-            UI_BackgroundColor(Color_ButtonBackground)
-            Box = UI_AddBox(Str8Fmt(S8Fmt "Slider", S8Arg(DisplayName)),
-                            (UI_BoxFlag_Clip|
-                             UI_BoxFlag_MouseClickable|
-                             UI_BoxFlag_DrawBorders|
-                             UI_BoxFlag_DrawHotEffects|
-                             UI_BoxFlag_DrawActiveEffects|
-                             UI_BoxFlag_Scroll));
+        rune Char = Text.Data[Idx]; 
         
-        UI_Push() 
-            UI_FillAll() UI_Row() UI_Padding(Padding)
-            UI_FillAll() UI_Column() UI_Padding(Padding)
-        {        
-            UI_FillAll()
-                UI_AddBox(S8("BackgroundColor"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
-            UI_Push()
-                UI_FillHeight()
-                UI_SemanticWidth(UI_SizeParent(FillLevel, 0.f))
-                UI_BackgroundColor(Color_Orange)
-                UI_AddBox(S8("FillColor"), (UI_BoxFlag_Clip|
-                                            UI_BoxFlag_DrawBackground));
-        }
+        DrawRectChar(Atlas, Cur, Char, Box->TextColor);
+        f32 CharWidth = (Atlas->PackedChars[Char - Atlas->FirstCodepoint].xadvance);
+        Cur.X += CharWidth;
         
-        // TODO(luca): Remove this so we have only the slider ui_box
-        if(1)
-        {    
-            UI_AddBox(Str8Fmt(S8Fmt ": %.0f###Label" S8Fmt, 
-                              S8Arg(DisplayName), Value,
-                              S8Arg(DisplayName)), 
-                      (UI_BoxFlag_Clip|
-                       UI_BoxFlag_DrawDisplayString|
-                       UI_BoxFlag_CenterTextHorizontally|
-                       UI_BoxFlag_CenterTextVertically|
-                       UI_BoxFlag_FloatingX|
-                       UI_BoxFlag_FloatingY));
+        if(Cur.X > CurMaxX)
+        {
+            break;
         }
     }
     
-    if(!Input->Consumed && 
-       (UI_IsActive(Box) || UI_IsHot(Box)) && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
+    v2 CursorPos = Cur;
+    v4 CurRec = RectFromSize(CursorPos, V2(1.f, Box->HeightPx));
+    if(Box->Flags & UI_BoxFlag_Clip)
     {
-        
-        f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPosition.X)/Box->FixedSize.X);
-        FillLevel = Clamp(SliderMinPct, PctOnXAxis, 1.f);
-        
-        Input->Consumed = true;
+        CurRec = RectIntersect(Box->Rec, CurRec);
     }
     
-    // Value from FillLevel
-    {    
-        f32 Range = MaxSize - MinSize;
-        f32 New = MinSize + (Range*(FillLevel - SliderMinPct)/(1.f - SliderMinPct));
-        Result = roundf(New);
+    if(RectValid(CurRec))
+    {
+        f32 Speed = 2.f;
+        v4 Color = Box->TextColor;
+        if(cos(Pi32*CursorAnimTime*Speed) < 0.f)
+        {
+            Color.A = 0.f;
+        }
+        DrawRect(CurRec, Color, 0.f, 0.f, 0.f);
+    }
+}
+
+//~ UI 
+
+internal void
+UI_ListBegin(str8 Name, f32 ItemHeight)
+{
+    UI_SemanticHeight(UI_SizeChildren(1.f))
+        UI_LayoutAxis(Axis2_Y)
+        UI_AddBox(Name, UI_BoxFlag_Clip);
+    UI_PushBox();
+    
+    UI_PushSemanticHeight(UI_SizePx(ItemHeight, 1.f));
+    
+    UI_Label(Name);
+    UI_Spacer(UI_SizeEm(.2f, 1.f));
+}
+
+internal void
+UI_ListEnd(void)
+{
+    UI_PopSemanticHeight();
+    UI_PopBox();
+}
+
+internal void
+DebugStringAdd(app_state *App, char *Format, ...)
+{
+    if(App->DebugStringCount < App->MaxDebugStringCount)
+    {
+        va_list Args;
+        va_start(Args, Format);
+        
+        str8 String = Str8VFmt(Format, Args);
+        App->DebugStrings[App->DebugStringCount] = String;
+        App->DebugStringCount += 1;
+    }
+}
+
+internal b32
+SimpleButton(str8 Name)
+{
+    b32 Clicked = Button(.Text = Name, 
+                         .CenterText = true,
+                         .Padding = GlobalItemPadding).Pressed;
+    
+    return Clicked;
+}
+
+typedef struct simple_slider_result simple_slider_result;
+struct simple_slider_result
+{
+    f32 Value;
+    b32 Clicked;
+};
+
+internal simple_slider_result
+SimpleSlider(str8 Label, str8 DisplayString, 
+             f32 Value, f32 Min, f32 Max, f32 StepSize,
+             b32 Clickable)
+{
+    simple_slider_result Result = {0};
+    
+    s32 Flags = (UI_BoxFlag_Clip|
+                 UI_BoxFlag_DrawBorders|
+                 UI_BoxFlag_DrawBackground);
+    
+    if(Clickable)
+    {
+        Flags |= (UI_BoxFlag_MouseClickable|
+                  UI_BoxFlag_DrawHotEffects|
+                  UI_BoxFlag_DrawActiveEffects);
+    }
+    
+    {
+        ui_box *Box;
+        UI_BackgroundColor(Color_ButtonBackground)
+            Box = UI_AddBox(Label, Flags);
+        
+        UI_PaddingAround(GlobalItemPadding)
+        {
+            ui_box *Slider;
+            UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                Slider = UI_AddBox(Label, UI_BoxFlag_DrawDisplayString|
+                                   UI_BoxFlag_CenterTextVertically);
+            Slider->DisplayString = DisplayString;
+            
+            UI_Spacer(UI_SizePx(5.f, 1.f));
+            
+            UI_BackgroundColor(Color_Orange)
+                UI_BorderColor(Color_Black)
+                Result.Value = UI_Slider(Value, Min, Max, StepSize, 0, true);
+        }
+        
+        Result.Clicked = Box->Clicked;
     }
     
     return Result;
 }
 
+//~ UI macro's
+#define UI_List(Name, ItemHeight) \
+DeferLoop(UI_ListBegin(Name, ItemHeight), UI_ListEnd())
 
 //~ EntryPoint
 C_LINKAGE
@@ -1921,8 +1775,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     //- Some constants 
     Input->PlatformCursor = PlatformCursorShape_Arrow;
-    f32 WindowBorderSize = 2.f;
     v2 BufferDim = V2S32(Buffer->Width, Buffer->Height);
+    dtForFrame = Input->dtForFrame;
     
     //- Init state 
     OS_ProfileInit(" G");
@@ -1930,30 +1784,52 @@ UPDATE_AND_RENDER(UpdateAndRender)
     arena *PermanentArena;
     app_state *App;
     {
-        // NOTE(luca): Pushes on the permanentarena may not zero the memory since that would clear the memory that was there before..
+        {
+            umm MemoryPos = (umm)Memory->Memory;
+            umm AlignedPos = AlignPow2(MemoryPos, AlignOf(arena));
+            PermanentArena = (arena *)AlignedPos;
+            
+            PermanentArena->Size = Memory->MemorySize - sizeof(arena);
+            PermanentArena->Base = (u8 *)AlignedPos + sizeof(arena);
+            PermanentArena->Pos = 0;
+            AsanPoisonMemoryRegion(PermanentArena->Base, PermanentArena->Size);
+        }
         
-        PermanentArena = (arena *)Memory->Memory;
-        PermanentArena->Size = Memory->MemorySize - sizeof(arena);
-        PermanentArena->Base = (u8 *)Memory->Memory + sizeof(arena);
-        PermanentArena->Pos = 0;
-        AsanPoisonMemoryRegion(PermanentArena->Base, PermanentArena->Size);
+        // App
+        {        
+            App = PushArray(PermanentArena, app_state, 1);
+            
+            App->FontAtlasArena = PushArena(PermanentArena, MB(100), false);
+            App->UIArena = PushArena(PermanentArena, MB(64), false);
+            App->Arena = PushArena(PermanentArena, MB(64), false);
+            App->TSFArena = PushArena(PermanentArena, MB(500), false);
+            App->ReadOnlyArena = PushArray(PermanentArena, arena, 1);
+            App->PanelArena = PushArena(PermanentArena, MB(64), false);
+        }
         
-        FrameArena = PushArena(PermanentArena, MB(64), true);
-        
-        App = PushStruct(PermanentArena, app_state);
-        
-        App->TextArena = PushArena(PermanentArena, MB(64), false);
-        App->FontAtlasArena = PushArena(PermanentArena, MB(100), false);
-        App->UIArena = PushArena(PermanentArena, MB(64), false);
-        App->Muze.Arena = PushArena(PermanentArena, MB(64), false);
-        App->TSFArena = PushArena(PermanentArena, MB(500), false);
-        
-        App->ReadOnlyArena = PushArray(PermanentArena, arena, 1);
-        PanelArena = App->PanelArena = PushArena(PermanentArena, ArenaAllocDefaultSize, false);
-        UI_State = PushArray(PermanentArena, ui_state, 1);
-        NilTSF = PushArray(PermanentArena, tsf, 1);
-        NilTSF->arena = App->TSFArena;
+        // Globals
+        {
+            FrameArena = PushArena(PermanentArena, MB(64), true);
+            SetStringsScratch(FrameArena);
+            
+            UI_State = PushArray(PermanentArena, ui_state, 1);
+            NilTSF = PushArray(PermanentArena, tsf, 1);
+            NilTSF->arena = App->TSFArena;
+            
+            // Panels
+            {
+                PanelInput = Input;
+                PanelApp = App;
+                PanelArena = App->PanelArena;
+            }
+            
+            GlobalTSF = App->TrackerForTSF;
+            
+            DragData = PushArray(PermanentArena, drag_data, 1);
+        }
     }
+    
+    platform_midi_get_devices_result Devices = Memory->PlatformMIDIGetDevices();
     
     local_persist s32 GLADVersion = 0;
     if(Memory->Reloaded)
@@ -1974,7 +1850,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 GlobalTSF = NilTSF;
             }
             tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 48000, -10);
-            tsf_channel_set_presetindex(GlobalTSF, 0, 5);
+            
+            s32 InstrumentCount = tsf_get_presetcount(GlobalTSF);
+            App->InstrumentCount = InstrumentCount;
+            App->InstrumentNames = PushArray(App->TSFArena, str8, (umm)InstrumentCount);
+            
+            for EachIndex(Idx, InstrumentCount)
+            {
+                App->InstrumentNames[Idx] = Str8DupCString(App->TSFArena, (char *)tsf_get_presetname(GlobalTSF, Idx));
+            }
             
             App->TrackerForTSF = GlobalTSF;
         }
@@ -1983,16 +1867,45 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         //- Init Muze 
         {
-            App->Muze.TimeSig = 3;
-            App->Muze.BPM = 100.f;
-            App->Muze.IsOutputSynth = true;
-            App->Muze.IsInputVirtualKeyboard = true;
-            App->Muze.MaxVoiceCount = 5;
-            App->Muze.Voices = PushArray(App->Muze.Arena, voice, App->Muze.MaxVoiceCount);
-            App->Muze.LastSelectedVoice = App->Muze.Voices;
+            App->MaxTextSize = 256;
+            App->Text = PushS8(App->Arena, App->MaxTextSize);
+            App->Text.Size = 0;
             
-            // Add default voice
-            VoiceAdd(App);
+            App->TimeSig = 3;
+            App->BPM = 100.f;
+            App->InputMIDIEnabled = true;
+            App->OutputSynthEnabled = true;
+            App->InputVirtualKeyboardEnabled = true;
+            App->MaxVoiceCount = 99;
+            App->Voices = PushArray(App->Arena, voice, (u64)App->MaxVoiceCount);
+            
+            App->MaxCommandCount = KB(4);
+            App->Commands = PushArray(App->Arena, command, App->MaxCommandCount);
+            
+            // Select default input and output device
+            {
+                b32 InputFound = false;
+                b32 OutputFound = false;
+                for EachIndex(Idx, Devices.Count)
+                {
+                    platform_midi_device *Device = Devices.Devices + Idx;
+                    if(Device->IsOutput)
+                    {
+                        App->Out = *Device;
+                        OutputFound = true;
+                    }
+                    if(Device->IsInput)
+                    {
+                        App->In = *Device;
+                        InputFound = true;
+                    }
+                    
+                    if(InputFound && OutputFound)
+                    {
+                        break;
+                    }
+                }
+            }
         }
         
         OS_ProfileAndPrint("Muze init");
@@ -2023,19 +1936,25 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {            
                 MemoryZero(Arena);
                 Arena->Size = MB(1);
-                Arena->Base = OS_AllocateAtOffset(Arena->Size, TB(3));
+                
+#if MUZE_INTERNAL
+                umm Offset = TB(2) + GB(64);
+#else
+                umm Offset = 0;
+#endif
+                
+                Arena->Base = OS_AllocateAtOffset(Arena->Size, Offset);
             }
             
             // Initialize read only structs
             {
-                ui_box *Box = PushStruct(Arena, ui_box);
+                ui_box *Box = PushArray(Arena, ui_box, 1);
                 *Box = (ui_box){Box, Box, Box, Box, Box, Box, Box};
                 
-                panel *Panel = PushStruct(Arena, panel);
+                panel *Panel = PushArray(Arena, panel, 1);
                 *Panel = (panel){Panel, Panel, Panel, Panel, Panel};
-                Panel->Root = Box;
                 
-                note *Note = PushStruct(Arena, note);
+                note *Note = PushArray(Arena, note, 1);
                 *Note = (note){Note, Note};
             }
             
@@ -2045,234 +1964,215 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
         OS_ProfileAndPrint("RO Init");
         
-        //- Renderer 
-        
         RenderInit(&App->Render);
-        
         OS_ProfileAndPrint("Renderer Init");
         
-        //- UI 
+        // Init UI 
         {
-            UI_State->Arena = App->UIArena;
-            UI_State->BoxTableSize = 4096;
-            UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
+            UI_InitState(App->UIArena);
+            App->ListerBox = UI_BoxAlloc(UI_State->Arena);
+            App->TopBox = UI_BoxAlloc(UI_State->Arena);
         }
         
-        // Panels
-        { 
-            // TODO(luca): Invert axis automatically on new group.
-            // TODO(luca): We should be able to only add one panel here...
-            PanelAxis(Axis2_X) PanelGroup()
+        // Init panels
+        {
+            ArenaSetPos(App->PanelArena, 0);
+            App->FreePanel = NilPanel;
+            App->SelectedPanel = NilPanel;
+            App->DebugPanel = NilPanel;
+            PanelCurrent = NilPanel;
+            PanelAppendToParent = false;
+            
+            // Default panel setup
             {
-                App->FirstPanel = PanelAdd(1.f);
+                PanelAxis(Axis2_X)
+                {            
+                    App->FirstPanel = PanelAdd(1.f);
+                    PanelChildren()
+                    {
+                        PanelAdd(.5f);
+                        PanelAdd(.5f);
+                        PanelChildren()
+                        {
+                            PanelAdd(.5f);
+                            PanelAdd(.5f);
+                        }
+                    }
+                }
                 
-                PanelAxis(Axis2_Y) PanelGroup()
+                for(panel *Panel = App->FirstPanel;
+                    !IsNilPanel(Panel);
+                    Panel = PanelRecDepthFirstPreOrder(Panel).Next)
                 {
-                    PanelAdd(1.f);
+                    if(IsLeafPanel(Panel))
+                    {
+                        Panel->Kind = PanelKind_Sheet;
+                        Panel->Voice = VoiceAdd(App);
+                    }
+                }
+                
+                App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
+            }
+        }
+        
+        App->MaxDebugStringCount = 128;
+    }
+    
+    voice *SelectedVoice;
+    
+    // Frame Initialization
+    {
+        // Init read-only variables
+        {    
+            InitReadOnlyGlobals(App->ReadOnlyArena);
+        }
+        
+        // Init Muze
+        {
+            App->CommandCount = 0;
+            
+            
+            if(App->SelectedPanel->Kind == PanelKind_Roll ||
+               App->SelectedPanel->Kind == PanelKind_Sheet)
+            {
+                App->SelectedVoice = App->SelectedPanel->Voice;
+            }
+            SelectedVoice = App->SelectedVoice;
+            
+        }
+        
+        
+        
+        OS_ProfileAndPrint("Misc. Init");
+    }
+    
+    if(App->ListerOpened)
+    {            
+        for EachTextButton(Key, Id, Input)
+        {
+            s32 ModifiersWithoutShift = (Key->Modifiers & ~PlatformKeyModifier_Shift);
+            
+            if(ModifiersWithoutShift == PlatformKeyModifier_None)
+            {
+                if(!Key->IsSymbol)
+                {
+                    App->Text.Data[App->Text.Size] = (u8)Key->Codepoint;
+                    App->Text.Size += 1;
+                    App->CursorAnimTime = 0.f;
+                    
+                    RemoveTextButton(Input, Id);
+                }
+                else
+                {
+                    switch(Key->Symbol)
+                    {
+                        default: break;
+                        
+                        case PlatformKey_BackSpace:
+                        {
+                            App->Text.Size -= !!(App->Text.Size > 0);
+                            App->CursorAnimTime = 0.f;
+                        } break;
+                    }
                 }
             }
-            
-            App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
-            App->SelectedPanel->Kind = PanelKind_Muze;
-            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice;
         }
-        
-        OS_ProfileAndPrint("Memory Init");
     }
     
-    // Setup global variables
-    {    
-        InitReadOnlyGlobals(App->ReadOnlyArena);
-        GlobalTSF = App->TrackerForTSF;
-        
-        StringsScratch = FrameArena;
-        
-        PanelArena = App->PanelArena;
-        PanelInput = Input;
-        PanelApp = App;
-    }
-    
-    voice *Voice;
-    // Set default voice
-    {    
-        if(App->SelectedPanel->Kind == PanelKind_Muze)
-        {
-            App->Muze.LastSelectedVoice = App->SelectedPanel->Voice;
-        }
-        Voice = App->Muze.LastSelectedVoice;
-    }
-    
-    for EachIndex(Idx, Input->Text.Count)
+    for EachTextButton(Key, Id, Input)
     {
-        app_text_button Key = Input->Text.Buffer[Idx];
+        b32 Control = Key->Modifiers & PlatformKeyModifier_Control;
+        b32 Shift = Key->Modifiers & PlatformKeyModifier_Shift;
+        b32 Alt = Key->Modifiers & PlatformKeyModifier_Alt;
+        s32 ModifiersShiftIgnored = (Key->Modifiers & ~PlatformKeyModifier_Shift);
+        b32 None = (Key->Modifiers == PlatformKeyModifier_None);
         
-        b32 Control = Key.Modifiers & PlatformKeyModifier_Control;
-        b32 Shift = Key.Modifiers & PlatformKeyModifier_Shift;
-        b32 Alt = Key.Modifiers & PlatformKeyModifier_Alt;
-        s32 ModifiersShiftIgnored = (Key.Modifiers & ~PlatformKeyModifier_Shift);
-        b32 None = (Key.Modifiers == PlatformKeyModifier_None);
+        b32 Handled = true;
         
-        if(!Key.IsSymbol)
+        if(!Key->IsSymbol)
         {
-            if(!Control)
+            if(Control)
             {
-                switch(Key.Codepoint)
+                switch(Key->Codepoint)
                 {
-                    case 'p':
+                    case 'b':
                     {
-                        for EachIndex(VoiceIdx, App->Muze.VoiceCount)
-                        {
-                            voice *VoiceAt = App->Muze.Voices + VoiceIdx;
-                            StopRecording(Memory, App, VoiceAt, Input->dtForFrame);
-                            
-                            if(VoiceAt->IsPlaying)
-                            {
-                                VoiceAt->IsPlaying = false;
-                            }
-                            else
-                            {
-                                StopAllPlayingNotes(Memory, App, VoiceAt, Input->dtForFrame);
-                                VoiceAt->IsPlaying = true;
-                            }
-                        }
+                        if(!Shift) App->BPM += 1;
+                        else       App->BPM -= 1;
                     } break;
                     
-                    case ' ':
+                    case 'p': 
                     {
-                        if(Voice->IsRecording)
+                        if(!Alt)
                         {
-                            StopRecording(Memory, App, Voice, Input->dtForFrame);
+                            command *Command = PushCommand(App, Command_SplitPanel);
+                            Command->Panel = App->SelectedPanel;
+                            if(Shift) Command->Axis = Axis2_Y;
                         }
                         else
                         {
-                            StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                            StartRecording(Voice);
+                            PushCommand(App, Command_ClosePanel)->Panel = App->SelectedPanel;
                         }
                     } break;
-                    default: break;
+                    
+                    case 's': PushCommand(App, Command_OpenLister)->ListerKind = ListerKind_Instruments; break;
+                    
+                    default: 
+                    {
+                        Handled = false;
+                    } break;
                 }
-                
+            }
+            else if(Alt)
+            {
+                switch(Key->Codepoint)
+                {
+                    case 'b': DebugBreak(); break;
+                    
+                    default:
+                    {
+                        Handled = false;
+                    } break;
+                }
             }
             else
             {
-                switch(Key.Codepoint)
+                switch(Key->Codepoint)
                 {
-                    case 'b': DebugBreak();  break;
-                    
-                    //- Panels 
-                    case 'p':
+                    case ' ': PushCommand(App, Command_ToggleRecording); break;
+                    default: 
                     {
-                        if(!Shift)
-                        {
-                            App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_X, false);
-                        }
-                        else
-                        {
-                            App->SelectedPanel = ClosePanel(App, App->SelectedPanel);
-                        }
-                    } break;
-                    
-                    case 'm':
-                    {
-                        if(!IsNilPanel(App->SelectedPanel))
-                        {
-                            App->SelectedPanel->Kind = PanelKind_Muze;
-                            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice;
-                        }
-                    } break;
-                    
-#if 0                    
-                    case 'n':
-                    {
-                        panel *Panel = App->SelectedPanel;
-                        
-                        b32 IsFreePanel = (!IsNilPanel(Panel) && 
-                                           Panel->Kind == PanelKind_Free &&
-                                           !Panel->CannotClose);
-                        if(IsFreePanel)
-                        {                        
-                            panel_node *New = PushStructZero(PanelArena, panel_node);
-                            
-                            New->Next = App->TextPanels;
-                            App->TextPanels = New;
-                            
-                            New->Value = Panel;
-                            
-                            Panel->Text = PushStructZero(App->TextArena, app_text);
-                            Panel->Text->Capacity = KB(64);
-                            Panel->Text->Data = PushArray(App->TextArena, rune, Panel->Text->Capacity);
-                            Panel->Kind = PanelKind_Text;
-                        }
-                        
-                    } break;
-#endif
-                    
-                    case '-':
-                    {
-                        if(!Shift)
-                        {                        
-                            App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_Y, false);
-                        }
-                    } break;
-                    
-                    case ',':
-                    {
-                        App->SelectedPanel = (IsNilPanel(App->SelectedPanel) ?
-                                              PanelNextLeaf(App->FirstPanel, true) :
-                                              (!Shift ?
-                                               PanelNextLeaf(App->SelectedPanel, false) :
-                                               PanelNextLeaf(App->SelectedPanel, true)));
+                        Handled = false;
                     } break;
                 }
             }
+            
         }
         else
         {
-            switch(Key.Codepoint)
+            switch(Key->Codepoint)
             {
                 case PlatformKey_Escape:
                 {
-                    ShouldQuit = true;
+                    PushCommand(App, Command_CloseLister);
+                    
+                    default: 
+                    {
+                        Handled = false;
+                    } break;
                 } break;
             }
         }
-    }
-    local_persist f32 ScrollX    = 0.f;
-    local_persist f32 ScrollVelX = 0.f;
-    
-    // TODO(luca): Exponential smoothing curve
-    // Scrolling
-    {    
-        f32 dt = Input->dtForFrame;
         
-        f32 MaxSpeed = 2000.f;
-        f32 Accel = 8000.f;
-        f32 Damping = 12.f;
-        
-        f32 InputDir = 0.f;
-        if(Input->ActionLeft.EndedDown)  InputDir -= 1.f;
-        if(Input->ActionRight.EndedDown) InputDir += 1.f;
-        
-        if(InputDir != 0.f)
+        if(Handled)
         {
-            ScrollVelX += InputDir * Accel * dt;
-            ScrollVelX  = Clamp(ScrollVelX, -MaxSpeed, MaxSpeed);
+            RemoveTextButton(Input, Id);
         }
-        else
-        {
-            // Only damp when no input, so full speed is actually reachable
-            ScrollVelX *= expf(-Damping * dt);
-        }
-        
-        ScrollX += ScrollVelX * dt;
-        ScrollX = Max(0.f, ScrollX);
     }
     
     OS_ProfileAndPrint("Input");
     
-    RenderBeginFrame(FrameArena, Buffer->Width, Buffer->Height);
-    
-    OS_ProfileAndPrint("Render setup");
+    RenderBeginFrame(FrameArena, 0, 0, Buffer->Width, Buffer->Height);
     
     App->HeightPx = DefaultHeightPx;
     
@@ -2288,726 +2188,1665 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     // UI
     {
-        //- UI Setup
-        {    
-            UI_State->Atlas = &App->FontAtlas;
-            UI_State->FrameIdx = App->FrameIdx;
-            UI_State->Input = Input;
-            if(UI_IsActive(UI_NilBox))
-            {
-                UI_State->Hot = UI_KeyNull();
+        f32 ItemHeight = App->HeightPx + 2.f*8.f;
+        ui_size ItemPadding = UI_SizePx(5.f, 1.f);
+        GlobalItemPadding = ItemPadding;
+        f32 ListWidth = 1600.f/6.f;
+        b32 SoundFontLoaded = (GlobalTSF != NilTSF);
+        
+        // Setup
+        {        
+            UI_BeginFrame(&App->FontAtlas, App->FrameIdx, Input);
+            OS_ProfileAndPrint("Render setup");
+            
+            App->DebugStrings = PushArray(FrameArena, str8, App->MaxDebugStringCount);
+            App->DebugStringCount = 0;
+            { 
+                ui_box *Hot = UI_BoxFromKey(UI_State->Hot);
+                ui_box *Active = UI_BoxFromKey(UI_State->Active);
+                str8 ActiveString = Active->String;
+                str8 HotString = Hot->String;
+                if(ActiveString.Size == 0) ActiveString = S8("null");
+                if(HotString.Size == 0) HotString = S8("null");
+                
+                ui_box *Box;
+                
+#if 1                
+                StringsScratchTemp(UI_State->FrameArenaBack)
+                {
+                    DebugStringAdd(App, "(ui) Active: " S8Fmt, S8Arg(ActiveString));
+                    DebugStringAdd(App, "(ui) Hot: " S8Fmt, S8Arg(HotString));
+                    DebugStringAdd(App, "(ui) Active->tHot = %.2f", Active->tHot);
+                    DebugStringAdd(App, "(ui) Active->tActive = %.2f", Active->tActive);
+                    DebugStringAdd(App, "(ui) Hot->tHot = %.2f", Hot->tHot);
+                    DebugStringAdd(App, "(ui) Hot->tActive = %.2f", Hot->tActive);
+                    
+                    DebugStringAddArena(App, S8("Perm"), PermanentArena);
+                    DebugStringAddArena(App, S8("Frame"), FrameArena);
+                    DebugStringAddArena(App, S8("R/O"), App->ReadOnlyArena);
+                    DebugStringAddArena(App, S8("Font"), App->FontAtlasArena);
+                    DebugStringAddArena(App, S8("UI"), App->UIArena);
+                    DebugStringAddArena(App, S8("Panel"), App->PanelArena);
+                    DebugStringAddArena(App, S8("Muze"), App->Arena);
+                    DebugStringAddArena(App, S8("Voice"), SelectedVoice->Arena);
+                    DebugStringAddArena(App, S8("TSF"), App->TSFArena);
+                }
+#endif
+                
             }
-            UI_State->FrameArena = FrameArena;
+            
+            OS_ProfileAndPrint("UI setup");
         }
         
-        OS_ProfileAndPrint("UI setup");
-        
-        platform_midi_get_devices_result DevicesArray = Memory->PlatformMIDIGetDevices();
-        // NOTE(luca): There are two UI passes, one for the top controls and on for the bottom half which will be the panels.  The free space for the panels is calculated in the first pass.
-        // Maybe we can merge them?
-        ui_box *RootPanelBox;
+        if(App->ListerOpened)
+        {
+            s32 ShowItemCount = 10.f;
+            f32 ListerBorderSize = 2.f;
+            
+            // Input
+            u64 SelectedIdx = 0; 
+            u64 NameListSize = 0;
+            str8 *NameList = 0;
+            u64 StartIdx = 0;
+            
+            // Output
+            s32 FilteredItemCount = 0;
+            lister_item *FilteredItems = 0;
+            platform_midi_device *OutDevices = 0;
+            
+            switch(App->ListerKind)
+            {
+                default: InvalidPath(); break;
+                case ListerKind_Instruments:
+                {
+                    SelectedIdx = (u64)SelectedVoice->PresetIdx; 
+                    NameListSize = (u64)App->InstrumentCount;
+                    NameList = App->InstrumentNames;
+                } break;
+                
+                case ListerKind_MIDIInput:
+                case ListerKind_MIDIOutput:
+                {
+                    b32 IsInput = (App->ListerKind == ListerKind_MIDIInput);
+                    
+                    NameList = PushArray(FrameArena, str8, Devices.Count);
+                    OutDevices = PushArray(FrameArena, platform_midi_device, Devices.Count);
+                    for EachIndex(Idx, Devices.Count)
+                    {
+                        platform_midi_device *Device = Devices.Devices + Idx;
+                        platform_midi_device *Out = OutDevices + NameListSize;
+                        str8 *Name = NameList + NameListSize;
+                        
+                        if((IsInput && Device->IsInput) ||
+                           (!IsInput && Device->IsOutput))
+                        {
+                            *Name = Device->Name;
+                            *Out = *Device;
+                            
+                            if(Device->Id == App->In.Id)
+                            {
+                                SelectedIdx = NameListSize;
+                            }
+                            
+                            NameListSize += 1;
+                        }
+                    }
+                } break;
+                
+                case ListerKind_DebugInfo:
+                {
+                    SelectedIdx = (u64)-1;
+                    NameList = App->DebugStrings;
+                    NameListSize = App->DebugStringCount;
+                } break;
+                
+                case ListerKind_PanelTypes:
+                {
+                    panel *Panel = App->SelectedPanel;
+                    SelectedIdx = Panel->Kind;
+                    NameList = PanelTypeStrings;
+                    NameListSize = ArrayCount(PanelTypeStrings);
+                    StartIdx = 1;
+                } break;
+            }
+            
+            FilteredItems = PushArray(FrameArena, lister_item, NameListSize);
+            
+            for(u64 Idx = StartIdx; Idx < NameListSize; Idx += 1)
+            {
+                lister_item *Item = FilteredItems + FilteredItemCount;
+                str8 Name = NameList[Idx];
+                
+                b32 Matched = false;
+                
+                // Match if Name contains App->Text case-insensitive
+                {                
+                    if(App->Text.Size == 0)
+                    {
+                        Matched = true;
+                    }
+                    else
+                    {                    
+                        u64 TextIdx = 0;
+                        for EachIndex(NameIdx, Name.Size)
+                        {
+                            if(ToLowercase(Name.Data[NameIdx]) == 
+                               ToLowercase(App->Text.Data[TextIdx]))
+                            {
+                                Matched = true;
+                            }
+                            else if(Matched)
+                            {
+                                // NOTE(luca): Start over
+                                Matched = false;
+                                TextIdx = 0;
+                            }
+                            
+                            if(Matched)
+                            {
+                                TextIdx += 1;
+                                if(TextIdx == App->Text.Size)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // NOTE(luca): Whole text must have matched
+                        if(TextIdx < App->Text.Size)
+                        {
+                            Matched = false;
+                        }
+                    }
+                }
+                
+                if(Matched)
+                {
+                    Item->Name = Name;
+                    Item->Idx = Idx;
+                    FilteredItemCount += 1;
+                }
+            }
+            
+            f32 PctOnYAxis = App->ListerScrollPct;
+            f32 SpaceBeforeThumb = (1.f - 1.f/(f32)ShowItemCount)*PctOnYAxis;
+            
+            v2 ListerDim = V2(600.f, (f32)ShowItemCount*ItemHeight);
+            V2Math ListerDim.E += 2.f*ListerBorderSize;
+            ListerDim.Y += ItemHeight + ListerBorderSize;
+            
+            ui_box *Root = App->ListerBox;
+            {    
+                Root->Key.U64[0] = U64HashFromSeedStr8((u64)Root, S8("Root"));
+                Root->FixedPos = V2(0.f, 0.f);
+                Root->FixedSize = BufferDim;
+                Root->Rec = RectFromSize(Root->FixedPos, Root->FixedSize);
+                Root->LastTouchedFrameIdx = UI_State->FrameIdx;
+            }
+            
+            if(Root->First->First->First == (ui_box *)0x21000424d30)
+            {
+                DebugBreak();
+            }
+            
+            UI_BeginLayout(Root, App->HeightPx);
+            {        
+                UI_FillAll()
+                    UI_Column() UI_Center()
+                {           
+                    
+                    UI_SemanticHeight(UI_SizeChildren(1.f))
+                        UI_Row() UI_Center()
+                    {
+                        UI_SemanticWidth(UI_SizePx(ListerDim.X, 1.f))
+                            UI_SemanticHeight(UI_SizePx(ListerDim.Y, 1.f))
+                            UI_BorderThickness(ListerBorderSize)
+                            UI_BorderColor(Color_Snow2)
+                            UI_AddBox(S8("Lister"), 
+                                      UI_BoxFlag_Clip|
+                                      UI_BoxFlag_DrawBorders|
+                                      UI_BoxFlag_DrawBackground);
+                        
+                        UI_PaddingAround(UI_SizePx(ListerBorderSize, 1.f)) 
+                        {
+                            UI_Column()
+                            {
+                                ui_box *SelectedBox;
+                                
+                                // Top input box
+                                UI_FillWidth()
+                                    UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                    UI_Row()
+                                {
+                                    ui_box *InputBox;
+                                    
+                                    UI_BackgroundColor(Color_Blue)
+                                        UI_FillAll()
+                                        InputBox = UI_AddBox(S8("InputBox"), UI_BoxFlag_DrawBackground);
+                                    
+                                    custom_draw__single_line_text_input_params *Params = PushArray(FrameArena, custom_draw__single_line_text_input_params, 1);
+                                    Params->Box = InputBox;
+                                    Params->Text = App->Text;
+                                    Params->CursorAnimTime = App->CursorAnimTime;
+                                    InputBox->CustomDraw = CustomDrawSingleLineTextInput;
+                                    InputBox->CustomDrawData = Params;
+                                }
+                                
+                                UI_FillWidth()
+                                    UI_SemanticHeight(UI_SizePx(ListerBorderSize, 1.f))
+                                    UI_BackgroundColor(Color_Snow2)
+                                    UI_AddBox(S8("Separator"),
+                                              UI_BoxFlag_Clip|
+                                              UI_BoxFlag_DrawBackground);
+                                
+                                UI_Row()
+                                {
+                                    s32 MinIdx;
+                                    
+                                    // Instruments
+                                    {                            
+                                        UI_BackgroundColor(Color_Red)
+                                            UI_FillAll()
+                                            UI_LayoutAxis(Axis2_Y)
+                                        {
+                                            ui_box *Box = UI_AddBox(S8("Items"), UI_BoxFlag_Clip);
+                                            f32 FullHeight = (f32)FilteredItemCount*ItemHeight;
+                                            Box->Scroll.Y = PctOnYAxis*FullHeight;
+                                            MinIdx = (s32)(Box->Scroll.Y/ItemHeight);
+                                        }
+                                        
+                                        UI_FillAll()
+                                            UI_Push()
+                                        {
+                                            s32 MaxIdx = Min(FilteredItemCount, MinIdx + ShowItemCount + 1);
+                                            UI_Spacer(UI_SizePx(ItemHeight*(f32)MinIdx, 1.f));
+                                            for(s32 Idx = MinIdx; Idx < MaxIdx; Idx += 1)
+                                            {
+                                                lister_item *Item = FilteredItems + Idx;
+                                                str8 ItemString = Str8Fmt(S8Fmt "###Item%d",
+                                                                          S8Arg(Item->Name),
+                                                                          Idx);
+                                                b32 Selected = (SelectedIdx == Item->Idx);
+                                                
+                                                UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                                {   
+                                                    if(Button(.Text = ItemString, 
+                                                              .Disabled = Selected, 
+                                                              .DisabledBackgroundColor = Color_Yellow, 
+                                                              .Padding = ItemPadding).Released)
+                                                    {
+                                                        switch(App->ListerKind)
+                                                        {
+                                                            default: InvalidPath(); break;
+                                                            
+                                                            case ListerKind_Instruments:
+                                                            {
+                                                                command *Command = PushCommand(App, Command_SelectInstrument);
+                                                                Command->PresetIdx = (s32)Item->Idx;
+                                                            } break;
+                                                            
+                                                            case ListerKind_MIDIInput:
+                                                            {
+                                                                command *Command = PushCommand(App, Command_SelectInputDevice);
+                                                                Command->Device = OutDevices + Item->Idx;
+                                                            } break;
+                                                            
+                                                            case ListerKind_MIDIOutput:
+                                                            {
+                                                                command *Command = PushCommand(App, Command_SelectOutputDevice);
+                                                                Command->Device = OutDevices + Item->Idx;
+                                                            } break;
+                                                            
+                                                            case ListerKind_PanelTypes:
+                                                            {
+                                                                command *Command = PushCommand(App, Command_SetPanelType);
+                                                                Command->Panel = App->SelectedPanel;
+                                                                Command->PanelKind = (panel_kind)Item->Idx;
+                                                            } break;
+                                                        }
+                                                        
+                                                        PushCommand(App, Command_CloseLister);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Scrollbar
+                                    {
+                                        ui_box *Scrollbar;
+                                        UI_BorderColor(Color_Black)
+                                            UI_SemanticWidth(UI_SizePx(16.f, 1.f))
+                                            UI_FillHeight()
+                                            Scrollbar = UI_AddBox(S8("Scrollbar"), 
+                                                                  UI_BoxFlag_Clip|
+                                                                  UI_BoxFlag_MouseClickable|
+                                                                  UI_BoxFlag_DrawBackground|
+                                                                  UI_BoxFlag_DrawBorders);
+                                        
+                                        ui_size Padding = UI_SizePx(UI_BorderThicknessTop(), 1.f);
+                                        
+                                        UI_PaddingAround(Padding)
+                                        { 
+                                            UI_Spacer(UI_SizeParent(SpaceBeforeThumb, 0.f));
+                                            
+                                            ui_box *Thumb;
+                                            UI_SemanticHeight(UI_SizePx(ItemHeight, 0.f))
+                                                UI_FillWidth()
+                                                UI_AddBox(S8("Scrollbar"), UI_BoxFlag_Clip);
+                                            UI_PaddingAround(UI_SizePx(1.f, 0.f))
+                                                UI_BorderThickness(1.f)
+                                                UI_BorderColor(Color_Black)
+                                                UI_BackgroundColor(Color_Orange)
+                                                Thumb = UI_AddBox(S8("Thumb"), 
+                                                                  UI_BoxFlag_Clip|
+                                                                  UI_BoxFlag_MouseClickable|
+                                                                  UI_BoxFlag_DrawHotEffects|
+                                                                  UI_BoxFlag_DrawActiveEffects|
+                                                                  UI_BoxFlag_DrawBackground|
+                                                                  UI_BoxFlag_DrawBorders);
+                                            
+                                            // Compute PctOnYAxis
+                                            {
+                                                if(UI_IsActive(Thumb))
+                                                {
+                                                    local_persist f32 BoxStart = 0.f;
+                                                    
+                                                    if(Thumb->WasClicked)
+                                                    {
+                                                        BoxStart = PctOnYAxis;
+                                                    }
+                                                    
+                                                    f32 Start = Scrollbar->FixedPos.Y + ItemHeight/2.f;
+                                                    f32 End = Scrollbar->FixedPos.Y + Scrollbar->FixedSize.Y - ItemHeight/2.f;
+                                                    
+                                                    f32 Delta = (f32)(Input->Mouse.Pos.Y - Input->Mouse.Start.Y);
+                                                    
+                                                    PctOnYAxis = Clamp(0.f, BoxStart + Delta/(End - Start), 1.f);
+                                                    
+#if 0
+                                                    Log("%.0f (%.0f-%.0f) %.2f%%\n", 
+                                                        Delta, Start, End, PctOnYAxis);
+#endif
+                                                    
+                                                    App->ListerScrollPct = PctOnYAxis;
+                                                }
+                                            }
+                                            
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+            }
+            
+            App->CursorAnimTime += Input->dtForFrame;
+        }
         
         //- UI Top "Controls" 
         {
-            local_persist ui_box *Root = 0;
-            if(UI_IsNilBox(Root))
-            {
-                Root = UI_BoxAlloc(App->UIArena);
-            }
-            
-            // Init root
+            ui_box *Root = App->TopBox;
             {    
-                v2 Pos = V2(0.f, 0.f);
-                v2 Size = BufferDim;
-                Pos = V2AddF32(Pos, WindowBorderSize);
-                Size = V2SubF32(Size, 2.f*WindowBorderSize);
-                
-                Root->FixedPosition = Pos;
-                Root->FixedSize = Size;
-                Root->Rec = RectFromSize(Root->FixedPosition, Root->FixedSize);
-                Root->Key.U64[0] = U64HashFromSeedStr8((u64)Root, S8("muze panel root"));
+                Root->Key.U64[0] = U64HashFromSeedStr8((u64)Root, S8("Root"));
+                Root->FixedPos = V2(0.f, 0.f);
+                Root->FixedSize = BufferDim;
+                Root->Rec = RectFromSize(Root->FixedPos, Root->FixedSize);
+                Root->LastTouchedFrameIdx = UI_State->FrameIdx;
             }
             
-            UI_DefaultState(Root, App->HeightPx);
-            
-            UI_LayoutAxis(Axis2_Y)
-                UI_AddBox(S8(""), UI_BoxFlag_Clip);
-            
-            UI_Push()
-                //- All 
-            {        
-                UI_LayoutAxis(Axis2_X)
-                    UI_SemanticWidth(UI_SizeChildren(1.f))
-                    UI_SemanticHeight(UI_SizeChildren(1.f))
-                    UI_AddBox(S8(""), UI_BoxFlag_Clip);
+            UI_BeginLayout(Root, App->HeightPx);
+            {            
+                UI_LayoutAxis(Axis2_Y)
+                    UI_AddBox(S8("RootFirst"), UI_BoxFlag_Clip);
                 
                 UI_Push()
-                    UI_SemanticWidth(UI_SizeText(4.f, 1.f))
-                    UI_SemanticHeight(UI_SizeText(2.f, 1.f))
+                    //- All
                 {
-                    UI_List(Axis2_Y, S8("Input Devices"))
+                    //- Top 
                     {
-                        b32 DeviceChanged = !Memory->Initialized;
-                        
-                        if(UI_ToggleButton(S8("Virtual Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow))
-                        {
-                            if(!App->Muze.IsInputVirtualKeyboard)
+                        UI_SemanticHeight(UI_SizeChildren(1.f))
+                            UI_FillWidth()
+                            UI_LayoutAxis(Axis2_X)
+                            UI_AddBox(S8("TopControls"), UI_BoxFlag_Clip);
+                        UI_Push()
+                        { 
+                            UI_Center()
+                                UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                UI_SemanticWidth(UI_SizePx(ListWidth, 1.f))
                             {
-                                App->Muze.IsInputVirtualKeyboard = true;
-                            }
-                        }
-                        
-                        
-                        for EachIndex(Idx, DevicesArray.Count)
-                        {
-                            platform_midi_device *Device = DevicesArray.Devices + Idx;
-                            if(!Device->IsOutput)
-                            {
-                                b32 Selected = (!App->Muze.IsInputVirtualKeyboard && 
-                                                (Device->Id == App->Muze.In.Id));
                                 
-                                if(UI_ToggleButton(Device->Name, Selected, Color_Yellow))
+                                UI_List(S8("Song"), ItemHeight)
                                 {
-                                    if(!Selected)
+                                    if(UI_ButtonWithToggle(S8("Record"), SelectedVoice->IsRecording, ItemPadding, Color_Red).OneClicked)
                                     {
-                                        StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                                        
-                                        App->Muze.IsInputVirtualKeyboard = false;
-                                        App->Muze.In = *Device;
-                                        Memory->PlatformMIDIListen(App->Muze.In);
+                                        PushCommand(App, Command_ToggleRecording);
+                                    }
+                                    
+                                    if(UI_ButtonWithToggle(S8("Play"), SelectedVoice->IsPlaying, ItemPadding, Color_Green).OneClicked)
+                                    {
+                                        PushCommand(App, Command_TogglePlaying);
+                                    }
+                                    
+                                    if(UI_ButtonWithToggle(S8("Auto Scroll"), SelectedVoice->AutoScroll, ItemPadding, Color_Green).OneClicked)
+                                    {
+                                        PushCommand(App, Command_ToggleAutoScroll);
+                                    }
+                                    
+                                    
+                                    UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
+                                    {         
+                                        if(SimpleButton(S8("Stop"))) PushCommand(App, Command_Stop);
+                                        if(SimpleButton(S8("Trim"))) PushCommand(App, Command_Trim);
+                                    }
+                                    UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
+                                    {         
+                                        if(SimpleButton(S8("Reset"))) PushCommand(App, Command_Reset);
                                     }
                                 }
+                                
+                                UI_List(S8("Notes"), ItemHeight)
+                                {
+                                    
+                                    UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
+                                    {
+                                        if(SimpleButton(S8("Round"))) PushCommand(App, Command_Round);
+                                        if(SimpleButton(S8("Sync"))) PushCommand(App, Command_Sync);
+                                    }
+                                    
+                                    UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
+                                    {
+                                        if(SimpleButton(S8("Guess"))) PushCommand(App, Command_GuessBPM);
+                                        if(SimpleButton(S8("Delete"))) PushCommand(App, Command_DeleteSelection);
+                                    }
+                                    
+                                    {
+                                        ui_box *ButtonBox;
+                                        UI_BackgroundColor(Color_ButtonBackground)
+                                            ButtonBox = UI_AddBox(S8("Length"), 
+                                                                  UI_BoxFlag_Clip|
+                                                                  UI_BoxFlag_MouseClickable|
+                                                                  UI_BoxFlag_DrawHotEffects|
+                                                                  UI_BoxFlag_DrawActiveEffects|
+                                                                  UI_BoxFlag_DrawBorders|
+                                                                  UI_BoxFlag_DrawBackground);
+                                        UI_PaddingAround(ItemPadding)
+                                        {
+                                            ui_box *Box;
+                                            UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                                                Box = UI_AddBox(S8("SetLength"), UI_BoxFlag_DrawDisplayString|
+                                                                UI_BoxFlag_CenterTextVertically);
+                                            
+                                            f32 Length = SelectedVoice->NoteSetLength;
+                                            char *Format = (Length >= 0.f ? 
+                                                            "Length %3.0f" :
+                                                            "Length 1/%1.0f");
+                                            f32 Value = PowF32(2.f, AbsF32(Length));
+                                            Box->DisplayString = Str8Fmt(Format, Value);
+                                            
+                                            UI_Spacer(UI_SizePx(5.f, 1.f));
+                                            
+                                            UI_BackgroundColor(Color_Orange)
+                                                UI_BorderColor(Color_Black)
+                                                SelectedVoice->NoteSetLength = UI_Slider(Length, -3, 2, 1.f, 0, true);
+                                        }
+                                        
+                                        if(ButtonBox->Clicked)
+                                        {
+                                            PushCommand(App, Command_SetLength)->Length = SelectedVoice->NoteSetLength;;
+                                        }
+                                    }
+                                    
+                                    UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
+                                    {
+                                        if(SimpleButton(S8("Clear"))) PushCommand(App, Command_ClearSelection);
+                                    }
+                                }
+                                
+                                UI_List(S8("Voice"), ItemHeight)
+                                {
+                                    UI_BackgroundColor(Color_ButtonBackground)
+                                        UI_AddBox(S8("VoiceSelect"), 
+                                                  UI_BoxFlag_Clip|
+                                                  UI_BoxFlag_DrawBorders|
+                                                  UI_BoxFlag_DrawBackground);
+                                    UI_PaddingAround(ItemPadding)
+                                    {
+                                        u64 Idx = (u64)(SelectedVoice - App->Voices);
+                                        f32 NewIdx = 0.f;
+                                        
+                                        UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                                            UI_AddBox(Str8Fmt("Voice %2llu/%-2llu###VoiceText", Idx + 1, App->VoiceCount),
+                                                      UI_BoxFlag_DrawDisplayString|
+                                                      UI_BoxFlag_CenterTextVertically);
+                                        
+                                        UI_BorderColor(Color_Black)
+                                            NewIdx = UI_Slider((f32)Idx + 1, 1.f, (f32)App->VoiceCount, 1.f, 0, true); 
+                                        NewIdx -= 1.f;
+                                        
+                                        // Set panel voice
+                                        if((u64)NewIdx != Idx)
+                                        {
+                                            voice *NewVoice = App->Voices + (u64)NewIdx;
+                                            PushCommand(App, Command_SetPanelVoice)->Voice = NewVoice;
+                                        }
+                                    }
+                                    
+                                    UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
+                                    {         
+                                        if(SimpleButton(S8("Delete"))) PushCommand(App, Command_DeleteVoice);
+                                        if(SimpleButton(S8("New"))) PushCommand(App, Command_AddVoice);
+                                    }
+                                    UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
+                                    {
+                                        if(SimpleButton(S8("Enqueue"))) PushCommand(App, Command_Enqueue);
+                                        if(SimpleButton(S8("Dequeue"))) PushCommand(App, Command_Dequeue);
+                                    }
+                                    UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
+                                    {
+                                        if(SimpleButton(S8("Play all"))) PushCommand(App, Command_PlayAllVoices);
+                                        if(SimpleButton(S8("Stop all"))) PushCommand(App, Command_StopAllVoices);
+                                    }
+                                    
+                                    // Volume control
+                                    {                                    
+                                        f32 Volume = SelectedVoice->Volume;
+                                        Volume = SimpleSlider(S8("Volume"), 
+                                                              Str8Fmt("%3.0f%%", Volume*100.f),
+                                                              Volume, 0.f, 1.f, .01f,
+                                                              false).Value;
+                                        tsf_channel_set_volume(GlobalTSF, SelectedVoice->Channel, Volume);
+                                        SelectedVoice->Volume = Volume;
+                                    }
+                                    
+                                }
+                                
                             }
                         }
-                        
                     }
                     
-                    UI_List(Axis2_Y, S8("Output Devices"))
-                    {
-                        if(UI_ToggleButton(S8("Virtual Synth"), App->Muze.IsOutputSynth, Color_Yellow))
-                        {
-                            if(!App->Muze.IsOutputSynth)
-                            {
-                                StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                                App->Muze.IsOutputSynth = true;
-                            }
-                        }
+                    UI_Spacer(UI_SizePx(3.f, 1.f));
+                    
+                    ui_box *PanelsBox;
+                    UI_FillAll()
+                        PanelsBox = UI_AddBox(S8("Panels"), UI_BoxFlag_Clip);
+                    
+                    v4 Region = PanelsBox->Rec;
+                    
+                    UI_FillAll() UI_Push()
+                    {      
+                        panel *ResizePanel = NilPanel;
                         
-                        for EachIndex(Idx, DevicesArray.Count)
-                        {         
-                            platform_midi_device *Device = DevicesArray.Devices + Idx;
-                            if(Device->IsOutput)
+                        panel *Panel = App->FirstPanel;
+                        for(;!IsNilPanel(Panel);)
+                        {
+                            ui_box *PanelBox;
+                            axis2 LayoutAxis;
+                            
+                            // Create UI box for panel
                             {                            
-                                b32 Selected = (!App->Muze.IsOutputSynth && (Device->Id == App->Muze.Out.Id));
+                                LayoutAxis = (axis2)Panel->Parent->Axis;
                                 
-                                if(UI_ToggleButton(Device->Name, Selected, Color_Yellow))
+                                UI_BorderThickness(2.f)
+                                    UI_SemanticSizeOnAxis(LayoutAxis, UI_SizeParent(Panel->ParentPct, 0.f))
+                                    UI_TextColor(Color_Snow2)
+                                    UI_BorderColor((Panel == App->SelectedPanel ? Color_Black : Color_Night0))
+                                    UI_LayoutAxis((axis2)Panel->Axis)
+                                    PanelBox = UI_AddBox(Str8Fmt("%p", Panel), 0);
+                                
+                                if(IsLeafPanel(Panel))
                                 {
-                                    if(!Selected)
+                                    PanelBox->Flags |= UI_BoxFlag_DrawBorders;
+                                    PanelBox->Flags |= UI_BoxFlag_MouseClickable;
+                                    
+                                    UI_PaddingAround(UI_SizePx(2.f, 1.f))
                                     {
-                                        StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
+                                        UI_FillAll()
+                                            UI_LayoutAxis(Axis2_Y)
+                                            UI_AddBox(S8("Panel"), 0);
                                         
-                                        App->Muze.IsOutputSynth = false;
-                                        App->Muze.Out = *Device;
+                                        UI_Push()
+                                        {
+                                            //- Top contents 
+                                            {
+                                                UI_BackgroundColor(Color_ButtonBackground)
+                                                    UI_FillWidth() 
+                                                    UI_SemanticHeight(UI_SizeText(4.f, 1.f))
+                                                    UI_AddBox(S8("Top"), UI_BoxFlag_DrawBackground|
+                                                              UI_BoxFlag_DrawBorders);
+                                                
+                                                UI_Push()
+                                                {
+                                                    // Type button
+                                                    {                                                    
+                                                        ui_box *Type ;
+                                                        UI_BackgroundColor(Color_ButtonBackground)
+                                                            UI_SemanticWidth(UI_SizeText(2.f, 1.f))
+                                                            Type = UI_AddBox(S8("PanelType"), (UI_BoxFlag_DrawBackground|
+                                                                                               UI_BoxFlag_DrawBorders|
+                                                                                               UI_BoxFlag_MouseClickable|
+                                                                                               UI_BoxFlag_DrawHotEffects|
+                                                                                               UI_BoxFlag_DrawActiveEffects|
+                                                                                               UI_BoxFlag_DrawDisplayString|
+                                                                                               UI_BoxFlag_CenterTextVertically|
+                                                                                               UI_BoxFlag_CenterTextHorizontally));
+                                                        
+                                                        str8 TypeName = PanelTypeStrings[Panel->Kind];
+                                                        Type->DisplayString = TypeName;
+                                                        
+                                                        if(Type->WasClicked)
+                                                        {
+                                                            command *Command = PushCommand(App, Command_OpenLister);
+                                                            Command->Panel = Panel;
+                                                            Command->ListerKind = ListerKind_PanelTypes;
+                                                        }
+                                                    }
+                                                    
+                                                    UI_Spacer(UI_SizeParent(1.f, 0.f));
+                                                    
+                                                    // Close button 
+                                                    {
+                                                        ui_box *Close;
+                                                        UI_BackgroundColor(Color_ButtonBackground)
+                                                            UI_SemanticWidth(UI_SizeText(2.f, 1.f))
+                                                            Close = UI_AddBox(S8("X"), (UI_BoxFlag_DrawBackground|
+                                                                                        UI_BoxFlag_DrawBorders|
+                                                                                        UI_BoxFlag_MouseClickable|
+                                                                                        UI_BoxFlag_DrawHotEffects|
+                                                                                        UI_BoxFlag_DrawActiveEffects|
+                                                                                        UI_BoxFlag_DrawDisplayString|
+                                                                                        UI_BoxFlag_CenterTextVertically|
+                                                                                        UI_BoxFlag_CenterTextHorizontally));
+                                                        if(Close->WasClicked)
+                                                        {
+                                                            command *Command = PushCommand(App, Command_ClosePanel);
+                                                            Command->Panel = Panel;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            
+                                            ui_box *Contents;
+                                            UI_FillAll()
+                                                Contents = UI_AddBox(S8("Contents"), UI_BoxFlag_MouseClickable);
+                                            
+                                            //- Panel contents 
+                                            {     
+                                                if(0) {}
+                                                else if(Panel->Kind == PanelKind_Settings)
+                                                {
+                                                    Contents->Flags |= UI_BoxFlag_DrawBackground;
+                                                    Contents->BackgroundColor = Color_Night2;
+                                                    
+                                                    ui_box *ConfigList;
+                                                    
+                                                    UI_Push()
+                                                    {                                                    
+                                                        UI_FillAll()
+                                                            UI_Row()
+                                                        {
+                                                            UI_FillAll()
+                                                                UI_LayoutAxis(Axis2_Y)
+                                                                ConfigList = UI_AddBox(S8("Column"), UI_BoxFlag_Clip);
+                                                            UI_FillAll()
+                                                                UI_Push()
+                                                                UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                                            {             
+                                                                
+                                                                //- Music 
+                                                                {
+                                                                    UI_BackgroundColor(Color_ButtonBackground)
+                                                                        UI_AddBox(S8("BPM"), 
+                                                                                  UI_BoxFlag_Clip|
+                                                                                  UI_BoxFlag_DrawBorders|
+                                                                                  UI_BoxFlag_DrawBackground);
+                                                                    UI_PaddingAround(ItemPadding)
+                                                                    {
+                                                                        UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                                                                            UI_AddBox(S8("Set BPM           "), (UI_BoxFlag_Clip|
+                                                                                                                 UI_BoxFlag_DrawDisplayString|
+                                                                                                                 UI_BoxFlag_CenterTextVertically));
+                                                                        
+                                                                        UI_Spacer(UI_SizeParent(1.f, 0.f));
+                                                                        
+                                                                        UI_BackgroundColor(Color_Orange)
+                                                                            UI_BorderColor(Color_Black)
+                                                                            App->BPM = UI_Slider(App->BPM, 30.f, 300.f, 1.0f, "%3.0f", true);
+                                                                    }
+                                                                    
+                                                                    UI_BackgroundColor(Color_ButtonBackground)
+                                                                        UI_AddBox(S8("TimeSig"), 
+                                                                                  UI_BoxFlag_Clip|
+                                                                                  UI_BoxFlag_DrawBorders|
+                                                                                  UI_BoxFlag_DrawBackground);
+                                                                    UI_PaddingAround(ItemPadding)
+                                                                    {
+                                                                        UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                                                                            UI_AddBox(S8("Set time signature"), UI_BoxFlag_Clip|
+                                                                                      UI_BoxFlag_DrawDisplayString|
+                                                                                      UI_BoxFlag_CenterTextVertically);
+                                                                        
+                                                                        UI_Spacer(UI_SizeParent(1.f, 0.f));
+                                                                        
+                                                                        UI_BackgroundColor(Color_Orange)
+                                                                            UI_BorderColor(Color_Black)
+                                                                            App->TimeSig = (s32)UI_Slider((f32)App->TimeSig, 1.f, 4.f, 1.f, "%1.0f/4", true);
+                                                                    }
+                                                                }
+                                                                
+                                                                //- Input
+                                                                {
+                                                                    // Select MIDI Input device
+                                                                    {
+                                                                        
+                                                                        if(UI_ButtonWithToggle(S8("Set keyboard input"), App->InputVirtualKeyboardEnabled,
+                                                                                               ItemPadding, Color_Yellow).OneClicked)
+                                                                        {
+                                                                            PushCommand(App, Command_ToggleVirtualKeyboardInput);
+                                                                        }
+                                                                        
+                                                                        str8 Name = Str8Fmt("Set MIDI Input device  - \"" S8Fmt "\"###MIDIInput", S8Arg(Devices.Devices[App->In.Id].Name));
+                                                                        
+                                                                        ui_button_result Click = UI_ButtonWithToggle(Name, App->InputMIDIEnabled,
+                                                                                                                     ItemPadding, Color_Yellow);
+                                                                        if(Click.Toggled)
+                                                                        {
+                                                                            PushCommand(App, Command_ToggleMIDIInput);
+                                                                        }
+                                                                        if(Click.Pressed)
+                                                                        {
+                                                                            PushCommand(App, Command_OpenLister)->ListerKind = ListerKind_MIDIInput;
+                                                                        }
+                                                                        
+                                                                    }
+                                                                }
+                                                                
+                                                                //- Output 
+                                                                {
+                                                                    // Select MIDI output device
+                                                                    {
+                                                                        str8 Name = Str8Fmt("Set MIDI Output device - \"" S8Fmt "\"###MIDIOutput", S8Arg(Devices.Devices[App->Out.Id].Name));
+                                                                        
+                                                                        ui_button_result Click = UI_ButtonWithToggle(Name, App->OutputMIDIEnabled, 
+                                                                                                                     ItemPadding, Color_Yellow);
+                                                                        if(Click.Pressed)
+                                                                        {
+                                                                            PushCommand(App, Command_OpenLister)->ListerKind = ListerKind_MIDIOutput;
+                                                                        }
+                                                                        
+                                                                        if(Click.Toggled)
+                                                                        {
+                                                                            PushCommand(App, Command_ToggleMIDIOutput);
+                                                                        }
+                                                                    }
+                                                                    
+                                                                    // Synth toggle and open instrument lister
+                                                                    {      
+                                                                        str8 Text = (SoundFontLoaded ? 
+                                                                                     App->InstrumentNames[SelectedVoice->PresetIdx] : 
+                                                                                     S8("No soundfont loaded."));
+                                                                        
+                                                                        Text = Str8Fmt("Set synth instrument   - \"" S8Fmt "\"###Synth", S8Arg(Text));
+                                                                        
+                                                                        ui_button_result Click = UI_ButtonWithToggle(Text, App->OutputSynthEnabled, ItemPadding, Color_Yellow);
+                                                                        
+                                                                        App->OutputSynthEnabled ^= Click.Toggled;
+                                                                        if(Click.Pressed)
+                                                                        {
+                                                                            PushCommand(App, Command_OpenLister)->ListerKind = ListerKind_Instruments;
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                            
+                                                            // Scrollbar
+                                                            {                                                            
+                                                                f32 TotalElementSize = 6.f*ItemHeight;
+                                                                TotalElementSize -= ItemHeight;
+                                                                
+                                                                f32 Scroll = UI_Scrollbar(Axis2_Y, TotalElementSize, Panel->Scroll.Y);
+                                                                ConfigList->Scroll.Y = Scroll;
+                                                                Panel->Scroll.Y = Scroll;
+                                                            }
+                                                            
+                                                        }
+                                                    }
+                                                    
+                                                    
+                                                }
+                                                else if(Panel->Kind == PanelKind_Debug)
+                                                {
+                                                    ui_box *ConfigList;
+                                                    
+                                                    Contents->Flags |= UI_BoxFlag_DrawBackground;
+                                                    Contents->BackgroundColor = Color_Night2;
+                                                    
+                                                    UI_Push()
+                                                    {                                                    
+                                                        UI_FillAll()
+                                                            UI_Row()
+                                                        {
+                                                            UI_FillAll()
+                                                                UI_LayoutAxis(Axis2_Y)
+                                                                ConfigList = UI_AddBox(S8("Column"), UI_BoxFlag_Clip);
+                                                            UI_FillAll()
+                                                                UI_Push()
+                                                                UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                                            {
+                                                                UI_State->RectDebugMode ^= UI_ButtonWithToggle(S8("UI Rects"), 
+                                                                                                               UI_State->RectDebugMode, 
+                                                                                                               ItemPadding, V4(1.f, 0.f, 1.f, 1.f)).OneClicked;
+                                                                
+                                                                if(SimpleButton(S8("Info")))
+                                                                {
+                                                                    PushCommand(App, Command_OpenLister)->ListerKind = ListerKind_DebugInfo;
+                                                                }
+                                                            }
+                                                            
+                                                            // Scrollbar
+                                                            {                                                            
+                                                                f32 TotalElementSize = 2.f*ItemHeight;
+                                                                TotalElementSize -= ItemHeight;
+                                                                
+                                                                f32 Scroll = UI_Scrollbar(Axis2_Y, TotalElementSize, Panel->Scroll.Y);
+                                                                ConfigList->Scroll.Y = Scroll;
+                                                                Panel->Scroll.Y = Scroll;
+                                                            }
+                                                        }
+                                                    }
+                                                    
+                                                }
+                                                else if(Panel->Kind == PanelKind_Sheet)
+                                                {
+                                                    muze_box_data *Data = PushArray(FrameArena, muze_box_data, 1);
+                                                    Data->Box = Contents;
+                                                    Data->Voice = Panel->Voice;
+                                                    Data->App = App;
+                                                    
+                                                    Contents->CustomDraw = CustomDrawSheetMusic;
+                                                    Contents->CustomDrawData = Data;
+                                                    
+                                                    //- Scrollbar 
+                                                    {
+                                                        f32 ThumbWidth = 32.f;
+                                                        f32 HalfThumbWidth = ThumbWidth/2.f;
+                                                        f32 PaddingInsideScrollbar = 2.f;
+                                                        ui_box *Scrollbar;
+                                                        
+                                                        UI_LayoutAxis(Axis2_X)
+                                                            UI_FillWidth() 
+                                                            UI_SemanticHeight(UI_SizePx(16.f, 1.f))
+                                                            UI_AddBox(S8("ScrollbarParent"), 0);
+                                                        UI_PaddingAround(UI_SizePx(PaddingInsideScrollbar, 1.f))
+                                                        {
+                                                            UI_FillAll()
+                                                                Scrollbar = UI_AddBox(S8("Scrollbar"), UI_BoxFlag_MouseClickable);
+                                                            UI_Push()
+                                                            {                                                    
+                                                                // NOTE(luca): ]Scrollable width = BarWidth * BarCount + BoxWidth - BarWidth 
+                                                                
+                                                                f32 WholeBarWidth = 100.f;
+                                                                
+                                                                f32 BPS = (App->BPM/60.f);
+                                                                f32 BarDuration = (1.f/BPS)*(f32)App->TimeSig;
+                                                                f32 BarCount = 1.f + FloorF32(Panel->Voice->RecordLength/(BarDuration + 1e-6f));
+                                                                
+                                                                // NOTE(luca): Make it so that we can scroll until there is only one bar of space left empty.
+                                                                f32 ScrollableWidth = Scrollbar->FixedSize.X - ThumbWidth;
+                                                                
+                                                                f32 ExtraWidth = (Contents->FixedSize.X - WholeBarWidth);
+                                                                
+                                                                f32 Zoom = (BPS/(f32)App->TimeSig*WholeBarWidth);
+                                                                f32 WholeSheetWidth = Panel->Voice->RecordLength*Zoom;
+                                                                WholeSheetWidth -= ExtraWidth;
+                                                                
+                                                                f32 Factor = WholeSheetWidth/ScrollableWidth;
+                                                                
+                                                                ui_box *Spacer;
+                                                                UI_FillHeight()
+                                                                    Spacer = UI_AddBox(S8(""), 0);
+                                                                
+                                                                ui_box *Thumb;
+                                                                
+                                                                UI_SemanticWidth(UI_SizePx(ThumbWidth, 1.f))
+                                                                    UI_BorderColor(Color_Black)
+                                                                    UI_BackgroundColor(Color_Orange)
+                                                                    Thumb = UI_AddBox(S8("Thumb"), 
+                                                                                      UI_BoxFlag_DrawBackground|
+                                                                                      UI_BoxFlag_DrawBorders|
+                                                                                      UI_BoxFlag_MouseClickable|
+                                                                                      UI_BoxFlag_DrawHotEffects|
+                                                                                      UI_BoxFlag_DrawActiveEffects);
+                                                                
+                                                                f32 ScrollX = Panel->Scroll.X;
+                                                                
+                                                                if(Panel->Voice->AutoScroll)
+                                                                {
+                                                                    f32 Pad = Contents->FixedSize.X/2.f;
+                                                                    
+                                                                    // TODO(luca): When user stops playing it should be playing position and we user stops recording it should be RecordLength;
+                                                                    f32 End = (Panel->Voice->IsPlaying ? 
+                                                                               Panel->Voice->PlayPos :
+                                                                               Panel->Voice->RecordLength);
+                                                                    
+                                                                    f32 Width = (End*BPS/(f32)App->TimeSig)*WholeBarWidth;
+                                                                    
+                                                                    f32 AutoScrollFactor = (Width - (Contents->FixedSize.X - Pad))/ScrollableWidth;
+                                                                    
+                                                                    ScrollX = ScrollableWidth*AutoScrollFactor;
+                                                                    
+                                                                    f32 MaxScrollX = ScrollableWidth*Factor;
+                                                                    ScrollX = ClampTop(ScrollX, MaxScrollX);
+                                                                    
+                                                                    // When it all fits, scrolling shouldn't be possible.
+                                                                    {                                                                    
+                                                                        if(WholeSheetWidth < 0.f)
+                                                                        {
+                                                                            ScrollX = 0.f;
+                                                                        }
+                                                                        
+                                                                        if(Width + Pad < Contents->FixedSize.X)
+                                                                        {
+                                                                            ScrollX = 0.f;
+                                                                        }
+                                                                    }
+                                                                }
+                                                                
+                                                                if(UI_IsActive(Thumb) || UI_IsActive(Scrollbar))
+                                                                {
+                                                                    if(Panel->Voice->AutoScroll)
+                                                                    {
+                                                                        PushCommand(App, Command_ToggleAutoScroll);
+                                                                    }
+                                                                    
+                                                                    // TODO(luca): It should not be half thumb width, it should be divided by where the mouse clicked inside the thumb.  E.g., if it clicked on the left part the first part will be small and the second part will be bigger.
+                                                                    f32 MouseX = (f32)Input->Mouse.Pos.X;
+                                                                    f32 RelX = MouseX - Scrollbar->FixedPos.X;
+                                                                    RelX = Clamp(HalfThumbWidth, 
+                                                                                 RelX, 
+                                                                                 Scrollbar->FixedSize.X - HalfThumbWidth); 
+                                                                    RelX -= HalfThumbWidth;
+                                                                    
+                                                                    
+                                                                    ScrollX = RelX*Factor;
+                                                                    
+                                                                    if(WholeSheetWidth < Contents->FixedSize.X)
+                                                                    {
+                                                                        ScrollX = 0.f;
+                                                                    }
+                                                                }
+                                                                
+                                                                Panel->Scroll.X = ScrollX;
+                                                                Contents->Scroll.X = Panel->Scroll.X;
+                                                                
+                                                                f32 SpaceBeforeThumb = Panel->Scroll.X/Factor;
+                                                                Spacer->SemanticSize[Axis2_X] = UI_SizePx(SpaceBeforeThumb, 1.f);
+                                                                
+                                                            }
+                                                            
+                                                        }
+                                                        
+                                                    }
+                                                }
+                                                else if(Panel->Kind == PanelKind_Roll)
+                                                {
+                                                    muze_box_data *Data = PushArray(FrameArena, muze_box_data, 1);
+                                                    Data->Box = Contents;
+                                                    Data->Voice = Panel->Voice;
+                                                    Data->App = App;
+                                                    
+                                                    Contents->CustomDraw = CustomDrawPianoRoll;
+                                                    Contents->CustomDrawData = Data;
+                                                }
+                                            }
+                                        }
                                     }
+                                    
+                                    
+                                    // Set selected panel
+                                    {         
+                                        b32 ChildIsActive = false;
+                                        
+                                        for(ui_box *Child = PanelBox->First;
+                                            (!UI_IsNilBox(Child) && Child != PanelBox);
+                                            Child = UI_BoxDepthFirstPreOrder(Child).Next)
+                                        {
+                                            if(UI_IsActive(Child) && !UI_KeyMatch(UI_KeyNull(), Child->Key))
+                                            {
+                                                ChildIsActive = true;
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if(PanelBox->WasClicked || ChildIsActive)
+                                        {
+                                            App->SelectedPanel	= Panel;
+                                        }
+                                    }
+                                    
                                 }
-                            }
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Controls"))
-                    {
-                        if(UI_Button(S8("Reset")))
-                        {
-                            VoiceReset(Voice);
-                            Voice->IsRecording = false;
-                            Voice->IsPlaying = false;
-                            StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                        }
-                        
-                        if(UI_ToggleButton(S8("Record"), Voice->IsRecording, Color_Red))
-                        {
-                            StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                            if(!Voice->IsRecording)
-                            {
-                                StartRecording(Voice);
-                            }
-                            else
-                            {
-                                StopRecording(Memory, App, Voice, Input->dtForFrame);
+                                else
+                                {
+                                    PanelBox->Flags |= UI_BoxFlag_Clip;
+                                }
+                                
+                                Panel->Region = PanelBox->Rec;
                             }
                             
-                            Voice->IsPlaying = false;
-                        }
-                        
-                        if(UI_ToggleButton(S8("Play"), Voice->IsPlaying, Color_Green))
-                        {
-                            StopRecording(Memory, App, Voice, Input->dtForFrame);
+                            panel *NextPanel = NilPanel;
                             
-                            if(Voice->IsPlaying)
-                            {
-                                Voice->IsPlaying = false;
-                            }
-                            else
-                            {
-                                Voice->IsPlaying = true;
-                            }
-                        }
-                        
-                        if(UI_Button(S8("Stop")))
-                        {
-                            StopRecording(Memory, App, Voice, Input->dtForFrame);
-                            Voice->IsPlaying = false;
-                            Voice->PlayPos = 0.f;
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y,  S8("Edits"))
-                    {
-                        if(UI_Button(S8("Trim")))
-                        {
-                            if(!IsNilNote(Voice->FirstNote))
-                            {
-                                StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                                
-                                note *LastNote = Voice->LastNote;
-                                
-                                f32 LastNoteEnd = (LastNote->Timestamp + LastNote->Duration); 
-                                for EachNote(Note, Voice->FirstNote)
+                            //- Find the next panel in depth first pre order, if this panel is a leaf panel add a resize UI box 
+                            {                            
+                                if(!IsNilPanel(Panel->First))
                                 {
-                                    if(Note->Kind == NoteKind_Note)
-                                    {
-                                        LastNoteEnd = Max(LastNoteEnd, (Note->Timestamp + Note->Duration));
-                                    }
+                                    NextPanel = Panel->First;
+                                    
+                                    UI_PushBox();
                                 }
-                                
-                                Voice->RecordLength = LastNoteEnd;
-                                
-                                note *FirstNote = Voice->FirstNote;
-                                for EachNote(Note, FirstNote)
+                                else for(panel *P = Panel; !IsNilPanel(P); P = P->Parent)
                                 {
-                                    if(Note->Kind == NoteKind_Note)
+                                    if(!IsNilPanel(P->Next))
                                     {
-                                        FirstNote = Note;
+                                        LayoutAxis = P->Parent->Axis;
+                                        
+                                        ui_box *GapBox;
+                                        
+                                        // Create UI box for gap
+                                        {                                    
+                                            f32 GapSize = 12.f;
+                                            
+                                            s32 GapFlags = (UI_BoxFlag_MouseClickable|
+                                                            UI_BoxFlag_DrawHotEffects|
+                                                            UI_BoxFlag_DrawActiveEffects|
+                                                            UI_BoxFlag_DrawBackground);
+                                            if(LayoutAxis == Axis2_X) GapFlags |= UI_BoxFlag_MirrorEffects;
+                                            
+                                            UI_BackgroundColor(Color_Night2)
+                                                UI_SemanticSizeOnAxis(LayoutAxis, UI_SizePx(GapSize, 1.f))
+                                                UI_SemanticSizeOnAxis(1 - LayoutAxis, UI_SizeParent(1.f, 0.f))
+                                                GapBox = UI_AddBox(S8("Gap"), GapFlags);
+                                        }
+                                        
+                                        // Set cursor shape to resizing one
+                                        {                                    
+                                            if(UI_IsHot(GapBox))
+                                            {
+                                                Input->PlatformCursor = (PlatformCursorShape_ResizeHorizontal +
+                                                                         !!(LayoutAxis == Axis2_Y));
+                                            }
+                                        }
+                                        
+                                        // Gap box (resize border)
+                                        {                                    
+                                            if(UI_IsActive(GapBox))
+                                            {
+                                                s32 PosOnAxis = Input->Mouse.Pos.e[LayoutAxis];
+                                                
+                                                if(GapBox->WasClicked)
+                                                {
+                                                    DragData->StartPos = PosOnAxis;
+                                                    DragData->StartPct = P->ParentPct;
+                                                    DragData->NextStartPct = P->Next->ParentPct;
+                                                }
+                                                
+                                                Assert(IsNilPanel(ResizePanel));
+                                                ResizePanel = P; 
+                                            }
+                                            
+                                        }
+                                        
+                                        NextPanel = P->Next;
                                         break;
                                     }
+                                    
+                                    UI_PopBox();
                                 }
-                                
-                                f32 StartSilence = FirstNote->Timestamp;
-                                
-                                for EachNote(Note, Voice->FirstNote)
-                                {
-                                    // NOTE(luca): Trim the start of note to the very first note played.
-                                    if(Note->Kind == NoteKind_Pedal)
-                                    {
-                                        f32 Diff = (FirstNote->Timestamp - Note->Timestamp);
-                                        if(Diff > 0.f)
-                                        {
-                                            Note->Duration -= Diff;
-                                            Note->Timestamp += Diff;
-                                        }
-                                        
-                                        // NOTE(luca): Trim the end if it's past the last note.
-                                        f32 NoteEnd = (Note->Timestamp + Note->Duration);
-                                        if(NoteEnd > Voice->RecordLength)
-                                        {
-                                            Note->Duration -= (NoteEnd - Voice->RecordLength);
-                                        }
-                                    }
-                                    
-                                    Note->Timestamp -= StartSilence;
-                                }
-                                
-                                Voice->RecordLength -= StartSilence;
-                                
-                                f32 BeatsPerSecond = App->Muze.BPM/60.f;
-                                f32 SecondsPerBeat = 1.f/BeatsPerSecond;
-                                
-                                f32 BarTime = SecondsPerBeat*(f32)App->Muze.TimeSig;
-                                // TODO(luca): Intrinsic
-                                f32 Pad = ceilf(Voice->RecordLength/BarTime)*BarTime;
-                                
-                                Voice->RecordLength = Pad;
-                                
-                                Voice->PlayPos = 0.f;
+                            }
+                            
+                            Panel = NextPanel;
+                        }
+                        
+                        if(!IsNilPanel(ResizePanel))
+                        {                        
+                            panel *P = ResizePanel;
+                            
+                            axis2 LayoutAxis = P->Parent->Axis;
+                            s32 PosOnAxis = Input->Mouse.Pos.e[LayoutAxis];
+                            f32 Size = SizeOnAxis(P->Parent->Region, LayoutAxis);
+                            
+                            s32 dPos = PosOnAxis - DragData->StartPos;
+                            f32 dPct = (f32)dPos/Size;
+                            
+                            if(DragData->NextStartPct - dPct > .05f &&
+                               DragData->StartPct     + dPct > .05f)
+                            {                                                
+                                P->ParentPct = DragData->StartPct + dPct;
+                                P->Next->ParentPct = DragData->NextStartPct - dPct; 
                             }
                         }
                         
-                        if(UI_Button(S8("Round")))
-                        {
-                            f32 BPS = App->Muze.BPM/60.f;
-                            
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 NoteLength = Note->Duration*BPS;
-                                f32 DenomOfFraction = roundf(-log2f(NoteLength));
-                                f32 NoteValue = (DenomOfFraction > 0.f ? 
-                                                 (1.f/2.f*DenomOfFraction) : 
-                                                 roundf(NoteLength));
-                                f32 NewDuration = NoteValue/BPS;
-                                Note->Duration = NewDuration;
-                            }
-                        }
                         
-                        if(UI_Button(S8("Sync")))
-                        {
-                            f32 BPS = App->Muze.BPM/60.f;
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 NoteLength = Note->Duration*BPS;
-                                f32 DenomOfFraction = roundf(-log2f(NoteLength));
-                                f32 NoteValue = (DenomOfFraction > 0.f ? 
-                                                 (1.f/2.f*DenomOfFraction) : 
-                                                 roundf(NoteLength));
-                                
-                                f32 Timestamp = BPS*Note->Timestamp;
-                                
-                                f32 NewTimestamp = Note->Timestamp;
-                                NewTimestamp = (NoteValue >= 1.f ? 
-                                                roundf(Timestamp) : 
-                                                (roundf(Timestamp/NoteValue)*NoteValue));
-                                
-                                f32 RealNewTimestamp = NewTimestamp/BPS;
-                                Note->Timestamp = RealNewTimestamp;
-                                
-                            }
-                        }
-                        
-                        if(UI_Button(S8("Clear")))
-                        {
-                            Voice->NoteSel = 0;
-                        }
-                        
-                        if(UI_Button(S8("Delete")))
-                        {
-                            for(note_node *Node = Voice->NoteSel;
-                                Node;
-                                )
-                            {
-                                Voice->NoteCount -= 1;
-                                
-                                note *Note = Node->Value;
-                                
-                                // Remove the note
-                                {                                
-                                    if(!IsNilNote(Note->Next))
-                                    {
-                                        Note->Next->Prev = Note->Prev;
-                                    }
-                                    
-                                    if(!IsNilNote(Note->Prev))
-                                    {
-                                        Note->Prev->Next = Note->Next;
-                                    }
-                                    
-                                    if(Note == Voice->FirstNote)
-                                    {
-                                        Voice->FirstNote = Note->Next;
-                                    }
-                                    
-                                    if(Note == Voice->LastNote)
-                                    {
-                                        Voice->LastNote = Note->Prev;
-                                    }
-                                }
-                                
-                                note_node *NextNode = Node->Next;
-                                
-                                // Remove from selection
-                                {                                
-                                    // Remove links
-                                    {
-                                        if(Node->Prev)
-                                        {
-                                            Node->Prev->Next = Node->Next;
-                                        }
-                                        
-                                        if(Node->Next)
-                                        {
-                                            Node->Next->Prev = Node->Prev;
-                                        }
-                                        
-                                        if(Node == Voice->NoteSel)
-                                        {
-                                            Voice->NoteSel = (Node->Next ? Node->Next : Node->Prev);
-                                        }
-                                    }
-                                    
-                                    // Put on free list
-                                    {
-                                        Node->Next = App->Muze.FirstFreeNode;
-                                        App->Muze.FirstFreeNode = Node;
-                                    }
-                                }
-                                
-                                Node = NextNode;
-                            }
-                            
-                        }
-                        
-                        if(UI_Button(S8("GuessBPM")))
-                        {
-                            note_node *Node = Voice->NoteSel;
-                            
-                            f32 AveragedDiff = 0.f;
-                            f32 Diff = 0.f;
-                            
-                            if(Node && Node->Next)
-                            {
-                                note *Start = Node->Value;
-                                note *End = Node->Next->Value;
-                                
-                                if(Start->Timestamp > End->Timestamp) Swap(Start, End);
-                                
-                                Diff = (End->Timestamp - Start->Timestamp);
-                                
-                                Node = Node->Next;
-                                
-                                // Time that goes in a bar
-                                f32 SecondsPerBeat = Diff/(f32)App->Muze.TimeSig;
-                                App->Muze.BPM = (1.f/SecondsPerBeat)*60.f;
-                            }
-                            
-                        }
                     }
                     
-                    UI_List(Axis2_Y, S8("Set Length"))
-                    {
-                        if(UI_Button(S8("4")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 4.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("2")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 2.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("1")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 1.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("1/2")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 1.f/2.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("1/4")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 1.f/4.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("1/8")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 1.f/8.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Music"))
-                    {         
-                        App->Muze.BPM = UI_Slider(30.f, 180.f, .1f, App->Muze.BPM, S8("BPM"));
-                        App->Muze.TimeSig = (s32)UI_Slider(1.f, 4.f, .25f, (f32)App->Muze.TimeSig, S8("TimeSig"));
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Voices"))
-                    {
-                        if(UI_Button(S8("+")))
-                        {
-                            if((u64)App->Muze.VoiceCount < App->Muze.MaxVoiceCount)
-                            {
-                                voice *New = VoiceAdd(App);
-                                
-                                App->Muze.LastSelectedVoice = New;
-                                App->SelectedPanel->Voice = New;
-                            }
-                        }
-                        
-                        for EachIndex(Idx, App->Muze.VoiceCount)
-                        {
-                            voice *VoiceAt = App->Muze.Voices + Idx;
-                            b32 Selected = (VoiceAt == App->SelectedPanel->Voice);
-                            if(UI_ToggleButton(Str8Fmt("%lu", Idx), Selected, Color_Yellow))
-                            {
-                                App->SelectedPanel->Voice = VoiceAt;
-                                App->Muze.LastSelectedVoice = VoiceAt;
-                            }
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Instruments"))
-                    {
-                        // TODO(luca): Proper lister
-                        local_persist s32 SelectedIdx = 0;
-                        s32 Count = tsf_get_presetcount(GlobalTSF);;
-                        for EachIndex(Idx, Count)
-                        {
-                            if(UI_ToggleButton(Str8Fmt("%s", tsf_get_presetname(GlobalTSF, Idx)), (SelectedIdx == Idx), Color_Yellow))
-                            {
-                                SelectedIdx = Idx;
-                                tsf_channel_note_off_all(GlobalTSF, 0);
-                                tsf_channel_set_presetindex(GlobalTSF, 0, Idx);
-                            }
-                            
-                            if(Idx == 5) break;
-                        }
-                    }
-                    
-#if MUZE_INTERNAL        
-                    if(0)
-                    {                    
-                        UI_List(Axis2_Y, S8("Recording"))
-                        {                  
-                            UI_Labelf("Length: %.2f/%.2f###RecordLength", Voice->RecordLength, ((f32)App->Muze.BPM/60.f)*Voice->RecordLength);
-                        }
-                        
-                        UI_List(Axis2_Y, S8("Playing"))
-                        {                    
-                            UI_Labelf("Pos: %.2f###RecordEnd", Voice->PlayPos);
-                        }
-                        
-                        if(Voice->NoteSel)
-                        {
-                            UI_List(Axis2_Y, S8("Note"))
-                            {                    
-                                note *Sel = Voice->NoteSel->Value;
-                                f32 BPS = App->Muze.BPM/60.f;
-                                UI_Labelf("Duration: %.2f/%.2f###Duration", Sel->Duration, BPS*Sel->Duration);
-                                UI_Labelf("Start: %.2f/%.2f###Start", Sel->Timestamp, BPS*Sel->Timestamp);
-                                UI_Labelf("Pitch/Vel: %d/%d###PitchAndVelocity", Sel->Pitch, Sel->Velocity);
-                            }
-                        }
-                        
-                        UI_List(Axis2_Y, S8("UI"))
-                        {                    
-                            UI_Labelf("ScrollX: %.2f###ScrollX", ScrollX);
-                            
-                            ui_box *Hot = UI_BoxFromKey(UI_State->Hot);
-                            ui_box *Active = UI_BoxFromKey(UI_State->Active);
-                            str8 ActiveDisplayString = Active->DisplayString;
-                            str8 HotDisplayString = Hot->DisplayString;
-                            if(ActiveDisplayString.Size == 0) ActiveDisplayString = S8("null");
-                            if(HotDisplayString.Size == 0) HotDisplayString = S8("null");
-                            
-                            UI_Labelf("Active: " S8Fmt, S8Arg(ActiveDisplayString));
-                            UI_Labelf("Hot: " S8Fmt, S8Arg(HotDisplayString));
-                            
-                            UI_Labelf("Active->tHot = %.2f", Active->tHot);
-                            UI_Labelf("Active->tActive = %.2f", Active->tActive);
-                            UI_Labelf("Hot->tHot = %.2f", Hot->tHot);
-                            UI_Labelf("Hot->tActive = %.2f", Hot->tActive);
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Memory"))
-                    {
-                        arena *Arena = App->Muze.Arena;
-                        UI_Labelf("Muze: %.3fKB/%.2fMB", (f32)Arena->Pos/10e2, (f32)Arena->Size/10e6);
-                    }
-                    
-#endif
+                    NoOp();
                 }
-                
-                UI_FillWidth() UI_SemanticHeight(UI_SizePx(200.f, 1.f))
-                    UI_BackgroundColor(Color_Night3)
-                    UI_TextColor(Color_Snow2)
-                {
-                    ui_box *Box = UI_AddBox(S8("MuzeSheetMusic"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
-                    
-                    muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
-                    Data->Box = Box;
-                    Data->Voice = Voice;
-                    Data->ScrollX = ScrollX;
-                    Data->App = App;
-                    
-                    Box->CustomDraw = CustomDrawSheetMusic;
-                    Box->CustomDrawData = Data;
-                }
-                
-                UI_FillAll()
-                    UI_LayoutAxis(Axis2_Y)
-                    RootPanelBox = UI_AddBox(S8("PanelRoot"), UI_BoxFlag_Clip);
             }
+            UI_EndLayout(Root->First);
             
-            UI_ResolveLayout(Root->First);
-        }
-        
-        // UI Panels
-        {
-            PanelGetRegionAndInput(App->FirstPanel, RootPanelBox->Rec);
-            
-            for(panel *Panel = App->FirstPanel; 
-                !IsNilPanel(Panel); 
-                )
+            // Prune unused boxes
+            for EachIndex(Idx, UI_State->BoxTableSize)
             {
-                if(UI_IsNilBox(Panel->Root))
-                {
-                    Panel->Root = UI_BoxAlloc(App->UIArena);
-                }
-                Panel->Root->Rec = Panel->Region;
-                Panel->Root->FixedPosition = Panel->Region.Min;
-                Panel->Root->FixedSize = SizeFromRect(Panel->Region);
+                ui_box *First = UI_State->BoxTable + Idx;
                 
-                UI_DefaultState(Panel->Root, App->HeightPx);
-                
-                UI_FillAll()
-                    UI_LayoutAxis(Axis2_Y)
-                    UI_AddBox(Str8Fmt("%p", Panel), 0);
-                UI_Push()
+                for UI_EachHashBox(Node, First)
                 {
-                    if(App->SelectedPanel == Panel)
+                    if(App->FrameIdx > Node->LastTouchedFrameIdx)
                     {
-                        NoOp();
-                    }
-                    
-                    if(Panel->Kind != PanelKind_Free)
-                    {
-                        Assert(IsLeafPanel(Panel));
-                    }
-                    
-                    if(0) {}
-                    
-                    else if(Panel->Kind == PanelKind_Muze)
-                    {        
-                        
-                        UI_FillAll()
+                        if(!UI_KeyMatch(Node->Key, UI_KeyNull()))
                         {
-                            ui_box *Box = UI_AddBox(S8("MuzePianoRoll"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
-                            
-                            muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
-                            Data->Box = Box;
-                            Data->Voice = Panel->Voice;
-                            Data->ScrollX = ScrollX;
-                            Data->App = App;
-                            
-                            Box->CustomDraw = CustomDrawPianoRoll;
-                            Box->CustomDrawData = Data;
+                            Node->Key = UI_KeyNull();
                         }
                     }
                 }
-                
-                UI_ResolveLayout(Panel->Root->First);
-                
-                Panel = PanelRecDepthFirstPreOrder(Panel).Next;
             }
-        }
-        
-        // Prune unused boxes
-        for EachIndex(Idx, UI_State->BoxTableSize)
-        {
-            ui_box *First = UI_State->BoxTable + Idx;
             
-            for UI_EachHashBox(Node, First)
-            {
-                if(App->FrameIdx > Node->LastTouchedFrameIdx)
-                {
-                    if(!UI_KeyMatch(Node->Key, UI_KeyNull()))
-                    {
-                        Node->Key = UI_KeyNull();
-                    }
-                }
-            }
+            OS_ProfileAndPrint("UI");
         }
         
-        OS_ProfileAndPrint("UI");
+        if(App->ListerOpened)
+        {
+            UI_EndLayout(App->ListerBox);
+        }
+        
     }
     
-    // Window borders
+    for EachIndex(Idx, App->CommandCount)
     {
-        v4 WindowBorderColor;
-        if(0) {}
-        else if(Input->PlatformIsRecording) WindowBorderColor = Color_Red;
-        else if(Input->PlatformIsStepping) WindowBorderColor = Color_Yellow;
-        else WindowBorderColor = Color_Black;
+        command *Command = App->Commands + Idx;
         
-        v4 Dest = RectFromSize(V2(0.f, 0.f), BufferDim);
-        rect_instance *Inst = DrawRect(Dest, WindowBorderColor, 0.f, WindowBorderSize, 0.f);
-        Inst->Color0 = WindowBorderColor;
-        Inst->Color1 = (Input->PlatformWindowIsFocused ? Color_Snow2 : V4(V3Arg(Color_Snow2), 0.2f));
-        Inst->Color2 = (Input->PlatformWindowIsFocused ? Color_Snow2 : V4(V3Arg(Color_Snow2), 0.2f));
-        Inst->Color3 = WindowBorderColor;
+        switch(Command->Kind)
+        {
+            default: InvalidPath(); break;
+            
+            //- Device commands 
+            {   
+                case Command_SelectInputDevice:
+                {
+                    // NOTE(luca): Stop all notes on all voices. 
+                    StopAllPlayingNotes(Memory, App, SelectedVoice);
+                    
+                    App->In = *Command->Device;
+                    Memory->PlatformMIDIListen(App->In);
+                } break;
+                
+                case Command_SelectOutputDevice:
+                {
+                    App->Out = *Command->Device;
+                } break;
+                
+                case Command_SelectInstrument:
+                {
+                    if(Command->PresetIdx != SelectedVoice->PresetIdx)
+                    {
+                        tsf_channel_note_off_all(GlobalTSF, SelectedVoice->Channel);
+                    }
+                    
+                    SelectedVoice->PresetIdx = Command->PresetIdx;
+                    tsf_channel_set_presetindex(GlobalTSF, SelectedVoice->Channel, SelectedVoice->PresetIdx);
+                } break;
+                
+                case Command_ToggleMIDIInput:
+                {
+                    App->InputMIDIEnabled ^= 1;
+                } break;
+                case Command_ToggleMIDIOutput:
+                {
+                    App->OutputMIDIEnabled ^= 1;
+                } break;
+                case Command_ToggleVirtualKeyboardInput:
+                {
+                    App->InputVirtualKeyboardEnabled ^= 1;
+                } break;
+                case Command_ToggleSynthOutput:
+                {
+                    App->OutputSynthEnabled ^= 1;
+                } break;
+            }
+            
+            //- Voice commands 
+            {   
+                case Command_AddVoice: 
+                { 
+                    App->SelectedPanel->Voice = VoiceAdd(App);
+                } break;
+                case Command_DeleteVoice:
+                {
+                    NotImplemented();
+                    // 1. Find all references to this voice
+                    // 2. Set them to the previous voice ?
+                    // 3. Delete the voice
+                } break;
+                
+                case Command_SetPanelVoice:
+                {
+                    App->SelectedPanel->Voice = Command->Voice;
+                } break;
+                
+                case Command_PlayAllVoices:
+                {
+                    for EachIndex(VoiceIdx, App->VoiceCount)
+                    {
+                        voice *Voice = App->Voices + (u64)VoiceIdx;
+                        StopAllPlayingNotes(Memory, App, Voice);
+                        StopRecording(Voice);
+                        
+                        Voice->PlayPos = 0.f;
+                        Voice->IsPlaying = true;
+                    }
+                } break;
+                
+                case Command_StopAllVoices:
+                {
+                    for EachIndex(VoiceIdx, App->VoiceCount)
+                    {
+                        voice *Voice = App->Voices + (u64)VoiceIdx;
+                        StopAllPlayingNotes(Memory, App, Voice);
+                        StopRecording(Voice);
+                        
+                        Voice->IsPlaying = false;
+                    }
+                } break;
+                
+                case Command_Enqueue:
+                {
+                    NotImplemented();
+                } break;
+                
+                case Command_Dequeue:
+                {
+                    NotImplemented();
+                } break;
+                
+            }
+            
+            //- Note commands 
+            {   
+                case Command_ToggleRecording:
+                {
+                    StopAllPlayingNotes(Memory, App, SelectedVoice);
+                    
+                    if(SelectedVoice->IsRecording)
+                    {
+                        StopRecording(SelectedVoice);
+                    }
+                    else
+                    {
+                        VoiceReset(SelectedVoice);
+                        SelectedVoice->RecordStart = GetWallTime();
+                        SelectedVoice->PlayPos = 0.f;
+                        SelectedVoice->IsRecording = true;
+                    }
+                    
+                    SelectedVoice->IsPlaying = false;
+                } break;
+                
+                case Command_TogglePlaying:
+                {
+                    StopAllPlayingNotes(Memory, App, SelectedVoice);
+                    StopRecording(SelectedVoice);
+                    
+                    SelectedVoice->IsPlaying ^= 1;
+                } break;
+                
+                case Command_ToggleAutoScroll:
+                {
+                    SelectedVoice->AutoScroll ^= 1;
+                } break;
+                
+                case Command_Reset:
+                {
+                    VoiceReset(SelectedVoice);
+                    SelectedVoice->IsRecording = false;
+                    SelectedVoice->IsPlaying = false;
+                    StopAllPlayingNotes(Memory, App, SelectedVoice);
+                } break;
+                
+                case Command_Stop:
+                {
+                    StopRecording(SelectedVoice);
+                    StopAllPlayingNotes(Memory, App, SelectedVoice);
+                    SelectedVoice->IsPlaying = false;
+                    SelectedVoice->PlayPos = 0.f;
+                } break;
+                
+                case Command_Trim:
+                {
+                    if(!IsNilNote(SelectedVoice->FirstNote))
+                    {
+                        StopAllPlayingNotes(Memory, App, SelectedVoice);
+                        
+                        note *LastNote = SelectedVoice->LastNote;
+                        
+                        f32 LastNoteEnd = (LastNote->Timestamp + LastNote->Duration); 
+                        //- Find the last note's end.
+                        {
+                            for EachNote(Note, SelectedVoice->FirstNote)
+                            {
+                                if(Note->Kind == NoteKind_Note)
+                                {
+                                    LastNoteEnd = Max(LastNoteEnd, (Note->Timestamp + Note->Duration));
+                                }
+                            }
+                        }
+                        
+                        SelectedVoice->RecordLength = LastNoteEnd;
+                        
+                        note *FirstNote = SelectedVoice->FirstNote;
+                        //- Find the first note played.
+                        {
+                            for EachNote(Note, FirstNote)
+                            {
+                                if(Note->Kind == NoteKind_Note)
+                                {
+                                    FirstNote = Note;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        f32 StartSilence = FirstNote->Timestamp;
+                        
+                        //- Get new voice length 
+                        {                                    
+                            SelectedVoice->RecordLength -= StartSilence;
+                            
+                            f32 BeatsPerSecond = App->BPM/60.f;
+                            f32 SecondsPerBeat = 1.f/BeatsPerSecond;
+                            
+                            f32 BarTime = SecondsPerBeat*(f32)App->TimeSig;
+                            // TODO(luca): Intrinsic
+                            f32 Pad = CeilF32(SelectedVoice->RecordLength/BarTime)*BarTime;
+                            
+                            SelectedVoice->RecordLength = Pad;
+                        }
+                        
+                        //- Update notes .
+                        {
+                            for EachNote(Note, SelectedVoice->FirstNote)
+                            {
+                                
+                                if(Note->Kind == NoteKind_Pedal)
+                                {
+                                    // If the pedal note is before the first note, then we forward it up to the firstnote.
+                                    f32 Diff = (FirstNote->Timestamp - Note->Timestamp);
+                                    if(Diff > 0.f)
+                                    {
+                                        Note->Duration -= Diff;
+                                        Note->Timestamp += Diff;
+                                    }
+                                    
+                                    // Clamp the end to the record's length.
+                                    {
+                                        f32 NewTimestamp = Note->Timestamp - StartSilence;
+                                        
+                                        f32 NoteEnd = NewTimestamp + Note->Duration;
+                                        f32 NewEnd = Min(NoteEnd, SelectedVoice->RecordLength);
+                                        Note->Duration = (NewEnd - NewTimestamp);
+                                    }
+                                }
+                                
+                                Note->Timestamp -= StartSilence;
+                                
+                            }
+                        }
+                    }
+                } break;
+                
+                case Command_Round:
+                {
+                    f32 BPS = App->BPM/60.f;
+                    
+                    for EachNoteNode(Note, SelectedVoice->NoteSel)
+                    {
+                        f32 NoteLength = Note->Duration*BPS;
+                        f32 DenomOfFraction = RoundF32(-Log2F32(NoteLength));
+                        f32 NoteValue = (DenomOfFraction > 0.f ? 
+                                         (1.f/2.f*DenomOfFraction) : 
+                                         RoundF32(NoteLength));
+                        f32 NewDuration = NoteValue/BPS;
+                        Note->Duration = NewDuration;
+                    }
+                } break;
+                
+                case Command_Sync:
+                {
+                    f32 BPS = App->BPM/60.f;
+                    for EachNoteNode(Note, SelectedVoice->NoteSel)
+                    {
+                        f32 NoteLength = Note->Duration*BPS;
+                        f32 DenomOfFraction = RoundF32(-Log2F32(NoteLength));
+                        f32 NoteValue = (DenomOfFraction > 0.f ? 
+                                         (1.f/2.f*DenomOfFraction) : 
+                                         RoundF32(NoteLength));
+                        
+                        f32 Timestamp = BPS*Note->Timestamp;
+                        
+                        f32 NewTimestamp = Note->Timestamp;
+                        NewTimestamp = (NoteValue >= 1.f ? 
+                                        RoundF32(Timestamp) : 
+                                        (RoundF32(Timestamp/NoteValue)*NoteValue));
+                        
+                        f32 RealNewTimestamp = NewTimestamp/BPS;
+                        Note->Timestamp = RealNewTimestamp;
+                        
+                    }
+                } break;
+                
+                case Command_GuessBPM:
+                {
+                    note_node *Node = SelectedVoice->NoteSel;
+                    
+                    f32 AveragedDiff = 0.f;
+                    f32 Diff = 0.f;
+                    
+                    if(Node && Node->Next)
+                    {
+                        note *Start = Node->Value;
+                        note *End = Node->Next->Value;
+                        
+                        if(Start->Timestamp > End->Timestamp) Swap(Start, End);
+                        
+                        Diff = (End->Timestamp - Start->Timestamp);
+                        
+                        Node = Node->Next;
+                        
+                        // Time that goes in a bar
+                        f32 SecondsPerBeat = Diff/(f32)App->TimeSig;
+                        App->BPM = (1.f/SecondsPerBeat)*60.f;
+                    }
+                    
+                } break;
+                
+                case Command_SetLength:
+                {
+                    
+                    f32 NoteSetLength = SelectedVoice->NoteSetLength;
+                    f32 Length = PowF32(2.f, SelectedVoice->NoteSetLength);
+                    
+                    f32 SecondsPerBeat = 1.f/(App->BPM/60.f);
+                    f32 Duration = SecondsPerBeat * Length;
+                    
+                    for EachNoteNode(Note, SelectedVoice->NoteSel)
+                    {
+                        Note->Duration = Duration;
+                    }
+                    
+                } break;
+                
+                case Command_ClearSelection:
+                {
+                    SelectedVoice->NoteSel = 0;
+                } break;
+                
+                case Command_DeleteSelection: 
+                {
+                    for(note_node *Node = SelectedVoice->NoteSel;
+                        Node;)
+                    {
+                        SelectedVoice->NoteCount -= 1;
+                        
+                        note *Note = Node->Value;
+                        
+                        // Remove the note
+                        {                                
+                            if(!IsNilNote(Note->Next))
+                            {
+                                Note->Next->Prev = Note->Prev;
+                            }
+                            
+                            if(!IsNilNote(Note->Prev))
+                            {
+                                Note->Prev->Next = Note->Next;
+                            }
+                            
+                            if(Note == SelectedVoice->FirstNote)
+                            {
+                                SelectedVoice->FirstNote = Note->Next;
+                            }
+                            
+                            if(Note == SelectedVoice->LastNote)
+                            {
+                                SelectedVoice->LastNote = Note->Prev;
+                            }
+                        }
+                        
+                        note_node *NextNode = Node->Next;
+                        
+                        // Remove from selection
+                        {                                
+                            // Remove links
+                            {
+                                if(Node->Prev)
+                                {
+                                    Node->Prev->Next = Node->Next;
+                                }
+                                
+                                if(Node->Next)
+                                {
+                                    Node->Next->Prev = Node->Prev;
+                                }
+                                
+                                if(Node == SelectedVoice->NoteSel)
+                                {
+                                    SelectedVoice->NoteSel = (Node->Next ? Node->Next : Node->Prev);
+                                }
+                            }
+                            
+                            // Put on free list
+                            {
+                                Node->Next = App->FirstFreeNode;
+                                App->FirstFreeNode = Node;
+                            }
+                        }
+                        
+                        Node = NextNode;
+                    }
+                } break;
+            }
+            
+            //- Lister commands 
+            {   
+                case Command_CloseLister:
+                {
+                    App->ListerOpened = false;
+                } break;
+                case Command_OpenLister:
+                {
+                    App->ListerOpened = true;
+                    App->ListerKind = Command->ListerKind;
+                    App->Text.Size = 0;
+                    App->ListerScrollPct = 0.f;
+                } break;
+            }
+            
+            //- Panel commands 
+            case Command_ClosePanel:
+            {
+                App->SelectedPanel = ClosePanel(App, Command->Panel);
+            } break;
+            
+            case Command_SplitPanel:
+            {
+                App->SelectedPanel = SplitPanel(Command->Panel, Command->Axis, false);
+                App->SelectedPanel->Voice = SelectedVoice;
+            } break;
+            
+            case Command_SetPanelType:
+            {
+                Command->Panel->Kind = Command->PanelKind;
+                MemoryZero(&Command->Panel->Scroll);
+            } break;
+        }
     }
     
     f32 MaxRecordingLength = 3600.f;
     
-    // NOTE(luca): N^M ? But I won't ever have many voices, yes?  If I do, I can just cache the last played note and loop form there as an optimization.
-    
-    for EachIndex(Idx, App->Muze.VoiceCount)
+    for EachIndex(Idx, App->VoiceCount)
     {    
-        voice *VoiceAt = App->Muze.Voices + Idx;
-        if(VoiceAt->IsPlaying)
+        voice *Voice = App->Voices + Idx;
+        
+        if(Voice->IsPlaying)
         {
-            for EachNote(Note, VoiceAt->FirstNote)
+            // NOTE(luca): N^M ? But I won't ever have many voices, yes?  If I do, I can just cache the last played note and loop form there as an optimization.
+            for EachNote(Note, Voice->FirstNote)
             {
                 f32 NoteStart = Note->Timestamp;
                 f32 NoteEnd = NoteStart + Note->Duration;
                 
                 // TODO(luca): If a note is shorter than dtForFrame it could skip it.
                 
-                if(NoteStart <= VoiceAt->PlayPos &&
-                   NoteStart > (VoiceAt->PlayPos - Input->dtForFrame))
+                if(NoteStart <= Voice->PlayPos &&
+                   NoteStart > (Voice->PlayPos - dtForFrame))
                 {
-                    PlayNote(Memory, App, Note);
+                    PlayNote(Memory, App, Voice, Note);
                 }
                 
-                if(NoteEnd <= VoiceAt->PlayPos &&
-                   NoteEnd > (VoiceAt->PlayPos - Input->dtForFrame))
+                if(NoteEnd <= Voice->PlayPos &&
+                   NoteEnd > (Voice->PlayPos - dtForFrame))
                 {
                     note OffNote = *Note;
                     OffNote.Velocity = 0;
-                    PlayNote(Memory, App, &OffNote);
+                    PlayNote(Memory, App, Voice, &OffNote);
                 }
-                
             }
             
-            VoiceAt->PlayPos += Input->dtForFrame;
-            if(VoiceAt->PlayPos >= VoiceAt->RecordLength)
+            Voice->PlayPos += dtForFrame;
+            if(Voice->PlayPos >= Voice->RecordLength)
             {
-                StopAllPlayingNotes(Memory, App, VoiceAt, Input->dtForFrame);
+                StopAllPlayingNotes(Memory, App, Voice);
                 
-                VoiceAt->PlayPos = 0.f;
+                Voice->PlayPos = 0.f;
             }
         }
-    }
-    
-    if(Voice->IsRecording)
-    {
-        Voice->RecordLength = (GetWallTime() - Voice->RecordStart);
         
-        if(Voice->RecordLength >= MaxRecordingLength)
+        if(Voice->IsRecording)
         {
-            StopRecording(Memory, App, Voice, Input->dtForFrame);
+            Voice->RecordLength = (GetWallTime() - Voice->RecordStart);
+            
+            if(Voice->RecordLength >= MaxRecordingLength)
+            {
+                StopRecording(Voice);
+            }
         }
+        
     }
     
     // MIDI Processing
     {    
         //- MIDI notes from virtual keyboard 
-        if(App->Muze.IsInputVirtualKeyboard)
+        if(App->InputVirtualKeyboardEnabled && !App->ListerOpened)
         {
             u64 MaxNotesPerFrame = 128; 
             app_midi_event *Events = PushArray(FrameArena, app_midi_event, MaxNotesPerFrame);
@@ -3030,7 +3869,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     app_midi_event *Event = Events + EventCount;
                     EventCount += 1;
-                    Event->Timestamp = ((f32)OS_GetWallClock() - Voice->RecordStart);
+                    Event->Timestamp = (f32)OS_GetWallClock();
                     
                     midi_message Message = {0};
                     
@@ -3050,11 +3889,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 }
             }
             
-            ProcessMIDINotes(Memory, App, Voice, Events, EventCount);
+            ProcessMIDINotes(Memory, App, SelectedVoice, Events, EventCount);
         }
         
         //- MIDI notes from Input 
-        ProcessMIDINotes(Memory, App, Voice, Input->MIDI.Events, Input->MIDI.EventCount);
+        if(App->InputMIDIEnabled)
+        {
+            ProcessMIDINotes(Memory, App, SelectedVoice, Input->MIDI.Events, Input->MIDI.EventCount);
+        }
     }
     
     //- Rendering 
@@ -3083,7 +3925,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
 
 GET_AUDIO_SAMPLES(GetAudioSamples)
 {
-#if SAMPLE_FORMAT == f32
+#if 0
+#elif SAMPLE_FORMAT == f32
     tsf_render_float(GlobalTSF, Sound->Samples, (int)SampleCount, 0);
 #elif SAMPLE_FORMAT == s16
     tsf_render_short(GlobalTSF, Sound->Samples, (int)SampleCount, 0);

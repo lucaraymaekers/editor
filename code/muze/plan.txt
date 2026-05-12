@@ -1,19 +1,81 @@
 # Now
-- Commands
-  - Undo?
-- Lister
+
+Demo:
+x Select notes in sheet music view 
+- "Enqueue" Command
+x Scrolling in sheet music view
+ x With scrollbar
+ x Auto scrolling when recording/playing
+x Top control for changing panel kind
+- Use showkey
+
+Panels:
+- Picker/Button that can change the panel type
+- Set selected panel by clicking child element of panel automatically.
+  - "Do not consume input"-flag
+
+Slider:
+- Allow dragging, but when released snap.
+
+Lister:
+- optional title
+- close by clicking next to it
+x strong border around box
+x close by pressing escape
+
+Debug:
+ Show debug borders from parent to all children
+ Stack for adding debug elements.
+ Stack for adding flags.
+
+Scrolling:
+- Pressing above or under the thumb should scroll exponentially.
+- Increase & Decrease buttons
+- Rounded corners are draw relative to the height of the rectangle drawn, therefore when clipping the height decreases. Which means that we'll get wrong corners giving a shrinking effect.
+
+Icons (i/o devices):
+- keyboard, midi device, synth
+
+Notes:
+- Use Voice Arena for note nodes, selection being per voice ? ,
+- Use only one DrawNote function in CustomDraws 
+- Start recording from the first note.
+
+rjf jank
+pushbuffer for rendering
+demo debugging features
+Memory alignment struct
+
+- Bug: Text with 0 horizontal padding will be clipped, fix this.
+- Window borders
+
+SDF rects:
+ - Color changes with smoothness
+   proposed fix: SDF smoothness should only happen on the corners.
+                 This way the straight lines will have the crisp color.
+ - Remove some borders
+   - https://discord.com/channels/239737791225790464/1474433782906880044
+ - Uniform roundness on borders
+
+Implement Undo for commands.
+- Serialize state along commands.
 
 # Next
 - Better scrolling
   - Autoscroll when playing
   - Scroll to End/Beginning
+- Serialization
 - Sheet music show more than one octave
   - Raise an octave for selection
-- Delete notes
-- Pedal/sustain per voice
+
+When assets are not loaded.
+Metaprogram assets path etc.
+Metaprogram command enums etc.
 
 # Future 
 - File picker
+
+- Sheet music format
 
 - Elongate & Shrink notes to their nearest musical length
   - When unsure, multiple possibilites make the user decide.
@@ -49,12 +111,8 @@
 # UI
 - Show only selected notes.
 
-- UI slider for things settings
-- UI checkbox for buttons like "record", "play" etc. ?
-
 - Save / Load records
   - UI lister to select one
-- UI lister for instruments
 - UI lister for commands
 
 - UI lister logic
@@ -84,3 +142,20 @@ x Pedal
 x Sound on Windows
 x TSF improvements
   x Have a nil tsf value / handle tsf 0
+x Voices & TSF channels.
+x Trim end of pedal correctly.
+x Delete notes
+x Pedal/sustain per voice
+x Merge different duplicate device names into one?
+x Debug stepping slider 
+x Input should be computed in post order 
+x Make button around checkbox also toggle the checkbox.
+x Checkbox with differential (linear exp smoothing)
+x Fix bug of border being too small (by rounding to abs pixel values)
+x Fix checkbox resetting
+x UI slider for things settings
+x UI checkbox for buttons like "record", "play" etc. ?
+x UI lister for instruments
+x Redo panels.
+x Make instrument per voice
+x Proper panel resizing

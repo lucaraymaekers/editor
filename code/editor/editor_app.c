@@ -469,7 +469,7 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
             app_input *Input = UI_State->Input;
             if(!Input->Consumed)
             {                
-                v2 MouseP = V2S32(Input->Mouse.X, Input->Mouse.Y);
+                v2 MouseP = V2V2S32(Input->Mouse.Pos);
                 
                 if(IsInsideRectV2(MouseP, CharRect))
                 {
@@ -510,7 +510,7 @@ UI_CUSTOM_DRAW(TextComputeAndDraw)
             
             b32 VisualizeWhitespace = false;
 #if EDITOR_INTERNAL
-												VisualizeWhitespace = true;
+            VisualizeWhitespace = true;
 #endif
             
             if(IsWhiteSpace((u8)Char) && VisualizeWhitespace)
@@ -592,7 +592,7 @@ SizeOnAxis(v4 Rec, s32 Axis)
 internal panel *
 PanelAlloc(arena *Arena)
 {
-    panel *New = PushStructZero(Arena, panel);
+    panel *New = PushArrayZero(Arena, panel, 1);
     New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
     return New;
 }
@@ -956,7 +956,7 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
         }
         
         app_input *Input = PanelInput;
-        v2 MouseP = V2S32(Input->Mouse.X, Input->Mouse.Y);
+        v2 MouseP = V2V2S32(Input->Mouse.Pos);
         
         b32 MouseIsDown = false;
         b32 MouseWasPressed = false;
@@ -1139,14 +1139,14 @@ RemoveTextPanel(app_state *App, panel_node *Node)
     }
 }
 
-//~
+//~ App
 
 C_LINKAGE
 UPDATE_AND_RENDER(UpdateAndRender)
 {
     b32 ShouldQuit = false;
     
-#if EDITOR_INTERNAL
+#if EDITOR_INTERNAL 
     GlobalDebuggerIsAttached = Memory->IsDebuggerAttached;
 #endif
 #if OS_WINDOWS
@@ -1173,7 +1173,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         FrameArena = PushArena(PermanentArena, Memory->MemorySize/2, true);
         
-        App = PushStruct(PermanentArena, app_state);
+        App = PushArray(PermanentArena, app_state, 1);
         
         App->TextArena = PushArena(PermanentArena, MB(64), false);
         App->FontAtlasArena = PushArena(PermanentArena, MB(150), false);
@@ -1198,8 +1198,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     if(!Memory->Initialized)
     {
-        char *FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
-        InitFont(&App->Font, FontPath);
+        {
+            char *FontPath = PathFromExe(FrameArena, S8("../data/font_regular.ttf"));
+            InitFont(&App->Font, FontPath);
+        }
         App->PreviousHeightPx = DefaultHeightPx + 1.0f;
         App->HeightPx = DefaultHeightPx;
         App->FrameIdx = 0;
@@ -1208,10 +1210,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
         {        
             arena *Arena = ArenaAlloc(.Size = MB(1), .Offset = TB(3));
             
-            ui_box *Box = PushStruct(Arena, ui_box);
+            ui_box *Box = PushArray(Arena, ui_box, 1);
             *Box = (ui_box){Box, Box, Box, Box, Box, Box, Box};
             
-            panel *Panel = PushStruct(Arena, panel);
+            panel *Panel = PushArray(Arena, panel, 1);
             *Panel = (panel){Panel, Panel, Panel, Panel, Panel};
             Panel->Root = Box;
             
@@ -1234,22 +1236,21 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     PanelAdd(.4f);
                     PanelAdd(.6f);
-                    if(IsEditorBuildInternal)
+#if EDITOR_INTERNAL && 0
+                    PanelAxis(Axis2_X) PanelGroup()
                     {
-                        PanelAxis(Axis2_X) PanelGroup()
-                        {
-                            PanelAdd(.5f);
-                            App->DebugPanel = PanelAdd(.5f);
-                            App->DebugPanel->CannotClose = true;
-                        }
+                        PanelAdd(.5f);
+                        App->DebugPanel = PanelAdd(.5f);
+                        App->DebugPanel->CannotClose = true;
                     }
+#endif
                 }
             }
+            
+            App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
+            
+            OS_ProfileAndPrint("Memory Init");
         }
-        
-        App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
-        
-        OS_ProfileAndPrint("Memory Init");
     }
     
     UI_NilBox = App->TrackerForUI_NilBox;
@@ -1269,7 +1270,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     for EachIndex(Idx, Input->Text.Count)
     {
-        app_text_button Key = Input->Text.Buffer[Idx];
+        app_key Key = Input->Text.Buffer[Idx];
         
         b32 Control = Key.Modifiers & PlatformKeyModifier_Control;
         b32 Shift = Key.Modifiers & PlatformKeyModifier_Shift;
@@ -1309,9 +1310,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                            !Panel->CannotClose);
                         if(IsFreePanel)
                         {                        
-                            panel_node *New = PushStructZero(PanelArena, panel_node);
+                            panel_node *New = PushArrayZero(PanelArena, panel_node, 1);
                             
-                            New->Text = PushStructZero(App->TextArena, app_text);
+                            New->Text = PushArrayZero(App->TextArena, app_text, 1);
                             New->Text->Capacity = KB(64);
                             New->Text->Data = PushArray(App->TextArena, rune, New->Text->Capacity);
                             
@@ -1653,7 +1654,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     OS_ProfileAndPrint("Input");
     
-    RenderBeginFrame(FrameArena, Buffer->Width, Buffer->Height);
+    RenderBeginFrame(FrameArena, 0, 0, Buffer->Width, Buffer->Height);
     
     OS_ProfileAndPrint("Misc setup");
     
@@ -1678,24 +1679,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     // UI Setup
     {    
-        UI_State = PushStruct(PermanentArena, ui_state);
+        UI_State = PushArray(PermanentArena, ui_state, 1);
         if(!Memory->Initialized)
         {
             MemoryZero(UI_State);
-            UI_State->Arena = App->UIArena;
-            UI_State->BoxTableSize = 4096;
-            UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
+            UI_InitState(App->UIArena);
         }
         
-        UI_State->Atlas = &App->FontAtlas;
-        UI_State->FrameIdx = App->FrameIdx;
-        UI_State->Input = Input;
-        if(UI_IsActive(UI_NilBox))
-        {
-            UI_State->Hot = UI_KeyNull();
-        }
-        
-        UI_State->FrameArena = FrameArena;
+        UI_BeginFrame(&App->FontAtlas, App->FrameIdx, Input);
     }
     
     // Draw rectangles 
@@ -1749,12 +1740,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Panel->Root = UI_BoxAlloc(App->UIArena);
             }
             Root = Panel->Root;
+            {    
+                Root->Key.U64[0] = U64HashFromSeedStr8((u64)Root, S8("Root"));
+                Root->FixedPos = V2(0.f, 0.f);
+                Root->FixedSize = BufferDim;
+                Root->Rec = RectFromSize(Root->FixedPos, Root->FixedSize);
+                Root->LastTouchedFrameIdx = UI_State->FrameIdx;
+            }
             
-            Root->FixedPosition = Panel->Region.Min;
-            Root->FixedSize = SizeFromRect(Panel->Region);
-            Root->Rec = RectFromSize(Root->FixedPosition, Root->FixedSize);
-            
-            UI_DefaultState(Root, App->HeightPx);
+            UI_BeginLayout(Root, App->HeightPx);
             
             s32 Flags = (UI_BoxFlag_Clip |
                          UI_BoxFlag_DrawBorders |
@@ -1791,12 +1785,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             UI_BackgroundColor(Color_ButtonBackground)
                             {
-                                if(UI_Button(S8("Open")))
+                                if(Button(.Text = S8("Open")).OneClicked)
                                 {
                                     LoadFileToText(Text, S8("./hello.c"));
                                 }
                                 
-                                if(UI_Button(S8("Clear")))
+                                if(Button(.Text = S8("Clear")).OneClicked)
                                 {
                                     Text->Count = 0;
                                     Text->Cursor = 0;
@@ -1804,7 +1798,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     Text->CurRelLine = 0;
                                 }
                                 
-                                if(UI_Button(S8("Save")))
+                                if(Button(.Text = S8("Save")).OneClicked)
                                 {
                                     SaveTextToFile(Text, S8("./hello.c"));
                                 }
@@ -1834,7 +1828,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         }
                     }
                     
-#if EDITOR_INTERNAL                    
+#if EDITOR_INTERNAL && 0                    
                     UI_SemanticHeight(UI_SizeChildren(1.f)) 
                         UI_AddBox(S8("debug info"), UI_BoxFlag_Clip);
                     UI_Push() UI_SemanticWidth(UI_SizeText(4.f, 1.f)) UI_BorderThickness(1.f)
@@ -1854,7 +1848,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             UI_TextColor(Color_Snow0)
                         {
                             ui_box *TextBox = UI_AddBox(S8("app text"), UI_BoxFlag_DrawBackground | UI_BoxFlag_DrawBorders | UI_BoxFlag_Clip);
-                            custom_text_draw_params *Params = PushStructZero(FrameArena, custom_text_draw_params);
+                            custom_text_draw_params *Params = PushArrayZero(FrameArena, custom_text_draw_params, 1);
                             Params->Box = TextBox;
                             Params->Text = Text;
                             TextBox->CustomDraw = TextComputeAndDraw;
@@ -1865,56 +1859,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     }
                 }
             }
-            UI_ResolveLayout(Root->First);
-        }
-        
-        // Debug Panel
-        if(IsEditorBuildInternal)
-        {
-            panel *Panel = App->DebugPanel;
-            ui_box *Root = 0;
-            if(UI_IsNilBox(Panel->Root))
-            {
-                Panel->Root = UI_BoxAlloc(App->UIArena);
-            }
-            Root = Panel->Root;
-            
-            Root->FixedPosition = Panel->Region.Min;
-            Root->FixedSize = SizeFromRect(Panel->Region);
-            Root->Rec = RectFromSize(Root->FixedPosition, Root->FixedSize);
-            
-            UI_DefaultState(Root, App->HeightPx);
-            
-            ui_box *Hot = UI_BoxFromKey(UI_State->Hot);
-            ui_box *Active = UI_BoxFromKey(UI_State->Active);
-            str8 ActiveDisplayString = Active->DisplayString;
-            str8 HotDisplayString = Hot->DisplayString;
-            if(ActiveDisplayString.Size == 0) ActiveDisplayString = S8("null");
-            if(HotDisplayString.Size == 0) HotDisplayString = S8("null");
-            
-            s32 Flags = (UI_BoxFlag_Clip |
-                         UI_BoxFlag_DrawBackground |
-                         UI_BoxFlag_DrawDisplayString |
-                         UI_BoxFlag_CenterTextVertically);
-            s32 ButtonFlags = (Flags | UI_BoxFlag_MouseClickable);
-            
-            UI_LayoutAxis(Axis2_Y)
-                UI_SemanticFull()
-                UI_AddBox(S8("Debug panel parent"), UI_BoxFlag_Clip);
-            UI_Push() 
-                UI_SemanticWidth(UI_SizeParent(1.f, 1.f))
-                UI_SemanticHeight(UI_SizeText(2.f, 1.f))
-            {
-                UI_AddBox(Str8Fmt("Active: " S8Fmt, S8Arg(ActiveDisplayString)), Flags);
-                UI_AddBox(Str8Fmt("Hot: " S8Fmt, S8Arg(HotDisplayString)), Flags);
-                
-                UI_AddBox(Str8Fmt("Active->tHot = %.2f", Active->tHot), Flags);
-                UI_AddBox(Str8Fmt("Active->tActive = %.2f", Active->tActive), Flags);
-                UI_AddBox(Str8Fmt("Hot->tHot = %.2f", Hot->tHot), Flags);
-                UI_AddBox(Str8Fmt("Hot->tActive = %.2f", Hot->tActive), Flags);
-            }
-            
-            UI_ResolveLayout(Root->First);
+            UI_EndLayout(Root);
         }
     }
     

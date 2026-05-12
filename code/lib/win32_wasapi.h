@@ -23,12 +23,12 @@ typedef struct {
 	
 	// describes sampleBuffer format
 	WAVEFORMATEX* bufferFormat;
-    
+ 
 	// use these values only between LockBuffer/UnlockBuffer calls
 	void* sampleBuffer;  // ringbuffer for interleaved samples, no need to handle wrapping
 	size_t sampleCount;  // how big is buffer in samples
 	size_t playCount;    // how many samples were actually used for playback since previous LockBuffer call
-    
+ 
 	// private
 	IAudioClient* client;
 	HANDLE event;
@@ -86,86 +86,86 @@ DEFINE_GUID(IID_IAudioRenderClient,   0xf294acfc, 0x3146, 0x4483, 0xa7, 0xbf, 0x
 internal DWORD CALLBACK WA__AudioThread(LPVOID arg)
 {
 	WasapiAudio* audio = arg;
-    
+ 
 	DWORD task = 0;
 	HANDLE handle = AvSetMmThreadCharacteristicsW(L"Pro Audio", &task);
 	Assert(handle);
-    
+ 
 	IAudioClient* client = audio->client;
-    
+ 
 	IAudioRenderClient* playback;
 	HR(IAudioClient_GetService(client, &IID_IAudioRenderClient, (LPVOID*)&playback));
-    
+ 
 	// get audio buffer size in samples
 	UINT32 bufferSamples;
 	HR(IAudioClient_GetBufferSize(client, &bufferSamples));
-    
+ 
 	// start the playback
 	HR(IAudioClient_Start(client));
-    
+ 
 	UINT32 bytesPerSample = audio->bufferFormat->nBlockAlign;
 	UINT32 rbMask = audio->rbSize - 1;
 	BYTE* input = audio->buffer1;
-    
+ 
 	while (WaitForSingleObject(audio->event, INFINITE) == WAIT_OBJECT_0)
 	{
 		if (InterlockedExchange(&audio->stop, FALSE))
 		{
 			break;
 		}
-        
+  
 		UINT32 paddingSamples;
 		HR(IAudioClient_GetCurrentPadding(client, &paddingSamples));
-        
+  
 		// get output buffer from WASAPI
 		BYTE* output;
 		UINT32 maxOutputSamples = bufferSamples - paddingSamples;
 		HR(IAudioRenderClient_GetBuffer(playback, maxOutputSamples, &output));
-        
+  
 		AcquireSRWLockExclusive(&audio->lock);
-        
+  
 		UINT32 readOffset = audio->rbReadOffset;
 		UINT32 writeOffset = audio->rbWriteOffset;
-        
+  
 		// how many bytes available to read from ringbuffer
 		UINT32 availableSize = writeOffset - readOffset;
-        
+  
 		// how many samples available
 		UINT32 availableSamples = availableSize / bytesPerSample;
-        
+  
 		// will use up to max that's possible to output
 		UINT32 useSamples = min(availableSamples, maxOutputSamples);
-        
+  
 		// how many bytes to use
 		UINT32 useSize = useSamples * bytesPerSample;
-        
+  
 		// lock range [read, lock) that memcpy will read from below
 		audio->rbLockOffset = readOffset + useSize;
-        
+  
 		// will always submit required amount of samples, but if there's not enough to use, then submit silence
 		UINT32 submitCount = useSamples ? useSamples : maxOutputSamples;
 		DWORD flags = useSamples ? 0 : AUDCLNT_BUFFERFLAGS_SILENT;
-        
+  
 		// remember how many samples are submitted
 		audio->bufferUsed += submitCount;
-        
+  
 		ReleaseSRWLockExclusive(&audio->lock);
-        
+  
 		// copy bytes to output
 		// safe to do it outside SRW lock, because nobody will overwrite [read, lock) interval
 		memcpy(output, input + (readOffset & rbMask), useSize);
-        
+  
 		// advance read offset up to lock position, allows writing to [read, lock) interval
 		InterlockedAdd(&audio->rbReadOffset, useSize);
-        
+  
 		// submit output buffer to WASAPI
 		HR(IAudioRenderClient_ReleaseBuffer(playback, submitCount, flags));
 	}
-    
+ 
 	// stop the playback
 	HR(IAudioClient_Stop(client));
 	IAudioRenderClient_Release(playback);
-    
+ 
 	AvRevertMmThreadCharacteristics(handle);
 	return 0;
 }
@@ -182,20 +182,20 @@ static void WA_Start(WasapiAudio* audio, size_t sampleRate, size_t channelCount,
 {
 	// initialize COM
 	HR(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED));
-    
+ 
 	// create enumerator to get audio device
 	IMMDeviceEnumerator* enumerator;
 	HR(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (LPVOID*)&enumerator));
-    
+ 
 	// get default playback device
 	IMMDevice* device;
 	HR(IMMDeviceEnumerator_GetDefaultAudioEndpoint(enumerator, eRender, eConsole, &device));
 	IMMDeviceEnumerator_Release(enumerator);
-    
+ 
 	// create audio client for device
 	HR(IMMDevice_Activate(device, &IID_IAudioClient, CLSCTX_ALL, NULL, (LPVOID*)&audio->client));
 	IMMDevice_Release(device);
-    
+ 
 	if (sampleRate == 0 || channelCount == 0 || channelMask == 0)
 	{
 		// use native mixing format
@@ -208,7 +208,7 @@ static void WA_Start(WasapiAudio* audio, size_t sampleRate, size_t channelCount,
 		{
 			.Format =
 			{
-                .wFormatTag = WAVE_FORMAT_EXTENSIBLE,
+    .wFormatTag = WAVE_FORMAT_EXTENSIBLE,
 				.nChannels = (WORD)channelCount,
 				.nSamplesPerSec = (WORD)sampleRate,
 				.nAvgBytesPerSec = (DWORD)(sampleRate * channelCount * sizeof(SAMPLE_FORMAT)),
@@ -220,18 +220,18 @@ static void WA_Start(WasapiAudio* audio, size_t sampleRate, size_t channelCount,
 			.dwChannelMask = channelMask, 
 			
 #if SAMPLE_FORMAT == f32
-            .SubFormat = MEDIASUBTYPE_IEEE_FLOAT,
+   .SubFormat = MEDIASUBTYPE_IEEE_FLOAT,
 #else
-            .SubFormat = MEDIASUBTYPE_PCM, t
+   .SubFormat = MEDIASUBTYPE_PCM,
 #endif
 		};
-        
+  
 		audio->bufferFormat = CoTaskMemAlloc(sizeof(formatEx));
 		CopyMemory(audio->bufferFormat, &formatEx, sizeof(formatEx));
 	}
 	
 	BOOL clientInitialized = FALSE;
-    
+ 
 	// try to initialize client with newer functionality in Windows 10, no AUTOCONVERTPCM allowed
 	IAudioClient3* client3;
 	if (SUCCEEDED(IAudioClient_QueryInterface(audio->client, &IID_IAudioClient3, (LPVOID*)&client3)))
@@ -248,50 +248,50 @@ static void WA_Start(WasapiAudio* audio, size_t sampleRate, size_t channelCount,
 				clientInitialized = TRUE;
 			}
 		}
-        
+  
 		IAudioClient3_Release(client3);
 	}
-    
+ 
 	if (!clientInitialized)
 	{
 		// get duration for shared-mode streams, this will typically be 480 samples (10msec @ 48khz)
 		REFERENCE_TIME duration;
 		HR(IAudioClient_GetDevicePeriod(audio->client, &duration, NULL));
-        
+  
 		// initialize audio playback
 		const DWORD flags = AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
 		HR(IAudioClient_Initialize(audio->client, AUDCLNT_SHAREMODE_SHARED, flags, duration, 0, audio->bufferFormat, NULL));
 	}
-    
+ 
 	UINT32 bufferSamples;
 	HR(IAudioClient_GetBufferSize(audio->client, &bufferSamples));
 	audio->outSize = bufferSamples * audio->bufferFormat->nBlockAlign;
-    
+ 
 	// setup event handle to wait on
 	audio->event = CreateEventW(NULL, FALSE, FALSE, NULL);
 	HR(IAudioClient_SetEventHandle(audio->client, audio->event));
-    
+ 
 	// use at least 64KB or 1 second whichever is larger, and round upwards to pow2 for ringbuffer
 	DWORD rbSize = RoundUpPow2(max(64 * 1024, audio->bufferFormat->nAvgBytesPerSec));
-    
+ 
 	// reserve virtual address placeholder for 2x size for magic ringbuffer
 	char* placeholder1 = VirtualAlloc2(NULL, NULL, 2 * rbSize, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, NULL, 0);
 	char* placeholder2 = placeholder1 + rbSize;
 	Assert(placeholder1);
-    
+ 
 	// split allocated address space in half
 	BOOL ok = VirtualFree(placeholder1, rbSize, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER);
 	Assert(ok);
-    
+ 
 	// create page-file backed section for buffer
 	HANDLE section = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, rbSize, NULL);
 	Assert(section);
-    
+ 
 	// map same section into both addresses
 	void* view1 = MapViewOfFile3(section, NULL, placeholder1, 0, rbSize, MEM_REPLACE_PLACEHOLDER, PAGE_READWRITE, NULL, 0);
 	void* view2 = MapViewOfFile3(section, NULL, placeholder2, 0, rbSize, MEM_REPLACE_PLACEHOLDER, PAGE_READWRITE, NULL, 0);
 	Assert(view1 && view2);
-    
+ 
 	audio->sampleBuffer = NULL;
 	audio->sampleCount = 0;
 	audio->playCount = 0;
@@ -306,7 +306,7 @@ static void WA_Start(WasapiAudio* audio, size_t sampleRate, size_t channelCount,
 	InterlockedExchange(&audio->stop, FALSE);
 	InitializeSRWLock(&audio->lock);
 	audio->thread = CreateThread(NULL, 0, &WA__AudioThread, audio, 0, NULL);
-    
+ 
 	// this is ok, actual memory will be freed only when it is unmapped
 	VirtualFree(placeholder1, 0, MEM_RELEASE);
 	VirtualFree(placeholder2, 0, MEM_RELEASE);
@@ -318,20 +318,20 @@ static void WA_Stop(WasapiAudio* audio)
 	// notify thread to stop
 	InterlockedExchange(&audio->stop, TRUE);
 	SetEvent(audio->event);
-    
+ 
 	// wait for thread to finish
 	WaitForSingleObject(audio->thread, INFINITE);
 	CloseHandle(audio->thread);
 	CloseHandle(audio->event);
-    
+ 
 	// release ringbuffer
 	UnmapViewOfFileEx(audio->buffer1, 0);
 	UnmapViewOfFileEx(audio->buffer2, 0);
-    
+ 
 	// release audio client
 	CoTaskMemFree(audio->bufferFormat);
 	IAudioClient_Release(audio->client);
-    
+ 
 	// done with COM
 	CoUninitialize();
 }
@@ -341,41 +341,41 @@ static void WA_LockBuffer(WasapiAudio* audio)
 	UINT32 bytesPerSample = audio->bufferFormat->nBlockAlign;
 	UINT32 rbSize = audio->rbSize;
 	UINT32 outSize = audio->outSize;
-    
+ 
 	AcquireSRWLockExclusive(&audio->lock);
-    
+ 
 	UINT32 readOffset = audio->rbReadOffset;
 	UINT32 lockOffset = audio->rbLockOffset;
 	UINT32 writeOffset = audio->rbWriteOffset;
-    
+ 
 	// how many bytes are used in buffer by reader = [read, lock) range
 	UINT32 usedSize = lockOffset - readOffset;
-    
+ 
 	// make sure there are samples available for one wasapi buffer submission
 	// so in case audio thread needs samples before UnlockBuffer is called, it can get some 
 	if (usedSize < outSize)
 	{
 		// how many bytes available in current buffer = [read, write) range
 		UINT32 availSize = writeOffset - readOffset;
-        
+  
 		// if [read, lock) is smaller than outSize buffer, then increase lock to [read, read+outSize) range
 		usedSize = min(outSize, availSize);
 		audio->rbLockOffset = lockOffset = readOffset + usedSize;
 	}
-    
+ 
 	// how many bytes can be written to buffer
 	UINT32 writeSize = rbSize - usedSize;
-    
+ 
 	// reset write marker to beginning of lock offset (can start writing there)
 	audio->rbWriteOffset = lockOffset;
-    
+ 
 	// reset play sample count, use 0 for playCount when LockBuffer is called first time
 	audio->playCount = audio->bufferFirstLock ? 0 : audio->bufferUsed;
 	audio->bufferFirstLock = FALSE;
 	audio->bufferUsed = 0;
-    
+ 
 	ReleaseSRWLockExclusive(&audio->lock);
-    
+ 
 	// buffer offset/size where to write
 	// safe to write in [write, read) range, because reading happen in [read, lock) range (lock==write)
 	audio->sampleBuffer = audio->buffer1 + (lockOffset & (rbSize - 1));
@@ -386,7 +386,7 @@ static void WA_UnlockBuffer(WasapiAudio* audio, size_t writtenSamples)
 {
 	UINT32 bytesPerSample = audio->bufferFormat->nBlockAlign;
 	size_t writeSize = writtenSamples * bytesPerSample;
-    
+ 
 	// advance write offset to allow reading new samples
 	InterlockedAdd(&audio->rbWriteOffset, (LONG)writeSize);
 }

@@ -142,20 +142,6 @@ OS_FreeFileMemory(str8 File)
     }
 }
 
-internal void 
-OS_PrintFormat(char *Format, ...)
-{
-    va_list Args;
-    va_start(Args, Format);
-    
-#if 0    
-    vsprintf((char *)LogBuffer, Format, Args);
-    OutputDebugStringA((char *)LogBuffer);
-#else
-    vfprintf(stderr, Format, Args);
-#endif
-}
-
 internal void
 OS_BarrierWait(barrier Barrier)
 {

@@ -64,9 +64,9 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
                 
                 if(NoteLength <= .5f)
                 {
-                    f32 NotePow2 = log2f(1.f/NoteLength);
-                    f32 NearestPow2 = powf(2.0f, roundf(NotePow2));
-                    s32 NumOfSideTails = (s32)log2f(NearestPow2);
+                    f32 NotePow2 = Log2F32(1.f/NoteLength);
+                    f32 NearestPow2 = PowF32(2.0f, RoundF32(NotePow2));
+                    s32 NumOfSideTails = (s32)Log2F32(NearestPow2);
                     for EachIndex(TailIdx, NumOfSideTails)
                     {
                         f32 SideTailY = ((Y + 5.f*(f32)TailIdx) - TailHeight);

@@ -29,14 +29,7 @@
 #endif
 
 //~ Globals
-#if RL_PLATFORM_INTERNAL
-global_variable b32 IsEditorBuildInternal = true;
-#else
-global_variable b32 IsEditorBuildInternal = false;
-#endif
-
-global_variable str8 ExeDirPath = {0};;
-
+global_variable str8 ExeDirPath = {0};
 global_variable arena *FrameArena = 0;
 
 //~ Types
@@ -109,9 +102,13 @@ typedef enum platform_key_modifier platform_key_modifier;
 
 #define PlatformKeyModifier_Any (PlatformKeyModifier_Control|PlatformKeyModifier_Shift|PlatformKeyModifier_Alt)
 
-typedef struct app_text_button app_text_button;
-struct app_text_button
+typedef u64 app_key_id;
+typedef struct app_key app_key;
+struct app_key
 {
+    app_key_id Next;
+    app_key_id Prev;
+    
     union
     {
         rune Codepoint;
@@ -166,9 +163,9 @@ struct app_input
     struct
     {
         app_button_state Buttons[PlatformMouseButton_Count];
-        s32 X, Y, Z;
-        
-        s32 StartX, StartY;
+        v2s32 Pos;
+        v2s32 Start;
+        s32 Z;
     } Mouse;
     
     union
@@ -189,9 +186,12 @@ struct app_input
     
     struct
     {
+        // NOTE(luca): This makes it easily serializable.
+        app_key Buffer[64];
         u64 Count;
-        // NOTE(luca): Who can press more than 256 keys in under one frame?
-        app_text_button Buffer[256];
+        
+        app_key_id First;
+        app_key_id Last;
     } Text;
     
     struct
@@ -245,9 +245,11 @@ struct app_input
 typedef struct platform_midi_device platform_midi_device;
 struct platform_midi_device
 {
-    u64 Id;
     str8 Name;
     b32 IsOutput;
+    b32 IsInput;
+    
+    u64 Id;
 };
 
 typedef struct platform_midi_get_devices_result platform_midi_get_devices_result;
@@ -268,7 +270,7 @@ typedef struct app_memory app_memory;
 struct app_memory
 {
     void *Memory;
-    u64 MemorySize;
+    umm MemorySize;
     
     // NOTE(luca): Globals shared between platform and app.
     str8 ExeDirPath;
@@ -395,8 +397,28 @@ ProcessKeyPress(app_button_state *ButtonState, b32 IsDown)
 internal v2
 MousePosFromInput(app_input *Input)
 {
-    v2 Result = V2S32(Input->Mouse.X, Input->Mouse.Y);
+    v2 Result = V2S32(V2Arg(Input->Mouse.Pos));
     return Result;
 }
+
+internal void
+RemoveTextButton(app_input *Input, app_key_id Id)
+{
+    app_key *Key = Input->Text.Buffer + Id;
+    
+    if(Id == Input->Text.First) Input->Text.First = Key->Next;
+    if(Id == Input->Text.Last)  Input->Text.Last  = Key->Prev;
+    if(Key->Prev) Input->Text.Buffer[Key->Prev].Next = Key->Next;
+    if(Key->Next) Input->Text.Buffer[Key->Next].Prev = Key->Prev;
+}
+
+#define EachTextButton(Key, Id, Input) \
+EachTextButton_(Key, Id, Input, Glue(Counter, __COUNTER__))
+#define EachTextButton_(Key, Id, Input, Counter) \
+(app_key_id Id = Input->Text.First; \
+Id != 0; \
+) for(app_key *Key = Input->Text.Buffer + Id, *Counter = 0; \
+!Counter; \
+Id = Key->Next, Counter = Key)
 
 #endif //PLATFORM_H

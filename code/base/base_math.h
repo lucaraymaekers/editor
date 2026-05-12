@@ -125,6 +125,13 @@ V2S32(s32 X, s32 Y)
 }
 
 internal inline v2
+V2V2S32(v2s32 P)
+{
+    v2 Result = V2S32(V2Arg(P));
+    return Result;
+}
+
+internal inline v2
 V2MulV2(v2 A, v2 B)
 {
     v2 Result = {0};

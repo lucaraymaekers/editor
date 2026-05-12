@@ -13,8 +13,8 @@
 typedef struct str8 str8;
 struct str8
 {
-    u8 *Data;
-    u64 Size;
+ u8 *Data;
+ u64 Size;
 };
 raddbg_type_view(str8, no_addr(array(Data, Size)));
 
@@ -40,5 +40,13 @@ internal u64  StringLength(char *String);
 
 #define PushS8_(Arena, Count) S8Cast{.Data = (PushArray((Arena), u8, (Count))), .Size = (Count)} 
 #define PushS8(Arena, Size) PushS8_(Arena, Size)
+
+#define StringsScratchTemp(Arena) \
+StringsScratchTemp_(Arena, Glue(Counter, __COUNTER__), Glue(Temp, __COUNTER__))
+#define StringsScratchTemp_(Arena, Counter, Temp) \
+for(arena *Temp, *Counter = 0; !Counter; Counter = (arena *)1)  \
+for(Temp = StringsScratch, SetStringsScratch(Arena); \
+Arena == StringsScratch; \
+SetStringsScratch(Temp))
 
 #endif //BASE_STRINGS_H

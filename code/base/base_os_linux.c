@@ -117,22 +117,6 @@ OS_WriteEntireFile(char *FileName, str8 File)
     return Result;
 }
 
-internal void 
-OS_PrintFormat(char *Format, ...)
-{
-    va_list Args;
-    va_start(Args, Format);
-#if 0 
-    // TODO(luca): stb_sprintf would be nice, but takes long time to compile.
-    int Length = vsprintf((char *)LogBuffer, Format, Args);
-    smm BytesWritten = write(STDOUT_FILENO, LogBuffer, Length);
-    AssertErrno(BytesWritten == Length);
-#else
-    // NOTE(luca): Writing to stderr is a workaround for 4coder because it does not seem to do line buffering. 
-    vfprintf(stderr, Format, Args);
-#endif
-}
-
 //~ Threads
 internal void 
 OS_BarrierWait(barrier Barrier)
@@ -153,8 +137,12 @@ OS_SetThreadName(str8 ThreadName)
 internal void *
 OS_AllocateAtOffset(u64 Size, u64 Offset)
 {
-    void *Result = mmap((void *)Offset, Size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+    void *Result = mmap((void *)Offset, Size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     AssertErrno(Result!= MAP_FAILED);
+    
+    int Error = madvise(Result, Size, MADV_HUGEPAGE);
+    AssertErrno(Error != -1);
+    
     return Result;
 }
 
@@ -290,6 +278,10 @@ LinuxSetDebuggerAttached()
 internal void 
 LinuxMainEntryPoint(int ArgsCount, char **Args, char **Env)
 {
+    arena *Arena = ArenaAlloc();
+    
+    SetStringsScratch(Arena);
+    
     LinuxSetDebuggerAttached();
     
     // Install signal handler for crash with callstacks
@@ -307,8 +299,6 @@ LinuxMainEntryPoint(int ArgsCount, char **Args, char **Env)
         sigaction(SIGQUIT, &Handler, NULL);
     }
     
-    arena *Arena = ArenaAlloc();
-    
     char ThreadName[16] = "Main";
     
 #if BASE_FORCE_THREADS_COUNT
@@ -325,7 +315,7 @@ LinuxMainEntryPoint(int ArgsCount, char **Args, char **Env)
     
     u64 SharedStorage = 0;
     
-    barrier Barrier = (barrier)PushStruct(Arena, pthread_barrier_t);
+    barrier Barrier = (barrier)PushArray(Arena, pthread_barrier_t, 1);
     
     Ret = pthread_barrier_init((pthread_barrier_t *)Barrier, 0, (u32)ThreadsCount);
     Assert(Ret == 0);

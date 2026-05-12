@@ -11,10 +11,9 @@ C_LINKAGE_BEGIN
 # define STB_TRUETYPE_IMPLEMENTATION
 # define STB_SPRINTF_IMPLEMENTATION
 # define RL_FONT_IMPLEMENTATION
-
 # define XXH_STATIC_LINKING_ONLY
 # define XXH_IMPLEMENTATION
-// TODO(luca): Does not work because firstly, this implies XXH_IMPLEMENTATION and secondly, it will make the function signatures mismatch
+// TODO(luca): The following does not work, because firstly, this implies XXH_IMPLEMENTATION and secondly, it will make the function signatures mismatch
 //# define XXH_INLINE_ALL
 
 #else
@@ -31,9 +30,9 @@ NO_WARNINGS_BEGIN
 # include "lib/xxHash/xxhash.h"
 NO_WARNINGS_END
 
-//~ GLAD helper functions
-
 #if RL_LIBS_IMPLEMENTATION
+
+//- GLAD helper functions
 
 void GLADNullPreCallback(const char *name, GLADapiproc apiproc, int len_args, ...) {}
 void GLADNullPostCallback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...) {}

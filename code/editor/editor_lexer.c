@@ -85,8 +85,8 @@ Lex(app_text *Text, arena *Arena, token_list *List)
             continue;
         }
         
-        token_node *TokenNode = PushStructZero(Arena, token_node);
-        token      *Token     = PushStructZero(Arena, token);
+        token_node *TokenNode = PushArrayZero(Arena, token_node, 1);
+        token      *Token     = PushArrayZero(Arena, token, 1);
         TokenNode->Next       = &nil_token_node;
         TokenNode->Previous   = &nil_token_node;
         TokenNode->Token      = Token;

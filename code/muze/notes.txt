@@ -3,6 +3,24 @@ To mitigate performance degradation when we are memory bound you can point nodes
 An arena backing a linked list can back other types as well.
 Pointers remain stable.
 
+# Differential equations
+Easier to describe change than absolute amounts.  (e.g., population grow/shrink)
+
+phase space is a nice way to think about possible states and if they are stable. 
+Also by studying some new learnings might carry over. 
+Some solutions have a "seeds of chaos" which mean that small inacurracies can have a huge impact.
+
+Most of the time the solution is unattainable so it is skipped.
+ 
+Physics: Highest derivative is the Second Order Derivative
+
+PDE have multiple inputs (Partial vs. Ordinal)
+
+Required:
+Calculus Derivatives/Integrals
+Linear Algebra
+
+
 # Midi
 Musical Instrument Digital Interface.
 Sounds are synthetic.

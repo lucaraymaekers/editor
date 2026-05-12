@@ -392,9 +392,10 @@
 
 //~ sprintf
 #if MD_DEFAULT_SPRINTF
-#define STB_SPRINTF_DECORATE(name) md_stbsp_##name
-#define MD_IMPL_Vsnprintf md_stbsp_vsnprintf
-#include "md_stb_sprintf.h"
+//#define MD_IMPL_Vsnprintf md_stbsp_vsnprintf
+//#include "md_stb_sprintf.h"
+// NOTE(luca): Already included elesewhere
+#define MD_IMPL_Vsnprintf stbsp_vsnprintf
 #endif
 
 //~/////////////////////////////////////////////////////////////////////////////

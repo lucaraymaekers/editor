@@ -38,6 +38,37 @@ UI_BoxFlags:
     FloatingY,
     Clip,
     Scroll,
+    AnimatePosX,
+    AnimatePosY,
+    MirrorEffects,
+}
+
+@table_gen_enum("panel_kind", "PanelKind")
+@table_gen_strings("PanelTypeStrings")
+PanelTypes:
+{
+    Empty,
+    Sheet,
+    Roll,
+    Settings,
+    Debug,
+}
+
+@table_gen_strings("NotePitchStrings")
+NotePitches:
+{
+    "C",
+    "C#",
+    "D",
+    "D#",
+    "E",
+    "F",
+    "F#",
+    "G",
+    "G#",
+    "A",
+    "A#",
+    "B",
 }
 
 // TODO(luca): Metaprogram

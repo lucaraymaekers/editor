@@ -1,3 +1,36 @@
+typedef enum panel_kind panel_kind;
+enum panel_kind
+{
+ PanelKind_Empty,
+ PanelKind_Sheet,
+ PanelKind_Roll,
+ PanelKind_Settings,
+ PanelKind_Debug,
+ PanelKind_Count,
+};
+global_variable str8 PanelTypeStrings[] =
+{
+{(u8 *)"Empty", 5},
+{(u8 *)"Sheet", 5},
+{(u8 *)"Roll", 4},
+{(u8 *)"Settings", 8},
+{(u8 *)"Debug", 5},
+};
+global_variable str8 NotePitchStrings[] =
+{
+{(u8 *)"C", 1},
+{(u8 *)"C#", 2},
+{(u8 *)"D", 1},
+{(u8 *)"D#", 2},
+{(u8 *)"E", 1},
+{(u8 *)"F", 1},
+{(u8 *)"F#", 2},
+{(u8 *)"G", 1},
+{(u8 *)"G#", 2},
+{(u8 *)"A", 1},
+{(u8 *)"A#", 2},
+{(u8 *)"B", 1},
+};
 //- Colors begin
 const u32 ColorU32_Frost0 = 0xff8fbcbb;
 const u32 ColorU32_Frost1 = 0xff88c0d0;
@@ -68,5 +101,8 @@ UI_BoxFlag_FloatingX              = (1 << 11),
 UI_BoxFlag_FloatingY              = (1 << 12),
 UI_BoxFlag_Clip                   = (1 << 13),
 UI_BoxFlag_Scroll                 = (1 << 14),
+UI_BoxFlag_AnimatePosX            = (1 << 15),
+UI_BoxFlag_AnimatePosY            = (1 << 16),
+UI_BoxFlag_MirrorEffects          = (1 << 17),
 };
 typedef enum ui_box_flag ui_box_flag;

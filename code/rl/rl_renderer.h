@@ -61,6 +61,6 @@ internal rect_instance *DrawRect(v4 Dest, v4 Color,
 internal rect_instance *DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color);
 internal void RenderInit(gl_render_state *Render);
 internal void RenderCleanup(gl_render_state *Render);
-internal void RenderBeginFrame(arena *Arena, s32 Width, s32 Height);
+internal void RenderBeginFrame(arena *Arena, s32 X, s32 Y, s32 Width, s32 Height);
 internal void RenderClear(void);
 internal void RenderDrawAllRectangles(gl_render_state *Render, v2 BufferDim, font_atlas *Atlas);

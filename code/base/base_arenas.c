@@ -1,77 +1,95 @@
 internal arena *
 ArenaAlloc_(arena_alloc_params Params)
 {
-    arena *Arena = 0;
-    
-    u64 Size = Params.DefaultSize;
-    if(Params.Size)
-    {
-        Size = Params.Size;
-    }
-    
-    void *Base = OS_AllocateAtOffset(Size, Params.Offset);
-    AsanPoisonMemoryRegion(Base, Size);
-    
-    u64 HeaderSize = sizeof(arena);
-    AsanUnpoisonMemoryRegion(Base, HeaderSize);
-    
-    Arena = (arena *)Base;
-    Arena->Base = Base;
-    Arena->Pos = HeaderSize;
-    Arena->Size = Size;
-    
-    return Arena;
+ arena *Arena = 0;
+ 
+ u64 Size = Params.DefaultSize;
+ if(Params.Size)
+ {
+  Size = Params.Size;
+ }
+ 
+ void *Base = OS_AllocateAtOffset(Size, Params.Offset);
+ AsanPoisonMemoryRegion(Base, Size);
+ 
+ u64 HeaderSize = sizeof(arena);
+ AsanUnpoisonMemoryRegion(Base, HeaderSize);
+ 
+ Arena = (arena *)Base;
+ Arena->Base = Base;
+ Arena->Pos = HeaderSize;
+ Arena->Size = Size;
+ 
+ return Arena;
 }
 
 internal arena *
 PushArena(arena *Arena, u64 Size, b32 Zero)
 {
-    arena *Result = 0;
-    
-    Result = PushStruct(Arena, arena);
-    Result->Size = Size;
-    Result->Base = PushArray(Arena, u8, Result->Size);
-    if(Zero) Result->Pos = 0;
-    
-    return Result;
+ arena *Result = 0;
+ 
+ Result = PushArray(Arena, arena, 1);
+ Result->Size = Size;
+ Result->Base = PushArray(Arena, u8, Result->Size);
+ if(Zero) Result->Pos = 0;
+ 
+ return Result;
 }
 
 internal void *
 ArenaPush(arena *Arena, u64 Size, u64 Alignment, b32 Zero)
 {
-    u64 AlignedPos = AlignPow2(Arena->Pos, Alignment);
-    u64 NewPos = AlignedPos + Size;
-    
-    Assert(NewPos <= Arena->Size);
-    
-    void *Result = (u8 *)Arena->Base + AlignedPos;
-    
-    AsanUnpoisonMemoryRegion(Result, Size);
-    
-    if(Zero)
-    {
-        MemorySet(Result, 0, Size);
-    }
-    
-    Arena->Pos = NewPos;
-    
-    return Result;
+ u64 AlignedPos = AlignPow2(Arena->Pos, Alignment);
+ u64 NewPos = AlignedPos + Size;
+ 
+ if(NewPos > Arena->Size)
+ {
+  // NOTE(luca): Custom Assert since we cannot print here because it will use ArenaPush(). 
+  DebugBreak();
+ }
+ 
+ void *Result = (u8 *)Arena->Base + AlignedPos;
+ 
+ AsanUnpoisonMemoryRegion(Result, Size);
+ 
+ if(Zero)
+ {
+  MemorySet(Result, 0, Size);
+ }
+ 
+ Arena->Pos = NewPos;
+ 
+ return Result;
 }
 
-internal void ArenaSetPos(arena *Arena, u64 Pos) { Arena->Pos = Pos; }
+internal void 
+ArenaSetPos(arena *Arena, u64 Pos) 
+{
+ Arena->Pos = Pos;
+}
+
+internal void
+ArenaFree(arena *Arena, u64 Size)
+{
+ //Assert(Size >= Arena->Pos);
+ 
+ Arena->Pos -= Size;
+ 
+ AsanPoisonMemoryRegion((u8 *)Arena->Base + Arena->Pos, Size);
+}
 
 internal u64 
 BeginScratch(arena *Arena)
 {
-    u64 Result = Arena->Pos;
-    return Result;
+ u64 Result = Arena->Pos;
+ return Result;
 }
 
 internal void 
 EndScratch(arena *Arena, u64 BackPos)
 {
-    Arena->Pos = BackPos;
-    
-    AsanPoisonMemoryRegion((u8 *)Arena->Base + Arena->Pos,
-                           Arena->Size - Arena->Pos);
+ Arena->Pos = BackPos;
+ 
+ AsanPoisonMemoryRegion((u8 *)Arena->Base + Arena->Pos,
+                        Arena->Size - Arena->Pos);
 }

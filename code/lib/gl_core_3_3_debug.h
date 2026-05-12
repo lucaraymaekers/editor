@@ -4778,8 +4778,6 @@ extern "C" {
 extern "C" {
 #endif
     
-    
-    
     int GLAD_GL_VERSION_1_0 = 0;
     int GLAD_GL_VERSION_1_1 = 0;
     int GLAD_GL_VERSION_1_2 = 0;

@@ -1,9 +1,11 @@
 // NOTE(luca): I have made following modifications:
 // - Use C_LINKAGE_BEGIN/END instead of extern to play nice with 4coder.
 // - (Busy) removed TSF_MALLOC, TSF_REALLOC and TSF_FREE in favor of tsf_arena.
-//   - TODO: In load samples code.
-//   - TODO: Channels
+//   - TODO: In samples loading code.
+//   - TODO: Channels (see below)
 // - changed tsf_voice to a linked list to remove need for reallocation
+// - removed function pointer setupVoice to make hot reloading work
+// - removed function pointers tsf_stream_memory_{read,memory} for the same reason.
 
 /* TinySoundFont - v0.9 - SoundFont2 synthesizer - https://github.com/schellingb/TinySoundFont
                                      no warranty implied; use at your own risk
@@ -91,12 +93,6 @@ struct tsf_stream
 {
 	// Custom data given to the functions as the first parameter
 	void* data;
-    
-	// Function pointer will be called to read 'size' bytes into ptr (returns number of read bytes)
-	int (*read)(void* data, void* ptr, unsigned int size);
-    
-	// Function pointer will be called to skip ahead over 'count' bytes (returns 1 on success, 0 on error)
-	int (*skip)(void* data, unsigned int count);
 };
 
 // Generic SoundFont loading method using the stream structure above
@@ -372,7 +368,7 @@ static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f,
 TSFDEF tsf* tsf_load_filename(tsf_arena *arena, const char* filename)
 {
     tsf* res;
-    struct tsf_stream stream = { TSF_NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
+    struct tsf_stream stream = { TSF_NULL };
 #if __STDC_WANT_SECURE_LIB__
     FILE* f = TSF_NULL; fopen_s(&f, filename, "rb");
 #else
@@ -395,7 +391,7 @@ static int tsf_stream_memory_read(struct tsf_stream_memory* m, void* ptr, unsign
 static int tsf_stream_memory_skip(struct tsf_stream_memory* m, unsigned int count) { if (m->pos + count > m->total) return 0; m->pos += count; return 1; }
 TSFDEF tsf* tsf_load_memory(tsf_arena *arena, const void* buffer, int size)
 {
-    struct tsf_stream stream = { TSF_NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_memory_read, (int(*)(void*,unsigned int))&tsf_stream_memory_skip };
+    struct tsf_stream stream = { TSF_NULL };
     struct tsf_stream_memory f = { 0, 0, 0 };
     f.buffer = (const char*)buffer;
     f.total = size;
@@ -426,7 +422,7 @@ struct tsf_hydra_imod { tsf_u16 modSrcOper, modDestOper; tsf_s16 modAmount; tsf_
 struct tsf_hydra_igen { tsf_u16 genOper; union tsf_hydra_genamount genAmount; };
 struct tsf_hydra_shdr { tsf_char20 sampleName; tsf_u32 start, end, startLoop, endLoop, sampleRate; tsf_u8 originalPitch; tsf_s8 pitchCorrection; tsf_u16 sampleLink, sampleType; };
 
-#define TSFR(FIELD) stream->read(stream->data, &i->FIELD, sizeof(i->FIELD));
+#define TSFR(FIELD) tsf_stream_memory_read(stream->data, &i->FIELD, sizeof(i->FIELD));
 static void tsf_hydra_read_phdr(struct tsf_hydra_phdr* i, struct tsf_stream* stream) { TSFR(presetName) TSFR(preset) TSFR(bank) TSFR(presetBagNdx) TSFR(library) TSFR(genre) TSFR(morphology) }
 static void tsf_hydra_read_pbag(struct tsf_hydra_pbag* i, struct tsf_stream* stream) { TSFR(genNdx) TSFR(modNdx) }
 static void tsf_hydra_read_pmod(struct tsf_hydra_pmod* i, struct tsf_stream* stream) { TSFR(modSrcOper) TSFR(modDestOper) TSFR(modAmount) TSFR(modAmtSrcOper) TSFR(modTransOper) }
@@ -494,7 +490,6 @@ struct tsf_channel
 
 struct tsf_channels
 {
-    void (*setupVoice)(tsf* f, struct tsf_voice* voice);
     int channelNum, activeChannel;
     struct tsf_channel channels[1];
 };
@@ -509,14 +504,14 @@ static TSF_BOOL tsf_riffchunk_read(struct tsf_riffchunk* parent, struct tsf_riff
 {
     TSF_BOOL IsRiff, IsList;
     if (parent && sizeof(tsf_fourcc) + sizeof(tsf_u32) > parent->size) return TSF_FALSE;
-    if (!stream->read(stream->data, &chunk->id, sizeof(tsf_fourcc)) || *chunk->id <= ' ' || *chunk->id >= 'z') return TSF_FALSE;
-    if (!stream->read(stream->data, &chunk->size, sizeof(tsf_u32))) return TSF_FALSE;
+    if (!tsf_stream_memory_read(stream->data, &chunk->id, sizeof(tsf_fourcc)) || *chunk->id <= ' ' || *chunk->id >= 'z') return TSF_FALSE;
+    if (!tsf_stream_memory_read(stream->data, &chunk->size, sizeof(tsf_u32))) return TSF_FALSE;
     if (parent && sizeof(tsf_fourcc) + sizeof(tsf_u32) + chunk->size > parent->size) return TSF_FALSE;
     if (parent) parent->size -= sizeof(tsf_fourcc) + sizeof(tsf_u32) + chunk->size;
     IsRiff = TSF_FourCCEquals(chunk->id, "RIFF"), IsList = TSF_FourCCEquals(chunk->id, "LIST");
     if (IsRiff && parent) return TSF_FALSE; //not allowed
     if (!IsRiff && !IsList) return TSF_TRUE; //custom type without sub type
-    if (!stream->read(stream->data, &chunk->id, sizeof(tsf_fourcc)) || *chunk->id <= ' ' || *chunk->id >= 'z') return TSF_FALSE;
+    if (!tsf_stream_memory_read(stream->data, &chunk->id, sizeof(tsf_fourcc)) || *chunk->id <= ' ' || *chunk->id >= 'z') return TSF_FALSE;
     chunk->size -= sizeof(tsf_fourcc);
     return TSF_TRUE;
 }
@@ -1014,7 +1009,7 @@ static int tsf_load_samples(tsf_arena *arena, void** pRawBuffer, float** pFloatB
     (void)pRawBuffer;
     *pSmplCount = chunkSmpl->size / (unsigned int)sizeof(short);
     *pFloatBuffer = tsf_push_array(arena, float, *pSmplCount);
-    if (!*pFloatBuffer || !stream->read(stream->data, *pFloatBuffer, chunkSmpl->size)) return 0;
+    if (!*pFloatBuffer || !tsf_stream_memory_read(stream->data, *pFloatBuffer, chunkSmpl->size)) return 0;
     
     OS_ProfileAndPrint("TSF - Begin");
     for (res = *pFloatBuffer, out = res + *pSmplCount, in = (short*)res + *pSmplCount; out != res;)
@@ -1448,7 +1443,7 @@ for (i = 0; i < num; ++i) tsf_hydra_read_##chunkName(&hydra.chunkName##s[i], str
                 if      HandleChunk(phdr) else if HandleChunk(pbag) else if HandleChunk(pmod)
                     else if HandleChunk(pgen) else if HandleChunk(inst) else if HandleChunk(ibag)
                     else if HandleChunk(imod) else if HandleChunk(igen) else if HandleChunk(shdr)
-                    else stream->skip(stream->data, chunk.size);
+                    else tsf_stream_memory_skip(stream->data, chunk.size);
 #undef HandleChunk
                 
             }
@@ -1465,10 +1460,10 @@ for (i = 0; i < num; ++i) tsf_hydra_read_##chunkName(&hydra.chunkName##s[i], str
                 {
                     if (!tsf_load_samples(arena, &rawBuffer, &floatBuffer, &smplCount, &chunk, stream)) goto out_of_memory;
                 }
-                else stream->skip(stream->data, chunk.size);
+                else tsf_stream_memory_skip(stream->data, chunk.size);
             }
         }
-        else stream->skip(stream->data, chunkList.size);
+        else tsf_stream_memory_skip(stream->data, chunkList.size);
     }
     
     if (!hydra.phdrs || !hydra.pbags || !hydra.pmods || !hydra.pgens || !hydra.insts || !hydra.ibags || !hydra.imods || !hydra.igens || !hydra.shdrs)
@@ -1595,6 +1590,59 @@ TSFDEF int tsf_set_max_voices(tsf* f, int max_voices)
     return 1;
 }
 
+static void tsf_channel_setup_voice(tsf* f, struct tsf_voice* v)
+{
+    struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
+    float newpan = v->region->pan + c->panOffset;
+    v->playingChannel = f->channels->activeChannel;
+    v->noteGainDB += c->gainDB;
+    tsf_voice_calcpitchratio(v, (c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning)), f->outSampleRate);
+    if      (newpan <= -0.5f) { v->panFactorLeft = 1.0f; v->panFactorRight = 0.0f; }
+    else if (newpan >=  0.5f) { v->panFactorLeft = 0.0f; v->panFactorRight = 1.0f; }
+    else { v->panFactorLeft = TSF_SQRTF(0.5f - newpan); v->panFactorRight = TSF_SQRTF(0.5f + newpan); }
+}
+
+static tsf_channel* tsf_channel_init(tsf* f, int channel)
+{
+    int i;
+    if (f->channels && channel < f->channels->channelNum) return &f->channels->channels[channel];
+    if (!f->channels)
+    {
+        // TODO(luca): Proper arena usage.
+        f->channels =  (struct tsf_channels*)tsf_push_array_zero(f->arena, u8, (sizeof(struct tsf_channels) + sizeof(struct tsf_channel) * channel));
+        if (!f->channels) return TSF_NULL;
+        f->channels->channelNum = 0;
+        f->channels->activeChannel = 0;
+    }
+    else
+    {
+        umm oldSize = sizeof(struct tsf_channels) + sizeof(struct tsf_channel)*f->channels->channelNum;
+        umm newSize = sizeof(struct tsf_channels) + sizeof(struct tsf_channel)*channel;
+        // TODO(luca): Merge with codepath above, solve the need for reallocation.  Currently we just leak a bit of memory.
+        struct tsf_channels *newChannels = (struct tsf_channels*)tsf_push_array_zero(f->arena, u8, newSize);
+        TSF_MEMCPY(newChannels, f->channels, oldSize); 
+        
+        if (!newChannels) return TSF_NULL;
+        f->channels = newChannels;
+    }
+    i = f->channels->channelNum;
+    f->channels->channelNum = channel + 1;
+    for (; i <= channel; i++)
+    {
+        struct tsf_channel* c = &f->channels->channels[i];
+        c->presetIndex = c->bank = 0;
+        c->pitchWheel = c->midiPan = 8192;
+        c->midiVolume = c->midiExpression = 16383;
+        c->midiRPN = 0xFFFF;
+        c->midiData = c->sustain = 0;
+        c->panOffset = 0.0f;
+        c->gainDB = 0.0f;
+        c->pitchRange = 2.0f;
+        c->tuning = 0.0f;
+    }
+    return &f->channels->channels[channel];
+}
+
 TSFDEF int tsf_note_on(tsf* f, int preset_index, int key, float vel)
 {
     short midiVelocity = (short)(vel * 127);
@@ -1648,10 +1696,8 @@ TSFDEF int tsf_note_on(tsf* f, int preset_index, int key, float vel)
             else
             {
                 // Allocate more voices so we don't need to kill one off.
-                Log("Expanding.\n");
-                
                 int expandCount = 4;
-                ;
+                
                 struct tsf_voice* newVoices;
                 f->voiceNum += expandCount;
                 
@@ -1676,7 +1722,7 @@ TSFDEF int tsf_note_on(tsf* f, int preset_index, int key, float vel)
         
         if (f->channels)
         {
-            f->channels->setupVoice(f, voice);
+            tsf_channel_setup_voice(f, voice);
         }
         else
         {
@@ -1798,60 +1844,6 @@ TSFDEF void tsf_render_float(tsf* f, float* buffer, int samples, int flag_mixing
     for (; v; v = v->next)
         if (v->playingPreset != -1)
         tsf_voice_render(f, v, buffer, samples);
-}
-
-static void tsf_channel_setup_voice(tsf* f, struct tsf_voice* v)
-{
-    struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
-    float newpan = v->region->pan + c->panOffset;
-    v->playingChannel = f->channels->activeChannel;
-    v->noteGainDB += c->gainDB;
-    tsf_voice_calcpitchratio(v, (c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning)), f->outSampleRate);
-    if      (newpan <= -0.5f) { v->panFactorLeft = 1.0f; v->panFactorRight = 0.0f; }
-    else if (newpan >=  0.5f) { v->panFactorLeft = 0.0f; v->panFactorRight = 1.0f; }
-    else { v->panFactorLeft = TSF_SQRTF(0.5f - newpan); v->panFactorRight = TSF_SQRTF(0.5f + newpan); }
-}
-
-static tsf_channel* tsf_channel_init(tsf* f, int channel)
-{
-    int i;
-    if (f->channels && channel < f->channels->channelNum) return &f->channels->channels[channel];
-    if (!f->channels)
-    {
-        // TODO(luca): Proper arena usage.
-        f->channels =  (struct tsf_channels*)tsf_push_array_zero(f->arena, u8, (sizeof(struct tsf_channels) + sizeof(struct tsf_channel) * channel));
-        if (!f->channels) return TSF_NULL;
-        f->channels->setupVoice = &tsf_channel_setup_voice;
-        f->channels->channelNum = 0;
-        f->channels->activeChannel = 0;
-    }
-    else
-    {
-        umm oldSize = sizeof(struct tsf_channels) + sizeof(struct tsf_channel)*f->channels->channelNum;
-        umm newSize = sizeof(struct tsf_channels) + sizeof(struct tsf_channel)*channel;
-        // TODO(luca): Merge with codepath above, solve the need for reallocation.  Currently we just leak a bit of memory.
-        struct tsf_channels *newChannels = (struct tsf_channels*)tsf_push_array_zero(f->arena, u8, newSize);
-        TSF_MEMCPY(newChannels, f->channels, oldSize); 
-        
-        if (!newChannels) return TSF_NULL;
-        f->channels = newChannels;
-    }
-    i = f->channels->channelNum;
-    f->channels->channelNum = channel + 1;
-    for (; i <= channel; i++)
-    {
-        struct tsf_channel* c = &f->channels->channels[i];
-        c->presetIndex = c->bank = 0;
-        c->pitchWheel = c->midiPan = 8192;
-        c->midiVolume = c->midiExpression = 16383;
-        c->midiRPN = 0xFFFF;
-        c->midiData = c->sustain = 0;
-        c->panOffset = 0.0f;
-        c->gainDB = 0.0f;
-        c->pitchRange = 2.0f;
-        c->tuning = 0.0f;
-    }
-    return &f->channels->channels[channel];
 }
 
 static void tsf_channel_applypitch(tsf* f, int channel, struct tsf_channel* c)

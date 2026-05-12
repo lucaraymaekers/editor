@@ -173,9 +173,9 @@ do { if(!(Expression)) DebugBreakMsg(Format, ##__VA_ARGS__); } while(0)
 
 //~ Loop macros
 
-#define DeferLoop_(Begin, End, c) \
-for(int Glue(_i_, c) = ((Begin), 0); !Glue(_i_, c); Glue(_i_, c) += 1, (End))
-#define DeferLoop(Begin, End) DeferLoop_(Begin, End, __COUNTER__)
+#define DeferLoop(Begin, End) DeferLoop_(Begin, End, Glue(_i_, __COUNTER__))
+#define DeferLoop_(Begin, End, i) \
+for(int i = ((Begin), 0); !i; i += 1, (End))
 
 #define ScopeToggle(Value) DeferLoop(Value = !Value, Value = !Value)
 #define ScopeOff(Value) if(Value) ScopeToggle(Value)
@@ -338,8 +338,8 @@ __pragma(warning(disable: 4267 4996)) // NOTE: Add specific warning numbers to d
 # error "No compatible compiler found"
 #endif
 
-
-#define Pi32 3.14159265359f
+#define Pi32    3.1415927410125732f
+#define Euler32 2.7182817459106445f
 
 #define KB(n)  (((u64 )(n)) << 10)
 #define MB(n)  (((u64 )(n)) << 20)

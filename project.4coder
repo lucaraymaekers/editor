@@ -1,3 +1,4 @@
+
 version(2);
 project_name = "editor";
 
@@ -13,6 +14,7 @@ patterns =
     "*.mdesk",
     "*.4coder",
     "*.glsl",
+    "*.txt"
 };
 
 blacklist_patterns = 
@@ -66,7 +68,7 @@ commands =
     {
         .out = "*compilation*", 
         .linux = "./build/editor",
-        .win = "raddbg --ipc run",
+        .win = "raddbg.exe --ipc run",
         .save_dirty_files = false,
         .footer_panel = false,
         .cursor_at_end = false,
@@ -84,7 +86,7 @@ commands =
     {
         .out = "*compilation*", 
         .linux = "sh ./code/test.sh",
-        .win = "raddbg --ipc kill_all",
+        .win = "raddbg.exe --ipc kill_all",
         .save_dirty_files = true,
         .footer_panel = false,
         .cursor_at_end = false,

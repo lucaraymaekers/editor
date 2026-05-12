@@ -1,0 +1,14 @@
+# cling.h
+- Proper self-hosting on windows.
+  1. If "rebuild"
+     Yes, compile source to temp
+          run temp 
+          exit
+          temp rename/copy to self          
+     No, continue running
+
+- Cng_PathFromExe should return char *
+- Cng_InitAndRebuildSelf should be compressed between OS versions
+- Cng_RunCommand should take a str8_array instead of str8 since that seems to be the more common case
+- Provide a path to execute a command asynchronously and check later if it has completed.
+- Instead of passing argument "norebuild" set an environment variable
