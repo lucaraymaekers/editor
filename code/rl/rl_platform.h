@@ -245,9 +245,11 @@ struct app_input
 typedef struct platform_midi_device platform_midi_device;
 struct platform_midi_device
 {
-    u64 Id;
     str8 Name;
     b32 IsOutput;
+    b32 IsInput;
+    
+    u64 Id;
 };
 
 typedef struct platform_midi_get_devices_result platform_midi_get_devices_result;

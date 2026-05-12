@@ -255,28 +255,15 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
     for EachIndex(Idx, MIDIDevicesCount)
     {
         linux_midi_device *LnxDev = MIDIDevices + Idx;
+        platform_midi_device *Device = Result.Devices + Result.Count;
+        Result.Count += 1;
         
         str8 Name = Str8Fmt(S8Fmt ": %d", S8Arg(LnxDev->Name), LnxDev->Port);
-        if(LnxDev->CanRead)
-        {            
-            platform_midi_device *Dev = Result.Devices + Result.Count;
-            Result.Count += 1;
-            
-            Dev->Id = LnxDev->Id;
-            Dev->IsOutput = false;
-            Dev->Name = Name;
-        }
         
-        if(LnxDev->CanWrite)
-        {
-            platform_midi_device *Dev = Result.Devices + Result.Count;
-            Result.Count += 1;
-            
-            Dev->Id = LnxDev->Id;
-            Dev->IsOutput = true;
-            Dev->Name = Name;
-        }
-        
+        Device->Id = LnxDev->Id;
+        Device->IsOutput = LnxDev->CanRead;
+        Device->IsInput = LnxDev->CanWrite;
+        Device->Name = Name;
     }
     
     return Result;
@@ -1499,7 +1486,7 @@ P_PLAY_SOUND()
     }
     
     OS_ProfileAndPrint("Sound setup");
-
+    
     if(Code->GetAudioSamples)
     {                
         Code->GetAudioSamples(Sound, AvailableFrames);

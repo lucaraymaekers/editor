@@ -216,17 +216,30 @@ global_variable HMIDIOUT SelectedOut = 0;
 global_variable u32 SelectedOutPort = 0;
 global_variable b32 SelectedOutOpened = false;
 
+typedef struct win32_platform_midi_device win32_platform_midi_device;
+struct win32_platform_midi_device
+{
+    u64 OutPort;
+    u64 InPort;
+};
+
+global_variable win32_platform_midi_device *MIDIDevices;
+
 PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
 {
     platform_midi_get_devices_result Result = {0};
     
     u64 MaxDevicesCount = 128;
     Result.Devices = PushArray(FrameArena, platform_midi_device, MaxDevicesCount);
+    MIDIDevices = PushArray(FrameArena, win32_platform_midi_device, MaxDevicesCount);
     
     u64 OutDevicesCount = midiOutGetNumDevs();
     for EachIndex(Idx, OutDevicesCount)
     {    
         platform_midi_device *Device = Result.Devices + Result.Count;
+        
+        MIDIDevices[Result.Count].OutPort = Idx;
+        Device->Id = Result.Count;
         Result.Count += 1;
         
         MIDIOUTCAPS Caps;
@@ -235,7 +248,6 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
         if(!MIDI_LogIfError(Code, false))
         {
             Device->Name = Str8Fmt("%s", Caps.szPname);
-            Device->Id = Idx;
         }
         
         Device->IsOutput = true;
@@ -244,18 +256,39 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
     u64 InDevicesCount = midiInGetNumDevs();
     for EachIndex(Idx, InDevicesCount)
     {        
-        platform_midi_device *Device = Result.Devices + Result.Count;
-        Result.Count += 1;
-        
         MIDIINCAPS Caps;
         MMRESULT Code = midiInGetDevCaps(Idx, &Caps, sizeof(Caps));
         if(!MIDI_LogIfError(Code, true))
         {
-            Device->Name = Str8Fmt("%s", Caps.szPname);
-            Device->Id = Idx;
+            str8 Name = Str8Fmt("%s", Caps.szPname);
+            
+            platform_midi_device *Device = 0;
+            
+            // Find matching output device.
+            {            
+                for EachIndex(OutDeviceIdx, OutDevicesCount)
+                {
+                    platform_midi_device *OutDevice = Result.Devices + OutDeviceIdx;
+                    if(S8Match(OutDevice->Name, Name, false))
+                    {
+                        Device = OutDevice;
+                        MIDIDevices[OutDeviceIdx].InPort = Idx;
+                        break;
+                    }
+                }
+                
+                if(!Device)
+                {
+                    Device = Result.Devices + Result.Count;
+                    Device->Id = Result.Count;
+                    MIDIDevices[Result.Count].InPort = Idx;
+                    Result.Count += 1;
+                }
+            }
+            
+            Device->Name = Name;
+            Device->IsInput = true;
         }
-        
-        Device->IsOutput = false;
     }
     
     return Result;
@@ -265,7 +298,9 @@ PLATFORM_MIDI_SEND(P_MIDISend)
 {
     Assert(Device.IsOutput);
     
-    if(Device.Id != SelectedOutPort)
+    u64 Port = MIDIDevices[Device.Id].OutPort;
+    
+    if(Port != SelectedOutPort)
     {
         if(SelectedOutOpened)
         {
@@ -278,12 +313,12 @@ PLATFORM_MIDI_SEND(P_MIDISend)
             SelectedOutOpened = false;
         }
         
-        SelectedOutPort = Device.Id;
+        SelectedOutPort = Port;
     }
     
     if(!SelectedOutOpened)
     {
-        MMRESULT Code = midiOutOpen(&SelectedOut, Device.Id, 0, 0, CALLBACK_NULL);
+        MMRESULT Code = midiOutOpen(&SelectedOut, Port, 0, 0, CALLBACK_NULL);
         MIDI_LogIfError(Code, false);
         SelectedOutOpened = true;
     }
@@ -299,9 +334,11 @@ PLATFORM_MIDI_SEND(P_MIDISend)
 
 PLATFORM_MIDI_LISTEN(P_MIDIListen)
 {
-    Assert(!Device.IsOutput);
+    Assert(Device.IsInput);
     
-    if(Device.Id != SelectedInPort)
+    u64 Port = MIDIDevices[Device.Id].InPort;
+    
+    if(Port != SelectedInPort)
     {
         if(SelectedInOpened)
         {
@@ -313,7 +350,7 @@ PLATFORM_MIDI_LISTEN(P_MIDIListen)
             SelectedInOpened = false;
         }
         
-        SelectedInPort = Device.Id;
+        SelectedInPort = Port;
     }
     
     if(!SelectedInOpened)

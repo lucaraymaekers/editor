@@ -1,10 +1,9 @@
 # Now
-- Voices & TSF channels.
 - Commands
   - Undo?
 - Lister
 
-- Trim end of pedal correctly.
+- Merge different duplicate device names into one?
 
 # Next
 - Better scrolling
@@ -87,3 +86,5 @@ x Pedal
 x Sound on Windows
 x TSF improvements
   x Have a nil tsf value / handle tsf 0
+x Voices & TSF channels.
+x Trim end of pedal correctly.

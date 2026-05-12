@@ -819,25 +819,28 @@ PlayNote(app_memory *Memory, app_state *App, voice *Voice, note *Note)
         // TODO(luca): Channel ?
         // 1. Equip parameters to the Voice struct and use them to create messages here.
         
-        midi_message Message = {0};
-        switch(Note->Kind)
-        {
-            case NoteKind_Note:
+        if(App->Muze.In.Id != App->Muze.Out.Id)
+        {        
+            midi_message Message = {0};
+            switch(Note->Kind)
             {
-                Message.U8[0] = MIDIEventType_NoteOn;
-                Message.U8[1] = Note->Pitch;
-                Message.U8[2] = Note->Velocity;
-            } break;
+                case NoteKind_Note:
+                {
+                    Message.U8[0] = MIDIEventType_NoteOn;
+                    Message.U8[1] = Note->Pitch;
+                    Message.U8[2] = Note->Velocity;
+                } break;
+                
+                case NoteKind_Pedal:
+                {
+                    Message.U8[0] = MIDIEventType_Control;
+                    Message.U8[1] = Note->Controller;
+                    Message.U8[2] = Note->Velocity;
+                } break;
+            }
             
-            case NoteKind_Pedal:
-            {
-                Message.U8[0] = MIDIEventType_Control;
-                Message.U8[1] = Note->Controller;
-                Message.U8[2] = Note->Velocity;
-            } break;
+            Memory->PlatformMIDISend(App->Muze.Out, Message.U32[0]);
         }
-        
-        Memory->PlatformMIDISend(App->Muze.Out, Message.U32[0]);
     }
 }
 
@@ -2084,7 +2087,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         for EachIndex(Idx, DevicesArray.Count)
                         {
                             platform_midi_device *Device = DevicesArray.Devices + Idx;
-                            if(!Device->IsOutput)
+                            if(Device->IsInput)
                             {
                                 b32 Selected = (!App->Muze.IsInputVirtualKeyboard && 
                                                 (Device->Id == App->Muze.In.Id));
@@ -2197,37 +2200,37 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                 f32 LastNoteEnd = (LastNote->Timestamp + LastNote->Duration); 
                                 //- Find the last note's end.
                                 {
-                                for EachNote(Note, Voice->FirstNote)
-                                {
-                                    if(Note->Kind == NoteKind_Note)
+                                    for EachNote(Note, Voice->FirstNote)
                                     {
-                                        LastNoteEnd = Max(LastNoteEnd, (Note->Timestamp + Note->Duration));
+                                        if(Note->Kind == NoteKind_Note)
+                                        {
+                                            LastNoteEnd = Max(LastNoteEnd, (Note->Timestamp + Note->Duration));
+                                        }
                                     }
                                 }
-                                }
-
+                                
                                 Voice->RecordLength = LastNoteEnd;
                                 
                                 note *FirstNote = Voice->FirstNote;
                                 //- Find the first note played.
                                 {
-                                for EachNote(Note, FirstNote)
-                                {
-                                    if(Note->Kind == NoteKind_Note)
+                                    for EachNote(Note, FirstNote)
                                     {
-                                        FirstNote = Note;
-                                        break;
+                                        if(Note->Kind == NoteKind_Note)
+                                        {
+                                            FirstNote = Note;
+                                            break;
+                                        }
                                     }
-                                }
                                 }
                                 
                                 f32 StartSilence = FirstNote->Timestamp;
-                                    
-                                    //- Get new voice length 
-{                                    
+                                
+                                //- Get new voice length 
+                                {                                    
                                     Voice->RecordLength -= StartSilence;
-                                        
-                                        f32 BeatsPerSecond = App->Muze.BPM/60.f;
+                                    
+                                    f32 BeatsPerSecond = App->Muze.BPM/60.f;
                                     f32 SecondsPerBeat = 1.f/BeatsPerSecond;
                                     
                                     f32 BarTime = SecondsPerBeat*(f32)App->Muze.TimeSig;
@@ -2235,22 +2238,22 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     f32 Pad = ceilf(Voice->RecordLength/BarTime)*BarTime;
                                     
                                     Voice->RecordLength = Pad;
-                                    }
-                                    
-                                    //- Update notes .
-{
+                                }
+                                
+                                //- Update notes .
+                                {
                                     for EachNote(Note, Voice->FirstNote)
                                     {
                                         
                                         if(Note->Kind == NoteKind_Pedal)
-                                    {
-                                                // If the pedal note is before the first note, then we forward it up to the firstnote.
-                                                f32 Diff = (FirstNote->Timestamp - Note->Timestamp);
-                                        if(Diff > 0.f)
                                         {
-                                            Note->Duration -= Diff;
-                                            Note->Timestamp += Diff;
-                                                    }
+                                            // If the pedal note is before the first note, then we forward it up to the firstnote.
+                                            f32 Diff = (FirstNote->Timestamp - Note->Timestamp);
+                                            if(Diff > 0.f)
+                                            {
+                                                Note->Duration -= Diff;
+                                                Note->Timestamp += Diff;
+                                            }
                                             
                                             // Clamp the end to the record's length.
                                             {
@@ -2259,13 +2262,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                 f32 NoteEnd = NewTimestamp + Note->Duration;
                                                 f32 NewEnd = Min(NoteEnd, Voice->RecordLength);
                                                 Note->Duration = (NewEnd - NewTimestamp);
-}
+                                            }
                                         }
                                         
                                         Note->Timestamp -= StartSilence;
                                         
                                     }
-                                    }
+                                }
                             }
                         }
                         
@@ -2789,10 +2792,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
             ProcessMIDINotes(Memory, App, Voice, Events, EventCount);
         }
         else
-{            
-        //- MIDI notes from Input 
-        ProcessMIDINotes(Memory, App, Voice, Input->MIDI.Events, Input->MIDI.EventCount);
-}
+        {            
+            //- MIDI notes from Input 
+            ProcessMIDINotes(Memory, App, Voice, Input->MIDI.Events, Input->MIDI.EventCount);
+        }
     }
     
     //- Rendering 
