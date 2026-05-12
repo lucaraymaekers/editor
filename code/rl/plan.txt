@@ -32,6 +32,7 @@
   - then pop when not adding characters anymore
 
 # Platorm
+- Linux: ignore caps lock on key binds
 - Make input be linked list of events
   - can easily be eaten.
 - Replay improvements

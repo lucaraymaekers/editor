@@ -1648,10 +1648,8 @@ TSFDEF int tsf_note_on(tsf* f, int preset_index, int key, float vel)
             else
             {
                 // Allocate more voices so we don't need to kill one off.
-                Log("Expanding.\n");
-                
                 int expandCount = 4;
-                ;
+                
                 struct tsf_voice* newVoices;
                 f->voiceNum += expandCount;
                 

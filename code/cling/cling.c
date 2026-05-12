@@ -372,11 +372,6 @@ ApplicationBuild(str8 ExeName, str8 AppName, str8 AppSource, str8 WindowName,
             str8 ExtraLinkerFlags = {0};
             Str8ArrayAppendTo(CommonFlags, S8("-DRL_LIBS_IMPLEMENTATION=0"));
             
-            if(OSWindows)
-            {
-                ExtraLinkerFlags = S8("winmm.lib");
-            }
-            
             BuildAndRun(AppSource, 
                         AppName,
                         GCC, Clang, Asan, Debug,
@@ -393,10 +388,6 @@ ApplicationBuild(str8 ExeName, str8 AppName, str8 AppSource, str8 WindowName,
             else if(OSLinux)
             {
                 ExtraLinkerFlags = S8("-lasound -lX11 -lGL -lGLX");
-            }
-            else if(OSWindows)
-            {
-                ExtraLinkerFlags = S8("user32.lib Gdi32.lib winmm.lib Opengl32.lib");
             }
             
             BuildAndRun(S8("../code/rl/rl_platform.c"),

@@ -1499,7 +1499,7 @@ P_PLAY_SOUND()
     }
     
     OS_ProfileAndPrint("Sound setup");
-    
+
     if(Code->GetAudioSamples)
     {                
         Code->GetAudioSamples(Sound, AvailableFrames);

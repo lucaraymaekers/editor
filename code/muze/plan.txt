@@ -1,7 +1,10 @@
 # Now
+- Voices & TSF channels.
 - Commands
   - Undo?
 - Lister
+
+- Trim end of pedal correctly.
 
 # Next
 - Better scrolling

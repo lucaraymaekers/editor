@@ -137,254 +137,6 @@ global_variable s32 PanelDebugIndentation = 0;
 
 global_variable axis2_stack_node *PanelAxisTop = 0; 
 
-//~ Text editing 
-internal void
-DeleteChar(app_text *Text)
-{
-    if(Text->Cursor)
-    {
-        MemoryCopy(Text->Data + (Text->Cursor - 1),
-                   Text->Data + Text->Cursor,
-                   sizeof(rune)*((Text->Count - Text->Cursor) + 1));
-        
-        Text->Count -= 1;
-        Text->Cursor -= 1;
-    }
-}
-
-internal range_u64
-GetSelection(app_text *Text)
-{
-    range_u64 Range = {0};
-    
-    u64 Start = Text->Cursor;
-    u64 End = Text->Trail;
-    if(Start > End) Swap(Start, End);
-    
-    Range.Min = Start;
-    Range.Max = End;
-    
-    return Range;
-};
-
-internal void
-SaveTextToFile(app_text *Text, str8 FileName)
-{
-    str8 Source = PushS8(FrameArena, Text->Count);
-    for EachIndex(Idx, Source.Size)
-    {
-        Source.Data[Idx] = (u8)Text->Data[Idx];
-    }
-    char *Path = PathFromExe(FrameArena, FileName);
-    OS_WriteEntireFile(Path, Source);
-}
-
-internal void
-LoadFileToText(app_text *Text, str8 FileName)
-{
-    char *Path = PathFromExe(FrameArena, FileName);
-    str8 Source = OS_ReadEntireFileIntoMemory(Path);
-    if(Source.Size)
-    {
-        Text->PrevCursor = Text->Cursor = Text->Trail = 0;
-        Text->Count = Source.Size;
-        Text->CurRelLine = 0;
-        for EachIndex(Idx, Source.Size)
-        {
-            Text->Data[Idx] = Source.Data[Idx];
-        }
-        OS_FreeFileMemory(Source);
-    }
-}
-
-internal void
-CopySelection(app_text *Text, app_input *Input)
-{
-    range_u64 Selection = GetSelection(Text);
-    u64 Size = GetRangeU64Count(Selection);
-    
-    Input->PlatformSetClipboard = true;
-    
-    Input->PlatformClipboard.Size = Size;;
-    
-    for EachIndex(Idx, Size)
-    {
-        Input->PlatformClipboard.Data[Idx] = (u8)Text->Data[Selection.Min + Idx];
-    }
-    
-}
-
-internal void
-UpdateCursorRelLine(app_text *Text)
-{
-    if(Text->PrevCursor != Text->Cursor)
-    {    
-        // TODO(luca): Merge for loops
-        if(Text->PrevCursor < Text->Cursor)
-        {        
-            for(u64 Idx = Text->PrevCursor; Idx < Text->Cursor; Idx += 1)
-            {
-                if(Text->Data[Idx] == '\n')
-                {
-                    // TODO(luca): What when text->lines = 0
-                    Text->CurRelLine += !!(Text->CurRelLine < Text->Lines - 1);
-                }
-            }
-        }
-        else
-        {
-            for(u64 Idx = Text->PrevCursor - 1; Idx >= Text->Cursor; Idx -= 1)
-            {
-                if(Text->Data[Idx] == '\n')
-                {
-                    Text->CurRelLine -= !!(Text->CurRelLine > 0);
-                }
-                if(Idx == 0)
-                {
-                    break;
-                }
-            }
-        }
-    }
-    
-    Text->PrevCursor = Text->Cursor;
-}
-
-internal void
-DeleteSelection(app_text *Text)
-{
-    range_u64 Selection = GetSelection(Text);
-    u64 SelectionSize = GetRangeU64Count(Selection);
-    
-    u64 CharsAfterEnd = Text->Count - Selection.Max;
-    
-    Text->Cursor = Selection.Min;
-    
-    // NOTE(luca): We need to update CurRelLine before the text is altered.
-    UpdateCursorRelLine(Text);
-    
-    MemoryCopy(Text->Data + Selection.Min, Text->Data + Selection.Max,
-               sizeof(rune)*(CharsAfterEnd));
-    
-    Text->Count -= SelectionSize;
-    Text->CursorAnimTime = 0.f;
-    
-    Text->PrevCursor = Text->Cursor;
-}
-
-internal void
-
-AppendChar(app_text *Text, rune Codepoint)
-{
-    MemoryCopy(Text->Data + (Text->Cursor + 1),
-               Text->Data + (Text->Cursor),
-               sizeof(rune)*((Text->Count - Text->Cursor) + 1));
-    
-    Text->Data[Text->Cursor] = Codepoint;
-    
-    Text->Count += 1;
-    Text->Cursor += 1;
-    Text->CursorAnimTime = 0.f;
-    Text->Trail = Text->Cursor;
-    
-    Assert(Text->Count < Text->Capacity);
-}
-
-internal void
-TextMoveRight(app_text *Text)
-{
-    Text->Cursor += (Text->Cursor < Text->Count);
-    Text->CursorAnimTime = 0.f;
-}
-
-internal void
-TextMoveLeft(app_text *Text)
-{
-    Text->Cursor -= (Text->Cursor > 0);
-    Text->CursorAnimTime = 0.f;
-}
-
-internal void
-MoveTrail(app_text *Text, b32 Shift)
-{
-    if(!Shift)
-    {
-        Text->Trail = Text->Cursor;
-        Text->CursorAnimTime = 0.f;
-    }
-}
-
-internal void
-MoveDown(app_text *Text, b32 Shift)
-{
-    u64 Next = Text->Cursor + !!(Text->Cursor < Text->Count);
-    while(Next < Text->Count && Text->Data[Next] != '\n') Next += 1;
-    
-    // NOTE(luca): If the text cursor was on the next new line we search before it
-    u64 Begin = Text->Cursor - !!(Text->Cursor > 0 && Text->Cursor == Next);
-    while(Begin > 0 && Text->Data[Begin] != '\n') Begin -= 1;
-    
-    u64 End = Next + !!(Next < Text->Count);
-    while(End < Text->Count && Text->Data[End] != '\n') End += 1;
-    
-    u64 ColumnPos = (Text->Cursor - Begin);
-    u64 NewPos = Next + ColumnPos;
-    
-    if(Text->Data[Begin] != '\n') NewPos += 1;
-    
-    if(Next == Text->Count)
-    {
-        NewPos = Text->Count;
-    }
-    
-    Text->Cursor = Min(NewPos, End);
-    
-    Text->CursorAnimTime = 0.f;
-    
-    MoveTrail(Text, Shift);
-}
-
-internal void
-MoveUp(app_text *Text, b32 Shift)
-{
-    u64 End = Text->Cursor - !!(Text->Cursor > 0);
-    
-    while(End > 0 && Text->Data[End] != '\n') End -= 1;
-    
-    u64 Begin = End - !!(End > 0);
-    
-    while(Begin > 0 && Text->Data[Begin] != '\n') Begin -= 1;
-    
-    u64 ColumnPos = (Text->Cursor - End);
-    u64 NewPos = Begin + ColumnPos;
-    
-    if(Text->Data[Begin] != '\n') NewPos -= 1;
-    
-    // NOTE(luca): Special case, we go to the beginning of the line.
-    if(End == 0) NewPos = 0;
-    
-    // NOTE(luca): If the cursor would end up after the newline clamp it to the end of it. 
-    Text->Cursor = Min(NewPos, End);
-    
-    MoveTrail(Text, Shift);
-}
-
-internal void
-DeleteWordLeft(app_text *Text)
-{
-    while(Text->Cursor > 0 && 
-          IsWhiteSpace((u8)Text->Data[Text->Cursor - 1]))
-    {
-        DeleteChar(Text);
-    }
-    
-    while(Text->Cursor > 0 && 
-          !IsWhiteSpace((u8)Text->Data[Text->Cursor - 1]))
-    {
-        DeleteChar(Text);
-    }
-}
-
 //~ Misc
 typedef struct u64_array u64_array;
 struct u64_array
@@ -976,13 +728,12 @@ IsNilNote(note *Note)
 }
 
 //~ Muze - Voices 
-
 internal void
 VoiceReset(voice *Voice)
 {
     Voice->NoteCount = 0;
-    Voice->MaxPitch = 75;
-    Voice->MinPitch = 40;
+    Voice->MaxPitch = 0;
+    Voice->MinPitch = (u8)-1;
     
     Voice->RecordStart = 0.f;
     Voice->RecordLength = 0.f;
@@ -1001,7 +752,10 @@ VoiceAdd(app_state *App)
     voice *Voice = App->Muze.Voices + App->Muze.VoiceCount;
     MemoryZero(Voice);
     Voice->Arena = PushArena(App->Muze.Arena, KB(64), false);
+    
     VoiceReset(Voice);
+    Voice->Channel = (int)App->Muze.VoiceCount;
+    tsf_channel_set_presetindex(GlobalTSF, Voice->Channel, Voice->PresetIdx);
     
     App->Muze.VoiceCount += 1;
     
@@ -1039,7 +793,7 @@ NoteAdd(voice *Voice)
 //~ Muze - Record and replay
 
 internal void
-PlayNote(app_memory *Memory, app_state *App, note *Note)
+PlayNote(app_memory *Memory, app_state *App, voice *Voice, note *Note)
 {
     if(App->Muze.IsOutputSynth)
     {
@@ -1048,16 +802,16 @@ PlayNote(app_memory *Memory, app_state *App, note *Note)
         {
             if(Note->Velocity > 0)
             {
-                tsf_channel_note_on(GlobalTSF, 0, Note->Pitch, (f32)Note->Velocity/127.f);
+                tsf_channel_note_on(GlobalTSF, Voice->Channel, Note->Pitch, (f32)Note->Velocity/127.f);
             }
             else
             {
-                tsf_channel_note_off(GlobalTSF, 0, Note->Pitch);
+                tsf_channel_note_off(GlobalTSF, Voice->Channel, Note->Pitch);
             }
         }
         else if(Note->Kind == NoteKind_Pedal)
         {
-            tsf_channel_midi_control(GlobalTSF, 0, Note->Controller, Note->Velocity);
+            tsf_channel_midi_control(GlobalTSF, Voice->Channel, Note->Controller, Note->Velocity);
         }
     }
     else
@@ -1136,7 +890,7 @@ StopAllPlayingNotes(app_memory *Memory, app_state *App, voice *Voice, f32 dtForF
             
             note OffNote = *Note;
             OffNote.Velocity = 0;
-            PlayNote(Memory, App, &OffNote);
+            PlayNote(Memory, App, Voice, &OffNote);
         }
     }
 }
@@ -1187,7 +941,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                 Voice->MaxPitch = Max(Note->Pitch, Voice->MaxPitch);
                 Voice->MinPitch = Min(Note->Pitch, Voice->MinPitch);
                 
-                PlayNote(Memory, App, Note);
+                PlayNote(Memory, App, Voice, Note);
             }
             else if(Type == MIDIEventType_NoteOff || 
                     (Type == MIDIEventType_NoteOn && Data2 == 0))
@@ -1216,7 +970,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                     {                
                         note OffNote = {0};
                         OffNote.Pitch = Pitch;
-                        PlayNote(Memory, App, &OffNote);
+                        PlayNote(Memory, App, Voice, &OffNote);
                     }
                 }
             }
@@ -1237,7 +991,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                         Note->Velocity = Velocity;
                         Note->Timestamp = Timestamp;
                         
-                        PlayNote(Memory, App, Note);
+                        PlayNote(Memory, App, Voice, Note);
                     }
                     else
                     {
@@ -1262,7 +1016,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                         {
                             note OffNote = *NoteFound;
                             OffNote.Velocity = 0;
-                            PlayNote(Memory, App, &OffNote);
+                            PlayNote(Memory, App, Voice, &OffNote);
                         }
                         
                     }
@@ -1603,10 +1357,13 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
         }
     }
     
+    u8 MaxPitch = Max(Voice->MaxPitch, 75);
+    u8 MinPitch = Min(Voice->MinPitch, 40);
     
     // Piano roll
-    {    
-        u8 Range = (Voice->MaxPitch - Voice->MinPitch);
+    {
+        
+        u8 Range = (MaxPitch - MinPitch);
         // NOTE(luca): One extra note for pedal
         Range += 1;
         
@@ -1632,7 +1389,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                 f32 Y = (PianoPos.Y + YOffset);
                 
                 // NOTE(luca): Minus one for pedal
-                u8 PitchClass = ((Voice->MinPitch + (u8)Idx - 1)%Note_Count);
+                u8 PitchClass = ((MinPitch + (u8)Idx - 1)%Note_Count);
                 b32 White = NotePianoColors[PitchClass];
                 
                 // NOTE(luca): First note is pedal.
@@ -1675,7 +1432,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                 
                 // NOTE(luca): We have to flip the Y since we have TopDown coordinates for UI.
                 // NOTE(luca): Minus one for pedal note
-                f32 StartY = NoteHeight*(f32)((Range - 1) - (Note->Pitch - Voice->MinPitch));
+                f32 StartY = NoteHeight*(f32)((Range - 1) - (Note->Pitch - MinPitch));
                 
                 if(Note->Kind == NoteKind_Pedal)
                 {
@@ -1974,7 +1731,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 GlobalTSF = NilTSF;
             }
             tsf_set_output(GlobalTSF, TSF_STEREO_INTERLEAVED, 48000, -10);
-            tsf_channel_set_presetindex(GlobalTSF, 0, 5);
             
             App->TrackerForTSF = GlobalTSF;
         }
@@ -2165,47 +1921,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         if(!Shift)
                         {
                             App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_X, false);
+                            App->SelectedPanel->Kind = PanelKind_Muze;
+                            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice;
                         }
                         else
                         {
                             App->SelectedPanel = ClosePanel(App, App->SelectedPanel);
                         }
                     } break;
-                    
-                    case 'm':
-                    {
-                        if(!IsNilPanel(App->SelectedPanel))
-                        {
-                            App->SelectedPanel->Kind = PanelKind_Muze;
-                            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice;
-                        }
-                    } break;
-                    
-#if 0                    
-                    case 'n':
-                    {
-                        panel *Panel = App->SelectedPanel;
-                        
-                        b32 IsFreePanel = (!IsNilPanel(Panel) && 
-                                           Panel->Kind == PanelKind_Free &&
-                                           !Panel->CannotClose);
-                        if(IsFreePanel)
-                        {                        
-                            panel_node *New = PushStructZero(PanelArena, panel_node);
-                            
-                            New->Next = App->TextPanels;
-                            App->TextPanels = New;
-                            
-                            New->Value = Panel;
-                            
-                            Panel->Text = PushStructZero(App->TextArena, app_text);
-                            Panel->Text->Capacity = KB(64);
-                            Panel->Text->Data = PushArray(App->TextArena, rune, Panel->Text->Capacity);
-                            Panel->Kind = PanelKind_Text;
-                        }
-                        
-                    } break;
-#endif
                     
                     case '-':
                     {
@@ -2472,6 +2195,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                 note *LastNote = Voice->LastNote;
                                 
                                 f32 LastNoteEnd = (LastNote->Timestamp + LastNote->Duration); 
+                                //- Find the last note's end.
+                                {
                                 for EachNote(Note, Voice->FirstNote)
                                 {
                                     if(Note->Kind == NoteKind_Note)
@@ -2479,10 +2204,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                         LastNoteEnd = Max(LastNoteEnd, (Note->Timestamp + Note->Duration));
                                     }
                                 }
-                                
+                                }
+
                                 Voice->RecordLength = LastNoteEnd;
                                 
                                 note *FirstNote = Voice->FirstNote;
+                                //- Find the first note played.
+                                {
                                 for EachNote(Note, FirstNote)
                                 {
                                     if(Note->Kind == NoteKind_Note)
@@ -2491,44 +2219,53 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                         break;
                                     }
                                 }
+                                }
                                 
                                 f32 StartSilence = FirstNote->Timestamp;
-                                
-                                for EachNote(Note, Voice->FirstNote)
-                                {
-                                    // NOTE(luca): Trim the start of note to the very first note played.
-                                    if(Note->Kind == NoteKind_Pedal)
+                                    
+                                    //- Get new voice length 
+{                                    
+                                    Voice->RecordLength -= StartSilence;
+                                        
+                                        f32 BeatsPerSecond = App->Muze.BPM/60.f;
+                                    f32 SecondsPerBeat = 1.f/BeatsPerSecond;
+                                    
+                                    f32 BarTime = SecondsPerBeat*(f32)App->Muze.TimeSig;
+                                    // TODO(luca): Intrinsic
+                                    f32 Pad = ceilf(Voice->RecordLength/BarTime)*BarTime;
+                                    
+                                    Voice->RecordLength = Pad;
+                                    }
+                                    
+                                    //- Update notes .
+{
+                                    for EachNote(Note, Voice->FirstNote)
                                     {
-                                        f32 Diff = (FirstNote->Timestamp - Note->Timestamp);
+                                        
+                                        if(Note->Kind == NoteKind_Pedal)
+                                    {
+                                                // If the pedal note is before the first note, then we forward it up to the firstnote.
+                                                f32 Diff = (FirstNote->Timestamp - Note->Timestamp);
                                         if(Diff > 0.f)
                                         {
                                             Note->Duration -= Diff;
                                             Note->Timestamp += Diff;
+                                                    }
+                                            
+                                            // Clamp the end to the record's length.
+                                            {
+                                                f32 NewTimestamp = Note->Timestamp - StartSilence;
+                                                
+                                                f32 NoteEnd = NewTimestamp + Note->Duration;
+                                                f32 NewEnd = Min(NoteEnd, Voice->RecordLength);
+                                                Note->Duration = (NewEnd - NewTimestamp);
+}
                                         }
                                         
-                                        // NOTE(luca): Trim the end if it's past the last note.
-                                        f32 NoteEnd = (Note->Timestamp + Note->Duration);
-                                        if(NoteEnd > Voice->RecordLength)
-                                        {
-                                            Note->Duration -= (NoteEnd - Voice->RecordLength);
-                                        }
+                                        Note->Timestamp -= StartSilence;
+                                        
                                     }
-                                    
-                                    Note->Timestamp -= StartSilence;
-                                }
-                                
-                                Voice->RecordLength -= StartSilence;
-                                
-                                f32 BeatsPerSecond = App->Muze.BPM/60.f;
-                                f32 SecondsPerBeat = 1.f/BeatsPerSecond;
-                                
-                                f32 BarTime = SecondsPerBeat*(f32)App->Muze.TimeSig;
-                                // TODO(luca): Intrinsic
-                                f32 Pad = ceilf(Voice->RecordLength/BarTime)*BarTime;
-                                
-                                Voice->RecordLength = Pad;
-                                
-                                Voice->PlayPos = 0.f;
+                                    }
                             }
                         }
                         
@@ -2762,15 +2499,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     UI_List(Axis2_Y, S8("Instruments"))
                     {
                         // TODO(luca): Proper lister
-                        local_persist s32 SelectedIdx = 0;
                         s32 Count = tsf_get_presetcount(GlobalTSF);;
                         for EachIndex(Idx, Count)
                         {
-                            if(UI_ToggleButton(Str8Fmt("%s", tsf_get_presetname(GlobalTSF, Idx)), (SelectedIdx == Idx), Color_Yellow))
+                            if(UI_ToggleButton(Str8Fmt("%s", tsf_get_presetname(GlobalTSF, Idx)), (Voice->PresetIdx == Idx), Color_Yellow))
                             {
-                                SelectedIdx = Idx;
-                                tsf_channel_note_off_all(GlobalTSF, 0);
-                                tsf_channel_set_presetindex(GlobalTSF, 0, Idx);
+                                Voice->PresetIdx = Idx;
+                                tsf_channel_note_off_all(GlobalTSF, Voice->Channel);
+                                tsf_channel_set_presetindex(GlobalTSF, Voice->Channel, Voice->PresetIdx);
                             }
                             
                             if(Idx == 5) break;
@@ -2971,7 +2707,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 if(NoteStart <= VoiceAt->PlayPos &&
                    NoteStart > (VoiceAt->PlayPos - Input->dtForFrame))
                 {
-                    PlayNote(Memory, App, Note);
+                    PlayNote(Memory, App, VoiceAt, Note);
                 }
                 
                 if(NoteEnd <= VoiceAt->PlayPos &&
@@ -2979,7 +2715,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     note OffNote = *Note;
                     OffNote.Velocity = 0;
-                    PlayNote(Memory, App, &OffNote);
+                    PlayNote(Memory, App, VoiceAt, &OffNote);
                 }
                 
             }
@@ -3052,9 +2788,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
             
             ProcessMIDINotes(Memory, App, Voice, Events, EventCount);
         }
-        
+        else
+{            
         //- MIDI notes from Input 
         ProcessMIDINotes(Memory, App, Voice, Input->MIDI.Events, Input->MIDI.EventCount);
+}
     }
     
     //- Rendering 

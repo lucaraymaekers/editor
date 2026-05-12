@@ -82,26 +82,10 @@ struct voice
     
     note_node *NoteSel;
     
+    int Channel;
+    int PresetIdx;
     
     arena *Arena;
-    // TODO(luca): Arena for voice-based lifetime
-};
-
-//- Text 
-typedef struct app_text app_text; 
-struct app_text
-{
-    u64 Cursor;
-    u64 Count;
-    u64 Capacity;
-    u64 Trail;
-    u64 CurRelLine;
-    f32 CursorAnimTime;
-    rune *Data;
-    
-    u64 PrevCursor;
-    // Computed each frame
-    u64 Lines;
 };
 
 //- Panels
@@ -109,7 +93,6 @@ typedef enum panel_kind panel_kind;
 enum panel_kind
 {
     PanelKind_Free,
-    PanelKind_Text,
     PanelKind_Muze,
 };
 
@@ -131,7 +114,6 @@ struct panel
     b32 CannotClose;
     
     panel_kind Kind;
-    app_text *Text;
     voice *Voice;
 };
 raddbg_type_view(panel, 

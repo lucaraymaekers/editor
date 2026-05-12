@@ -3,6 +3,11 @@
 
 #include "lib/win32_wasapi.h"
 
+#pragma comment(lib, "winmm.lib")
+#pragma comment(lib, "Gdi32.lib")
+#pragma comment(lib, "User32.lib")
+#pragma comment(lib, "Opengl32.lib")
+
 //~ Types
 typedef struct win32_context win32_context;
 struct win32_context
