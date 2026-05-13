@@ -192,13 +192,17 @@ PanelAlloc(arena *Arena)
     return New;
 }
 
-internal void PanelPush() { PanelAppendToParent = true; }
-internal void PanelPop(void) { PanelCurrent = PanelCurrent->Parent; }
 internal void PanelPushAxis(axis2 Axis) { StackPush(PanelArena, axis2_stack_node, Axis, PanelAxisTop); }
-internal void PanelPopAxis() 
+internal void PanelPopAxis() { PanelAxisTop = PanelAxisTop->Prev; }
+
+internal void PanelPush() 
 {
-    if(PanelAxisTop) PanelAxisTop = PanelAxisTop->Prev;
+    PanelAppendToParent = true;
+    
+    axis2 Axis = 1 - PanelAxisTop->Value;
+    PanelPushAxis(Axis);
 }
+internal void PanelPop(void)  { PanelCurrent = PanelCurrent->Parent; }
 
 internal panel *
 PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 ParentPct)
@@ -493,6 +497,20 @@ ClosePanel(app_state *App, panel *Panel)
             {
                 Collapse->ParentPct += Panel->ParentPct;
                 
+                if(Collapse->ParentPct == 1.f)
+                {
+                    Assert(IsNilPanel(Collapse->Prev) &&
+                           IsNilPanel(Collapse->Next));
+                    Assert(!IsNilPanel(Collapse->Parent));
+                    Assert(Collapse == Collapse->Parent->Last);
+                    Assert(Collapse == Collapse->Parent->First);
+                    
+                    Collapse = Parent;
+                    Parent->First = NilPanel;
+                    Parent->Last = NilPanel;
+                    
+                    Log("Everything");
+                }
                 // TODO(luca): If this collapsed into 100%, we should collapse it with the parent and overwrite the parent's Axis with ours, this will keep the tree compact.
             }
             else
@@ -819,28 +837,25 @@ PlayNote(app_memory *Memory, app_state *App, voice *Voice, note *Note)
         // TODO(luca): Channel ?
         // 1. Equip parameters to the Voice struct and use them to create messages here.
         
-        if(App->Muze.In.Id != App->Muze.Out.Id)
-        {        
-            midi_message Message = {0};
-            switch(Note->Kind)
+        midi_message Message = {0};
+        switch(Note->Kind)
+        {
+            case NoteKind_Note:
             {
-                case NoteKind_Note:
-                {
-                    Message.U8[0] = MIDIEventType_NoteOn;
-                    Message.U8[1] = Note->Pitch;
-                    Message.U8[2] = Note->Velocity;
-                } break;
-                
-                case NoteKind_Pedal:
-                {
-                    Message.U8[0] = MIDIEventType_Control;
-                    Message.U8[1] = Note->Controller;
-                    Message.U8[2] = Note->Velocity;
-                } break;
-            }
+                Message.U8[0] = MIDIEventType_NoteOn;
+                Message.U8[1] = Note->Pitch;
+                Message.U8[2] = Note->Velocity;
+            } break;
             
-            Memory->PlatformMIDISend(App->Muze.Out, Message.U32[0]);
+            case NoteKind_Pedal:
+            {
+                Message.U8[0] = MIDIEventType_Control;
+                Message.U8[1] = Note->Controller;
+                Message.U8[2] = Note->Velocity;
+            } break;
         }
+        
+        Memory->PlatformMIDISend(App->Muze.Out, Message.U32[0]);
     }
 }
 
@@ -929,6 +944,8 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
         u8 Type = Status & 0xF0;
         u8 Channel = Status & 0x0F;
         
+        b32 IsOutputDeviceDifferent = !(!App->Muze.IsOutputSynth && 
+                                        App->Muze.In.Id == App->Muze.Out.Id);
         if(Voice->IsRecording)
         {
             if(0) {} 
@@ -944,7 +961,11 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                 Voice->MaxPitch = Max(Note->Pitch, Voice->MaxPitch);
                 Voice->MinPitch = Min(Note->Pitch, Voice->MinPitch);
                 
-                PlayNote(Memory, App, Voice, Note);
+                
+                if(IsOutputDeviceDifferent)
+                {
+                    PlayNote(Memory, App, Voice, Note);
+                }
             }
             else if(Type == MIDIEventType_NoteOff || 
                     (Type == MIDIEventType_NoteOn && Data2 == 0))
@@ -967,13 +988,19 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                             break;
                         }
                     }
-                    Assert(NoteFound);
                     
-                    // Send this note out to the output device
+                    if(NoteFound)
                     {                
                         note OffNote = {0};
                         OffNote.Pitch = Pitch;
-                        PlayNote(Memory, App, Voice, &OffNote);
+                        if(IsOutputDeviceDifferent)
+                        {
+                            PlayNote(Memory, App, Voice, &OffNote);
+                        }
+                    }
+                    else
+                    {
+                        // Discard.
                     }
                 }
             }
@@ -994,7 +1021,10 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                         Note->Velocity = Velocity;
                         Note->Timestamp = Timestamp;
                         
-                        PlayNote(Memory, App, Voice, Note);
+                        if(IsOutputDeviceDifferent)
+                        {
+                            PlayNote(Memory, App, Voice, Note);
+                        }
                     }
                     else
                     {
@@ -1019,11 +1049,13 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
                         {
                             note OffNote = *NoteFound;
                             OffNote.Velocity = 0;
-                            PlayNote(Memory, App, Voice, &OffNote);
+                            
+                            if(IsOutputDeviceDifferent)
+                            {
+                                PlayNote(Memory, App, Voice, &OffNote);
+                            }
                         }
-                        
                     }
-                    
                 }
             }
         }
@@ -1150,7 +1182,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     f32 StaffHeight = (f32)(StaffLineCount-1)*NoteSize + StaffLineWidth;
     
     // Bars
-    f32 WholeBarWidth = 200.f;
+    f32 WholeBarWidth = 100.f;
     f32 BarDuration = (1.f/BPS)*(f32)App->Muze.TimeSig;
     
     // NOTE(luca): When it is exactly the length it is wrong, so we add a little offset to unmatch it.
@@ -1366,11 +1398,10 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     // Piano roll
     {
         
-        u8 Range = (MaxPitch - MinPitch);
         // NOTE(luca): One extra note for pedal
-        Range += 1;
+        u8 Range = (MaxPitch - MinPitch) + 1;
         
-        f32 NoteHeight = (Box->FixedSize.Y/(f32)(Range + 1));
+        f32 NoteHeight = (Box->FixedSize.Y/(f32)Range);
         f32 NoteWidth = 1.5f*NoteHeight;
         f32 PianoKeyGap = 1.f;
         
@@ -1386,13 +1417,13 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
             
             for EachIndex(Idx, Range)
             {
-                f32 YOffset = NoteHeight*(f32)(Range - Idx);
+                f32 YOffset = NoteHeight*(f32)(Range - Idx - 1);
                 
                 f32 X = (PianoPos.X);
                 f32 Y = (PianoPos.Y + YOffset);
                 
                 // NOTE(luca): Minus one for pedal
-                u8 PitchClass = ((MinPitch + (u8)Idx - 1)%Note_Count);
+                u8 PitchClass = ((MinPitch + (u8)Idx)%Note_Count);
                 b32 White = NotePianoColors[PitchClass];
                 
                 // NOTE(luca): First note is pedal.
@@ -1821,14 +1852,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
         { 
             // TODO(luca): Invert axis automatically on new group.
             // TODO(luca): We should be able to only add one panel here...
-            PanelAxis(Axis2_X) PanelGroup()
+            PanelAxis(Axis2_X)
             {
                 App->FirstPanel = PanelAdd(1.f);
-                
-                PanelAxis(Axis2_Y) PanelGroup()
-                {
-                    PanelAdd(1.f);
-                }
             }
             
             App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
@@ -1925,7 +1951,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         {
                             App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_X, false);
                             App->SelectedPanel->Kind = PanelKind_Muze;
-                            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice;
+                            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice = VoiceAdd(App);
                         }
                         else
                         {
@@ -1938,6 +1964,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         if(!Shift)
                         {                        
                             App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_Y, false);
+                            App->SelectedPanel->Kind = PanelKind_Muze;
+                            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice = VoiceAdd(App);
                         }
                     } break;
                     
@@ -1963,7 +1991,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             }
         }
     }
-    local_persist f32 ScrollX    = 0.f;
+    local_persist f32 ScrollX = 0.f;
     local_persist f32 ScrollVelX = 0.f;
     
     // TODO(luca): Exponential smoothing curve
@@ -2601,7 +2629,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             
             for(panel *Panel = App->FirstPanel; 
                 !IsNilPanel(Panel); 
-                )
+                Panel = PanelRecDepthFirstPreOrder(Panel).Next)
             {
                 if(UI_IsNilBox(Panel->Root))
                 {
@@ -2650,8 +2678,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 }
                 
                 UI_ResolveLayout(Panel->Root->First);
-                
-                Panel = PanelRecDepthFirstPreOrder(Panel).Next;
             }
         }
         
