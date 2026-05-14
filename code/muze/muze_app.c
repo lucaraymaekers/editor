@@ -112,9 +112,9 @@ internal void
 InitReadOnlyGlobals(arena *Arena)
 {
     ArenaSetPos(Arena, 0);
-    UI_NilBox = PushStruct(Arena, ui_box);
-    NilPanel = PushStruct(Arena, panel);
-    NilNote = PushStruct(Arena, note);
+    UI_NilBox = PushArray(Arena, ui_box, 1);
+    NilPanel = PushArray(Arena, panel, 1);
+    NilNote = PushArray(Arena, note, 1);
 }
 
 //~ Panels
@@ -203,7 +203,7 @@ PanelAlloc(void)
     }
     else
     {
-        Result = PushStruct(PanelArena, panel);
+        Result = PushArray(PanelArena, panel, 1);
     }
     
     ZeroPanel(Result);
@@ -821,7 +821,7 @@ NoteAdd(voice *Voice)
     
     // Push on to the back
     {                
-        Note = PushStructZero(Voice->Arena, note);
+        Note = PushArrayZero(Voice->Arena, note, 1);
         
         if(IsNilNote(Voice->FirstNote))
         { 
@@ -1434,7 +1434,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     
     f32 BPS = App->Muze.BPM/60.f;
     
-    f32 Zoom = (BPS/(f32)App->Muze.TimeSig*200.f);
+    f32 Zoom = (BPS/(f32)App->Muze.TimeSig*100.f);
     
     // Get Input
     {    
@@ -1475,7 +1475,6 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     
     // Piano roll
     {
-        
         // NOTE(luca): One extra note for pedal
         u8 Range = (MaxPitch - MinPitch) + 1;
         
@@ -1548,7 +1547,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                 
                 if(Note->Kind == NoteKind_Pedal)
                 {
-                    StartY = NoteHeight*(f32)Range;
+                    StartY = NoteHeight*(f32)(Range - 1);
                 }
                 
                 f32 Width;
@@ -1614,7 +1613,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                             {
                                 if(!App->Muze.FirstFreeNode)
                                 {
-                                    Node = PushStruct(App->Muze.Arena, note_node);
+                                    Node = PushArray(App->Muze.Arena, note_node, 1);
                                 }
                                 else
                                 {
@@ -1907,14 +1906,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
             
             // Initialize read only structs
             {
-                ui_box *Box = PushStruct(Arena, ui_box);
+                ui_box *Box = PushArray(Arena, ui_box, 1);
                 *Box = (ui_box){Box, Box, Box, Box, Box, Box, Box};
                 
-                panel *Panel = PushStruct(Arena, panel);
+                panel *Panel = PushArray(Arena, panel, 1);
                 *Panel = (panel){Panel, Panel, Panel, Panel, Panel};
                 Panel->Root = Box;
                 
-                note *Note = PushStruct(Arena, note);
+                note *Note = PushArray(Arena, note, 1);
                 *Note = (note){Note, Note};
             }
             
@@ -2687,7 +2686,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     ui_box *Box = UI_AddBox(S8("MuzeSheetMusic"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
                     
-                    muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
+                    muze_box_data *Data = PushArray(FrameArena, muze_box_data, 1);
                     Data->Box = Box;
                     Data->Voice = Voice;
                     Data->ScrollX = ScrollX;
@@ -2753,7 +2752,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         {
                             ui_box *Box = UI_AddBox(S8("MuzePianoRoll"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
                             
-                            muze_box_data *Data = PushStruct(FrameArena, muze_box_data);
+                            muze_box_data *Data = PushArray(FrameArena, muze_box_data, 1);
                             Data->Box = Box;
                             Data->Voice = Panel->Voice;
                             Data->ScrollX = ScrollX;

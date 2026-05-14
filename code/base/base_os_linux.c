@@ -325,7 +325,7 @@ LinuxMainEntryPoint(int ArgsCount, char **Args, char **Env)
     
     u64 SharedStorage = 0;
     
-    barrier Barrier = (barrier)PushStruct(Arena, pthread_barrier_t);
+    barrier Barrier = (barrier)PushArray(Arena, pthread_barrier_t, 1);
     
     Ret = pthread_barrier_init((pthread_barrier_t *)Barrier, 0, (u32)ThreadsCount);
     Assert(Ret == 0);

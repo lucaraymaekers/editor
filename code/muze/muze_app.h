@@ -149,14 +149,12 @@ struct app_state
     // TODO(luca): Move to UI state ?
     arena *UIArena;
     
-    struct
-    {
+    //- Panels 
         panel *SelectedPanel;
         panel *FirstPanel;
         panel *FreePanel;
         arena *PanelArena;
         panel *DebugPanel;
-    };
     
     //- Misc. 
     

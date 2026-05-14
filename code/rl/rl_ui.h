@@ -209,7 +209,7 @@ global_variable v4 Color_ButtonText = {U32ToV4Arg(0xff000000)};
 
 // TODO(luca): Freelist?
 #define StackPush(Arena, t, PushValue, Top) \
-t *Push = PushStructZero((Arena), t); \
+t *Push = PushArrayZero((Arena), t, 1); \
 Push->Value = (PushValue); \
 Push->Prev = (Top); \
 Top = Push;

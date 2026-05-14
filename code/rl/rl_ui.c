@@ -21,7 +21,7 @@ UI_Size(ui_size_kind Kind, f32 Value, f32 Strictness)
 internal ui_box *
 UI_BoxAlloc(arena *Arena)
 {
-    ui_box *Result = PushStructZero(Arena, ui_box);
+    ui_box *Result = PushArrayZero(Arena, ui_box, 1);
     Result->First = Result->Last = Result->Next = Result->Prev = Result->Parent = UI_NilBox;
     Result->HashNext = Result->HashPrev = UI_NilBox;
     
@@ -185,7 +185,7 @@ UI_AddBox(str8 String, s32 Flags)
                 else
                 {
                     //2.2
-                    HashLast->HashNext = PushStruct(UI_State->Arena, ui_box);
+                    HashLast->HashNext = PushArray(UI_State->Arena, ui_box, 1);
                     Box = HashLast->HashNext;
                     Box->HashPrev = HashLast;
                 }
@@ -194,7 +194,7 @@ UI_AddBox(str8 String, s32 Flags)
     }
     else
     {
-        Box = PushStruct(UI_State->FrameArena, ui_box);
+        Box = PushArray(UI_State->FrameArena, ui_box, 1);
     }
     
     Box->First = Box->Last = Box->Next = Box->Prev = Box->Parent = UI_NilBox;

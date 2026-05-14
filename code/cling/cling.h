@@ -56,7 +56,7 @@ SetSelectedArray(str8_array *Array)
 internal str8_array *
 PushStr8Array(u64 Capacity)
 {
-    str8_array *Result = PushStruct(GlobalClingArena, str8_array);
+    str8_array *Result = PushArray(GlobalClingArena, str8_array, 1);
     Result->Capacity = Capacity;
     Result->Strings = PushArray(GlobalClingArena, str8, Result->Capacity);
     return Result;

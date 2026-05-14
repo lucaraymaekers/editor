@@ -47,8 +47,6 @@ internal void EndScratch(arena *Arena, u64 BackPos);
 _I_ += 1, (EndScratch(Arena, _J_)))
 
 #define PushArray(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), false)
-#define PushStruct(Arena, t) PushArray(Arena, t, 1)
 #define PushArrayZero(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), true)
-#define PushStructZero(Arena, t) PushArrayZero(Arena, t, 1)
 
 #endif //ARENAS_H

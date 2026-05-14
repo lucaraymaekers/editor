@@ -256,7 +256,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         
         OS_ProfileAndPrint("Memory");
         
-        b32 *Running = PushStruct(PermanentArena, b32);
+        b32 *Running = PushArray(PermanentArena, b32, 1);
         *Running = true;
         
         app_offscreen_buffer WindowBuffer = {0};
@@ -373,13 +373,13 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
             
             // Init UI state
             {            
-                UI_State = PushStruct(PermanentArena, ui_state);
+                UI_State = PushArray(PermanentArena, ui_state, 1);
                 UI_State->Arena = PushArena(PermanentArena, ArenaAllocDefaultSize, false);
                 UI_State->BoxTableSize = 4096;
                 UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
                 UI_State->FrameArena = FrameArena;
                 
-                ui_box *Box = PushStruct(ROArena, ui_box);
+                ui_box *Box = PushArray(ROArena, ui_box, 1);
                 *Box = (ui_box){Box, Box, Box, Box, Box, Box, Box};
                 UI_NilBox = Box;
             }

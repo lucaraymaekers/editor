@@ -28,7 +28,7 @@ PushArena(arena *Arena, u64 Size, b32 Zero)
 {
     arena *Result = 0;
     
-    Result = PushStruct(Arena, arena);
+    Result = PushArray(Arena, arena, 1);
     Result->Size = Size;
     Result->Base = PushArray(Arena, u8, Result->Size);
     if(Zero) Result->Pos = 0;

@@ -337,7 +337,7 @@ P_INIT()
 {
     OS_ProfileInit("S_L");
     
-    linux_context *Linux = PushStruct(Arena, linux_context);
+    linux_context *Linux = PushArray(Arena, linux_context, 1);
     
     // Sound
     {
@@ -443,11 +443,11 @@ P_INIT()
             Assert(DesiredChannelCount == ChannelCount);
             Assert(DesiredSampleRate == SampleRate);
             
-            u64 SamplesCount = BufferSize;
+            u64 SampleCount = BufferSize;
             
             Sound->SampleRate = SampleRate;
             Sound->ChannelCount = ChannelCount;
-            Sound->Samples = PushArrayZero(Arena, sample_format, SamplesCount);
+            Sound->Samples = PushArrayZero(Arena, sample_format, SampleCount*ChannelCount);
             Linux->SoundHandle = SoundHandle;
         }
     }
