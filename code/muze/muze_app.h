@@ -92,13 +92,14 @@ struct voice
 typedef enum panel_kind panel_kind;
 enum panel_kind
 {
-    PanelKind_Free,
+    PanelKind_Empty,
     PanelKind_Muze,
 };
 
 typedef struct panel panel;
 struct panel
 {
+    // NOTE(luca): This has to be the first field for the raddbg type view to work.
     panel *First;
     panel *Last;
     panel *Next;
@@ -111,28 +112,18 @@ struct panel
     ui_box *Root;
     v4 Region;
     
-    b32 CannotClose;
-    
     panel_kind Kind;
     voice *Voice;
 };
 raddbg_type_view(panel, 
-                 no_addr(rows($,
-                              (&First == NilPanel || &First == 0),
-                              ParentPct,
-                              Kind,
-                              (Axis == Axis2_X ? "X" : "Y"))));
+                 rows($,
+                      (&First == NilPanel || &First == 0) ? "Nil" : "",
+                      ParentPct,
+                      Kind,
+                      (Axis == Axis2_X ? "X" : "Y"),
+                      list($, Next),
+                      First));
 #define EachChildPanel(Child, Parent) (panel *Child = Parent->First; !IsNilPanel(Child); Child = Child->Next)
-
-typedef struct panel_node panel_node;
-struct panel_node
-{
-    panel *Value;
-    
-    // TODO(luca): Double Linked List
-    panel_node *Next;
-};
-#define EachPanel(Index, First) EachNode(Index, panel_node, First)
 
 typedef struct panel_rec panel_rec;
 struct panel_rec
@@ -162,12 +153,10 @@ struct app_state
     {
         panel *SelectedPanel;
         panel *FirstPanel;
-        panel_node *FreePanel;
+        panel *FreePanel;
         arena *PanelArena;
         panel *DebugPanel;
     };
-    
-    arena *TextArena;
     
     //- Misc. 
     

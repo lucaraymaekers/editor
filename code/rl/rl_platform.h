@@ -167,7 +167,6 @@ struct app_input
     {
         app_button_state Buttons[PlatformMouseButton_Count];
         s32 X, Y, Z;
-        
         s32 StartX, StartY;
     } Mouse;
     

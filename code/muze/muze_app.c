@@ -184,12 +184,30 @@ SizeOnAxis(v4 Rec, s32 Axis)
     return Result;
 }
 
-internal panel *
-PanelAlloc(arena *Arena)
+internal void
+ZeroPanel(panel *Panel)
 {
-    panel *New = PushStructZero(Arena, panel);
-    New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
-    return New;
+    MemoryZero(Panel);
+    Panel->First = Panel->Last = Panel->Next = Panel->Prev = Panel->Parent = NilPanel;
+}
+
+internal panel *
+PanelAlloc(void)
+{
+    panel *Result = NilPanel;
+    
+    if(!IsNilPanel(PanelApp->FreePanel))
+    {
+        Result = PanelApp->FreePanel;
+        PanelApp->FreePanel = PanelApp->FreePanel->Next;
+    }
+    else
+    {
+        Result = PushStruct(PanelArena, panel);
+    }
+    
+    ZeroPanel(Result);
+    return Result;
 }
 
 internal void PanelPushAxis(axis2 Axis) { StackPush(PanelArena, axis2_stack_node, Axis, PanelAxisTop); }
@@ -205,15 +223,14 @@ internal void PanelPush()
 internal void PanelPop(void)  { PanelCurrent = PanelCurrent->Parent; }
 
 internal panel *
-PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 ParentPct)
+PanelAdd_(panel *Current, b32 AppendToParent, f32 ParentPct)
 {
-    panel *New = PanelAlloc(Arena);
+    panel *New = PanelAlloc();
     
     New->First = New->Last = New->Next = New->Prev = New->Parent = NilPanel;
     New->Root = UI_NilBox;
     
     New->ParentPct = ParentPct;
-    New->Axis = (s32)Axis;
     
     if(!IsNilPanel(Current))
     {            
@@ -221,12 +238,15 @@ PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 Pare
         {
             Current->First = New;
             New->Parent = Current;
+            New->Axis = 1 - Current->Axis;
+            
         }
         else
         {
             Current->Next = New;
             New->Prev = Current;
             New->Parent = Current->Parent;
+            New->Axis = Current->Axis;
         }
         
         New->Parent->Last = New;
@@ -240,7 +260,7 @@ PanelAdd_(arena *Arena, axis2 Axis, panel *Current, b32 AppendToParent, f32 Pare
 
 #define PanelGroup() DeferLoop(PanelPush(), PanelPop())
 #define PanelAxis(Axis) DeferLoop(PanelPushAxis(Axis), PanelPopAxis())
-#define PanelAdd(ParentPct) PanelAdd_(PanelArena, PanelAxisTop->Value, PanelCurrent, PanelAppendToParent, ParentPct)
+#define PanelAdd(ParentPct) PanelAdd_(PanelCurrent, PanelAppendToParent, ParentPct)
 
 internal inline b32 
 IsLeafPanel(panel *Panel)
@@ -250,11 +270,11 @@ IsLeafPanel(panel *Panel)
 }
 
 internal panel *
-SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
+SplitPanel(panel *To, s32 Axis, b32 Backwards)
 {
     panel *Result = To;
     
-    panel *New = PanelAlloc(Arena);
+    panel *New = PanelAlloc();
     panel *Parent = To->Parent;
     
     if(!IsNilPanel(To))
@@ -262,7 +282,24 @@ SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
         // NOTE(luca): Must be a leaf node.
         Assert(IsLeafPanel(To));
         
-        if(Axis == Parent->Axis)
+        if(IsNilPanel(Parent))
+        {
+            MemoryCopyStruct(New, To);
+            ZeroPanel(To);
+            
+            To->ParentPct = 1.f;
+            To->Axis = Axis;
+            
+            To->First = New;
+            To->Last = New;
+            New->Parent = To;
+            
+            New->Axis = 1 - Axis;
+            New->ParentPct = 1.f;
+            
+            Result = SplitPanel(New, Axis, Backwards);
+        }
+        else if(Axis == Parent->Axis)
         {
             //The new child's ParentPct becomes 1/n where n is the children count
             //Other children's ParentPct *= (1-1/n) 
@@ -366,13 +403,13 @@ SplitPanel(arena *Arena, panel *To, s32 Axis, b32 Backwards)
             //- Split To along the same axis 
             {
                 To->ParentPct = 1.f;
-                Result = SplitPanel(Arena, To, Axis, Backwards); 
+                Result = SplitPanel(To, Axis, Backwards); 
             }
             
             //- Move kind from parent over to new leaf child 
             {
                 Result->Kind = Result->Parent->Kind;
-                Result->Parent->Kind = PanelKind_Free;
+                Result->Parent->Kind = PanelKind_Empty;
             }
         }
     }
@@ -461,79 +498,75 @@ ClosePanel(app_state *App, panel *Panel)
     // NOTE(luca): The panel which will take over the side of the deleted one.
     panel *Collapse = NilPanel;
     
-    if(!Panel->CannotClose)
-    {    
-        panel *Parent = Panel->Parent;
-        
-        Panel->Kind = PanelKind_Free;
-        
-        if(!IsNilPanel(Panel))
-        {        
-            if(Parent->First == Panel)
-            {
-                Parent->First = Panel->Next;
-            }
-            
-            if(Parent->Last == Panel)
-            {
-                Parent->Last = Panel->Prev;
-            }
-            
-            if(!IsNilPanel(Panel->Next)) 
-            {
-                Panel->Next->Prev = Panel->Prev;
-                
-                Collapse = Panel->Next;
-            }
-            
-            if(!IsNilPanel(Panel->Prev)) 
-            {
-                Panel->Prev->Next = Panel->Next;
-                
-                Collapse = Panel->Prev;
-            }
-            
-            if(!IsNilPanel(Collapse))
-            {
-                Collapse->ParentPct += Panel->ParentPct;
-                
-                if(Collapse->ParentPct == 1.f)
-                {
-                    Assert(IsNilPanel(Collapse->Prev) &&
-                           IsNilPanel(Collapse->Next));
-                    Assert(!IsNilPanel(Collapse->Parent));
-                    Assert(Collapse == Collapse->Parent->Last);
-                    Assert(Collapse == Collapse->Parent->First);
-                    
-                    Collapse = Parent;
-                    Parent->First = NilPanel;
-                    Parent->Last = NilPanel;
-                    
-                    Log("Everything");
-                }
-                // TODO(luca): If this collapsed into 100%, we should collapse it with the parent and overwrite the parent's Axis with ours, this will keep the tree compact.
-            }
-            else
-            {
-                // NOTE(luca): Last node of its parent, parent should get deleted.  End of the bloodline.
-                Collapse = ClosePanel(App, Panel->Parent);
-            }
-            
-            if(Panel == App->FirstPanel)
-            {
-                App->FirstPanel = NilPanel;
-            }
-            // TODO(luca): Push onto the free list
-        }
-        
-        if(!IsLeafPanel(Collapse))
+    panel *Parent = Panel->Parent;
+    
+    if(!IsNilPanel(Panel))
+    {        
+        if(Parent->First == Panel)
         {
-            Collapse = PanelNextLeaf(Collapse, false);
+            Parent->First = Panel->Next;
         }
+        
+        if(Parent->Last == Panel)
+        {
+            Parent->Last = Panel->Prev;
+        }
+        
+        if(!IsNilPanel(Panel->Next)) 
+        {
+            Panel->Next->Prev = Panel->Prev;
+            
+            Collapse = Panel->Next;
+        }
+        
+        if(!IsNilPanel(Panel->Prev)) 
+        {
+            Panel->Prev->Next = Panel->Next;
+            
+            Collapse = Panel->Prev;
+        }
+        
+        if(!IsNilPanel(Collapse))
+        {
+            Collapse->ParentPct += Panel->ParentPct;
+            
+            // NOTE(luca): Put on the free list.
+            {
+                Panel->Next = App->FreePanel;
+                App->FreePanel = Panel;
+            }
+            
+            // NOTE(luca): We should be the last and only child, so we can be merged with the parent.
+            if(EqualsWithEpsilon(Collapse->ParentPct, 1.f, 0.001f))
+            { 
+                // NOTE(luca): Put on the free list.
+                {
+                    Collapse->Next = App->FreePanel;
+                    App->FreePanel = Collapse;
+                }
+                
+                Collapse = Parent;
+                Collapse->First = NilPanel;
+                Collapse->Last = NilPanel;
+                
+                // NOTE(luca): Copy the application data into merged parent.
+                Collapse->Voice = Panel->Voice;
+                Collapse->Kind = Panel->Kind;
+            }
+            
+        }
+        else
+        {
+            // NOTE(luca): This should be the last panel, we just make it an empty one.
+            Collapse = Panel;
+            Panel->Kind = PanelKind_Empty;
+        }
+        
     }
-    else
+    
+    if(!IsLeafPanel(Collapse))
     {
-        Collapse = Panel;
+        Collapse = PanelNextLeaf(Collapse, false);
     }
     
     return Collapse;
@@ -622,8 +655,6 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
             
             v4 Border = Panel->Region;
             
-            Border.Max.e[Axis] += PanelBorderSize;
-            
             Border.Min.e[Axis] = Border.Max.e[Axis];
             
             Border.Min.e[Axis] -= BorderSize; 
@@ -670,13 +701,15 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
                     panel *Next = Panel->Next;
                     AssertMsg(!IsNilPanel(Next), "Panel should have a next panel since it has a resize border");
                     
-                    // NOTE(luca): This needs to be for the FirstPanel since the minimum width of a panel should always be the same.
-#if 0
-                    f32 Size = SizeOnAxis(PanelApp->FirstPanel->Region, Axis);
-#else
-                    f32 Size = SizeOnAxis(Panel->Parent->Region, Axis);
+                    panel *RootPanel = PanelApp->FirstPanel;
+                    
+                    f32 Size = SizeOnAxis(RootPanel->Region, Axis);
+                    
+                    f32 Pct = (MouseP.e[Axis] - Panel->Parent->Region.Min.e[Axis])/Size;
+                    
+#if 0                    
+                    Log("%.2f\n", Pct);
 #endif
-                    f32 Pct = MouseP.e[Axis]/Size;
                     
                     f32 dPPct = Pct;
                     for(panel *Sibling = Panel; !IsNilPanel(Sibling); Sibling = Sibling->Prev)
@@ -707,9 +740,10 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
                 
             }
             
-#if 0
-            DrawRect(Border, BorderColor, 0.f, 0.f, 0.f);
-#endif
+            if(0)
+            {
+                DrawRect(Border, BorderColor, 0.f, 0.f, 0.f);
+            }
         }
     }
 }
@@ -923,6 +957,13 @@ StopRecording(app_memory *Memory, app_state *App, voice *Voice, f32 dtForFrame)
 //~ Muze - MIDI
 
 internal void
+MakePanelMuze(panel *Panel, app_state *App)
+{
+    Panel->Kind = PanelKind_Muze;
+    Panel->Voice = VoiceAdd(App);
+}
+
+internal void
 ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_event *Events, u64 Count)
 {
     for EachIndex(Idx, Count)
@@ -1099,6 +1140,43 @@ UI_Labelf(char *Format, ...)
     Result = UI_Label(String);
     
     return Result;
+}
+
+internal void
+ArenaLabel(str8 Name, arena *Arena)
+{
+    f32 PosDigits = floorf(log10f((f32)Arena->Pos)/3.f);
+    f32 SizeDigits = floorf(log10f((f32)Arena->Size)/3.f);
+    
+    struct display_unit
+    {
+        u64 Value;
+        str8 Name;
+    }; 
+    
+    struct display_unit UnitTable[] = 
+    {
+        {1,     S8("B")},
+        {KB(1), S8("KB")},
+        {MB(1), S8("MB")},
+        {GB(1), S8("GB")},
+        {TB(1), S8("TB")},
+    };
+    
+    s32 PosIdx = (s32)(PosDigits);
+    s32 SizeIdx = (s32)(SizeDigits);
+    
+    struct display_unit PosUnit = UnitTable[PosIdx];
+    struct display_unit SizeUnit = UnitTable[SizeIdx];
+    
+    UI_Labelf(S8Fmt 
+              ": %.3f" S8Fmt 
+              "/%.1f" S8Fmt, 
+              S8Arg(Name), 
+              (f32)Arena->Pos/(f32)PosUnit.Value, 
+              S8Arg(PosUnit.Name), 
+              (f32)Arena->Size/(f32)SizeUnit.Value,
+              S8Arg(SizeUnit.Name));
 }
 
 internal void
@@ -1721,29 +1799,43 @@ UPDATE_AND_RENDER(UpdateAndRender)
     arena *PermanentArena;
     app_state *App;
     {
-        // NOTE(luca): Pushes on the permanentarena may not zero the memory since that would clear the memory that was there before..
-        
         PermanentArena = (arena *)Memory->Memory;
         PermanentArena->Size = Memory->MemorySize - sizeof(arena);
         PermanentArena->Base = (u8 *)Memory->Memory + sizeof(arena);
         PermanentArena->Pos = 0;
         AsanPoisonMemoryRegion(PermanentArena->Base, PermanentArena->Size);
         
-        FrameArena = PushArena(PermanentArena, MB(64), true);
+        // App
+        {        
+            App = PushArray(PermanentArena, app_state, 1);
+            
+            App->FontAtlasArena = PushArena(PermanentArena, MB(100), false);
+            App->UIArena = PushArena(PermanentArena, MB(64), false);
+            App->Muze.Arena = PushArena(PermanentArena, MB(64), false);
+            App->TSFArena = PushArena(PermanentArena, MB(500), false);
+            
+            App->ReadOnlyArena = PushArray(PermanentArena, arena, 1);
+            App->PanelArena = PushArena(PermanentArena, ArenaAllocDefaultSize, false);
+        }
         
-        App = PushStruct(PermanentArena, app_state);
-        
-        App->TextArena = PushArena(PermanentArena, MB(64), false);
-        App->FontAtlasArena = PushArena(PermanentArena, MB(100), false);
-        App->UIArena = PushArena(PermanentArena, MB(64), false);
-        App->Muze.Arena = PushArena(PermanentArena, MB(64), false);
-        App->TSFArena = PushArena(PermanentArena, MB(500), false);
-        
-        App->ReadOnlyArena = PushArray(PermanentArena, arena, 1);
-        PanelArena = App->PanelArena = PushArena(PermanentArena, ArenaAllocDefaultSize, false);
-        UI_State = PushArray(PermanentArena, ui_state, 1);
-        NilTSF = PushArray(PermanentArena, tsf, 1);
-        NilTSF->arena = App->TSFArena;
+        // Globals
+        {
+            FrameArena = PushArena(PermanentArena, MB(64), true);
+            
+            UI_State = PushArray(PermanentArena, ui_state, 1);
+            NilTSF = PushArray(PermanentArena, tsf, 1);
+            NilTSF->arena = App->TSFArena;
+            
+            // Panels
+            {
+                PanelInput = Input;
+                PanelApp = App;
+                PanelArena = App->PanelArena;
+            }
+            
+            GlobalTSF = App->TrackerForTSF;
+            StringsScratch = FrameArena;
+        }
     }
     
     local_persist s32 GLADVersion = 0;
@@ -1780,9 +1872,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             App->Muze.MaxVoiceCount = 5;
             App->Muze.Voices = PushArray(App->Muze.Arena, voice, App->Muze.MaxVoiceCount);
             App->Muze.LastSelectedVoice = App->Muze.Voices;
-            
-            // Add default voice
-            VoiceAdd(App);
         }
         
         OS_ProfileAndPrint("Muze init");
@@ -1850,16 +1939,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         // Panels
         { 
-            // TODO(luca): Invert axis automatically on new group.
-            // TODO(luca): We should be able to only add one panel here...
-            PanelAxis(Axis2_X)
-            {
-                App->FirstPanel = PanelAdd(1.f);
-            }
+            App->FirstPanel = PanelAdd(1.f);
             
             App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
-            App->SelectedPanel->Kind = PanelKind_Muze;
-            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice;
+            MakePanelMuze(App->SelectedPanel, App);
         }
         
         OS_ProfileAndPrint("Memory Init");
@@ -1868,13 +1951,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
     // Setup global variables
     {    
         InitReadOnlyGlobals(App->ReadOnlyArena);
-        GlobalTSF = App->TrackerForTSF;
-        
-        StringsScratch = FrameArena;
-        
-        PanelArena = App->PanelArena;
-        PanelInput = Input;
-        PanelApp = App;
     }
     
     voice *Voice;
@@ -1884,6 +1960,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         {
             App->Muze.LastSelectedVoice = App->SelectedPanel->Voice;
         }
+        
         Voice = App->Muze.LastSelectedVoice;
     }
     
@@ -1949,9 +2026,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     {
                         if(!Shift)
                         {
-                            App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_X, false);
-                            App->SelectedPanel->Kind = PanelKind_Muze;
-                            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice = VoiceAdd(App);
+                            App->SelectedPanel = SplitPanel(App->SelectedPanel, Axis2_X, false);
+                            MakePanelMuze(App->SelectedPanel, App);
                         }
                         else
                         {
@@ -1963,9 +2039,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     {
                         if(!Shift)
                         {                        
-                            App->SelectedPanel = SplitPanel(PanelArena, App->SelectedPanel, Axis2_Y, false);
-                            App->SelectedPanel->Kind = PanelKind_Muze;
-                            App->SelectedPanel->Voice = App->Muze.LastSelectedVoice = VoiceAdd(App);
+                            App->SelectedPanel = SplitPanel(App->SelectedPanel, Axis2_Y, false);
+                            MakePanelMuze(App->SelectedPanel, App);
                         }
                     } break;
                     
@@ -2593,7 +2668,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     UI_List(Axis2_Y, S8("Memory"))
                     {
                         arena *Arena = App->Muze.Arena;
-                        UI_Labelf("Muze: %.3fKB/%.2fMB", (f32)Arena->Pos/10e2, (f32)Arena->Size/10e6);
+                        ArenaLabel(S8("Perm"), PermanentArena);
+                        ArenaLabel(S8("Frame"), FrameArena);
+                        ArenaLabel(S8("R/O"), App->ReadOnlyArena);
+                        ArenaLabel(S8("Font"), App->FontAtlasArena);
+                        ArenaLabel(S8("UI"), App->UIArena);
+                        ArenaLabel(S8("Panel"), App->PanelArena);
+                        ArenaLabel(S8("Muze"), App->Muze.Arena);
+                        ArenaLabel(S8("TSF"), App->TSFArena);
                     }
                     
 #endif
@@ -2646,21 +2728,27 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     UI_AddBox(Str8Fmt("%p", Panel), 0);
                 UI_Push()
                 {
-                    if(App->SelectedPanel == Panel)
-                    {
-                        NoOp();
-                    }
-                    
-                    if(Panel->Kind != PanelKind_Free)
-                    {
-                        Assert(IsLeafPanel(Panel));
-                    }
-                    
                     if(0) {}
-                    
+                    else if(Panel->Kind == PanelKind_Empty)
+                    {
+                        if(IsLeafPanel(Panel))
+                        {
+                            UI_FillAll() UI_Column() UI_Padding(UI_SizeParent(1.f, 0.f))
+                                UI_FillAll() UI_Row() UI_Padding(UI_SizeParent(1.f, 0.f))
+                            {
+                                UI_SemanticWidth(UI_SizeText(4.f, 1.f))
+                                    UI_SemanticHeight(UI_SizeText(2.f, 1.f))
+                                {
+                                    if(UI_Button(S8("New Panel")))
+                                    {
+                                        MakePanelMuze(Panel, App);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     else if(Panel->Kind == PanelKind_Muze)
                     {        
-                        
                         UI_FillAll()
                         {
                             ui_box *Box = UI_AddBox(S8("MuzePianoRoll"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);

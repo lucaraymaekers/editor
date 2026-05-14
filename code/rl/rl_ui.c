@@ -200,6 +200,7 @@ UI_AddBox(str8 String, s32 Flags)
     Box->First = Box->Last = Box->Next = Box->Prev = Box->Parent = UI_NilBox;
     
     Box->Key = Key;
+    Box->String = String;
     Box->DisplayString = DisplayString;
     Box->Flags = Flags;
     
@@ -499,57 +500,47 @@ UI_CalculateDownwardSizes(ui_box *Box, axis2 Axis)
 internal void
 UI_CalculateViolations(ui_box *Box, axis2 Axis)
 {
+    if(S8Match(Box->DisplayString, S8("FindMe"), false))
+    {
+        NoOp();
+    }
     
     ui_box *Parent = Box->Parent;
     
-    f32 ParentSize = Parent->FixedSize.e[Axis];
-    
     // TODO(luca): This is inefficient since the violations should be solved once per level.
+    
+    f32 AllowedSize = Box->FixedSize.e[Axis];
     f32 TotalSize = 0.f;
+    f32 TotalTakeableSize = 0.f;
+    
     {    
-        for UI_EachBox(Child, Parent->First)
+        for UI_EachBox(Child, Box->First)
         {
-            if(Child->Parent->LayoutAxis == Axis)
+            if(Box->LayoutAxis == Axis)
             {            
                 if(!UI_IsFloatingBox(Child, Axis))
                 {
                     TotalSize += Child->FixedSize.e[Axis];
+                    TotalTakeableSize += Child->FixedSize.e[Axis] * (1.f - Child->SemanticSize[Axis].Strictness);
                 }
             }
         }
     }
     
-    f32 ViolationSize = TotalSize - ParentSize;
+    f32 ViolationSize = TotalSize - AllowedSize;
     
     if(ViolationSize > 0.f)
     {
-        // NOTE(luca): Take size from all the siblings which have strictnes < 1.f
+        f32 FixupPct = ViolationSize/TotalTakeableSize;
         
-        ui_box *Child = Parent->First;
-        // TODO(luca): epsilon compare?
-        while(!UI_IsNilBox(Child) && ViolationSize != 0.f)
+        for UI_EachBox(Child, Box->First)
         {
-            if(!UI_IsFloatingBox(Child, Axis))
-            {                
-                f32 Strictness = Child->SemanticSize[Axis].Strictness;
-                f32 AllowedSizeToTake = ((1.f - Strictness)*Child->FixedSize.e[Axis]);
-                f32 TakenSize = Min(ViolationSize, AllowedSizeToTake);
-                
-                Child->FixedSize.e[Axis] = Child->FixedSize.e[Axis] - TakenSize;
-                ViolationSize -= TakenSize;
+            // TODO(luca): This is a hack because for now I only have strictness of 1.f or 0.f so this handles most cases.
+            if(Child->SemanticSize[Axis].Strictness < 1.f)
+            {
+                Child->FixedSize.e[Axis] -= Child->FixedSize.e[Axis]*FixupPct;
             }
-            
-            Child = Child->Next;
         }
-        
-        if(!EqualsWithEpsilon(ViolationSize, 0.f, .001f))
-        {
-#if 0
-            DebugBreak();
-            ErrorLog("Clipping");
-#endif
-        }
-        
     }
     
     if(!UI_IsNilBox(Box->Next))

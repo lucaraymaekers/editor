@@ -60,6 +60,7 @@ struct ui_box
     ui_box *HashPrev;
     
     // Key and generation info
+    str8 String;
     ui_key Key;
     u64 LastTouchedFrameIdx;
     
