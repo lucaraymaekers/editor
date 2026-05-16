@@ -29,14 +29,7 @@
 #endif
 
 //~ Globals
-#if RL_PLATFORM_INTERNAL
-global_variable b32 IsEditorBuildInternal = true;
-#else
-global_variable b32 IsEditorBuildInternal = false;
-#endif
-
-global_variable str8 ExeDirPath = {0};;
-
+global_variable str8 ExeDirPath = {0};
 global_variable arena *FrameArena = 0;
 
 //~ Types

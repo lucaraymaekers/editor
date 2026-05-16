@@ -975,6 +975,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
         // NOTE(luca): This is a hack to get loop editing to work properly.
         Timestamp = (f32)GetWallTime();
 #endif
+        
         Timestamp -= Voice->RecordStart;
         
         midi_message Message = {Event->Message};
@@ -2882,7 +2883,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     app_midi_event *Event = Events + EventCount;
                     EventCount += 1;
-                    Event->Timestamp = ((f32)OS_GetWallClock() - Voice->RecordStart);
+                    Event->Timestamp = (f32)OS_GetWallClock();
                     
                     midi_message Message = {0};
                     

@@ -413,8 +413,10 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         {
             Scratch(FrameArena)
             {
+#if RL_PLATFORM_DEBUG_UI
                 RenderBeginFrame(FrameArena, WindowBuffer.Width, WindowBuffer.Height);
                 OS_ProfileAndPrint("Render Setup");
+#endif
                 
                 P_LoadAppCode(FrameArena, &Code, &AppMemory);
                 OS_ProfileAndPrint("Code");
