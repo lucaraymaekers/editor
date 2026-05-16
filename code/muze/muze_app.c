@@ -2097,6 +2097,20 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     {
                         b32 DeviceChanged = !Memory->Initialized;
                         
+                        // Keyboard synth enabled
+{
+                            ui_box *Box = UI_AddBox(S8("Checkbox"), (UI_BoxFlag_Clip|
+                                               UI_BoxFlag_MouseClickable|
+                                                         UI_BoxFlag_DrawBackground));
+                            v4 BorderColor = (UI_IsHot(Box) || UI_IsActive(Box) ? Color_Snow2 : Color_ButtonBorder);
+                            
+                            UI_Push() UI_FillAll()
+                                UI_BorderColor(BorderColor)
+                            {
+                                UI_AddBox(S8("Hello"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
+                            }
+}
+                        
                         if(UI_ToggleButton(S8("Virtual Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow))
                         {
                             if(!App->Muze.IsInputVirtualKeyboard)

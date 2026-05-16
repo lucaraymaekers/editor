@@ -1,7 +1,5 @@
 # Now
 
-- Step slider 
-
 - Better buttons
   - Checkbox with differential (linear exp smoothing)
   - Better rounded corners (SDF)
@@ -100,3 +98,4 @@ x Trim end of pedal correctly.
 x Delete notes
 x Pedal/sustain per voice
 x Merge different duplicate device names into one?
+x Debug stepping slider 
