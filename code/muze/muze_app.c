@@ -1690,87 +1690,6 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     }
 }
 
-internal f32
-UI_Slider(f32 MinSize, f32 MaxSize,
-          f32 SliderMinPct, 
-          f32 Value, 
-          str8 DisplayName)
-{
-    f32 Result = 0.f;
-    ui_size Padding = UI_SizePx(UI_State->BorderThicknessTop->Value, 1.f);
-    ui_box *Box = 0;
-    
-    app_input *Input = UI_State->Input;
-    
-    // Fill level from value
-    f32 FillLevel = 0.f;
-    {
-        f32 Pct = (Value - MinSize)/(MaxSize - MinSize);
-        FillLevel = Pct*(1.f - SliderMinPct) + SliderMinPct;
-    }
-    
-    UI_Softness(.5f) UI_CornerRadii(V4F32(3.f))
-    {        
-        UI_FillWidth()
-            UI_BackgroundColor(Color_ButtonBackground)
-            Box = UI_AddBox(Str8Fmt(S8Fmt "Slider", S8Arg(DisplayName)),
-                            (UI_BoxFlag_Clip|
-                             UI_BoxFlag_MouseClickable|
-                             UI_BoxFlag_DrawBorders|
-                             UI_BoxFlag_DrawHotEffects|
-                             UI_BoxFlag_DrawActiveEffects|
-                             UI_BoxFlag_Scroll));
-        
-        UI_Push() 
-            UI_FillAll() UI_Row() UI_Padding(Padding)
-            UI_FillAll() UI_Column() UI_Padding(Padding)
-        {        
-            UI_FillAll()
-                UI_AddBox(S8("BackgroundColor"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
-            UI_Push()
-                UI_FillHeight()
-                UI_SemanticWidth(UI_SizeParent(FillLevel, 0.f))
-                UI_BackgroundColor(Color_Orange)
-                UI_AddBox(S8("FillColor"), (UI_BoxFlag_Clip|
-                                            UI_BoxFlag_DrawBackground));
-        }
-        
-        // TODO(luca): Remove this so we have only the slider ui_box
-        if(1)
-        {    
-            UI_AddBox(Str8Fmt(S8Fmt ": %.0f###Label" S8Fmt, 
-                              S8Arg(DisplayName), Value,
-                              S8Arg(DisplayName)), 
-                      (UI_BoxFlag_Clip|
-                       UI_BoxFlag_DrawDisplayString|
-                       UI_BoxFlag_CenterTextHorizontally|
-                       UI_BoxFlag_CenterTextVertically|
-                       UI_BoxFlag_FloatingX|
-                       UI_BoxFlag_FloatingY));
-        }
-    }
-    
-    if(!Input->Consumed && 
-       (UI_IsActive(Box) || UI_IsHot(Box)) && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
-    {
-        
-        f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPosition.X)/Box->FixedSize.X);
-        FillLevel = Clamp(SliderMinPct, PctOnXAxis, 1.f);
-        
-        Input->Consumed = true;
-    }
-    
-    // Value from FillLevel
-    {    
-        f32 Range = MaxSize - MinSize;
-        f32 New = MinSize + (Range*(FillLevel - SliderMinPct)/(1.f - SliderMinPct));
-        Result = roundf(New);
-    }
-    
-    return Result;
-}
-
-
 //~ EntryPoint
 C_LINKAGE
 UPDATE_AND_RENDER(UpdateAndRender)
@@ -2573,8 +2492,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     UI_List(Axis2_Y, S8("Music"))
                     {         
-                        App->Muze.BPM = UI_Slider(30.f, 180.f, .1f, App->Muze.BPM, S8("BPM"));
-                        App->Muze.TimeSig = (s32)UI_Slider(1.f, 4.f, .25f, (f32)App->Muze.TimeSig, S8("TimeSig"));
+                        App->Muze.BPM = UI_Slider(30.f, 180.f, .1f, App->Muze.BPM, S8("BPM"), Color_Orange, true);
+                        App->Muze.TimeSig = (s32)UI_Slider(1.f, 4.f, .25f, (f32)App->Muze.TimeSig, S8("TimeSig"), Color_Orange, true);
                     }
                     
                     UI_List(Axis2_Y, S8("Voices"))
@@ -2911,7 +2830,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             ProcessMIDINotes(Memory, App, Voice, Input->MIDI.Events, Input->MIDI.EventCount);
         }
     }
-    
+
     //- Rendering 
     
     // Render rectangles

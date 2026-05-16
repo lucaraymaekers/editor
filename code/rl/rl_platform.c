@@ -172,7 +172,8 @@ UI_Label(s32 Flags, str8 String)
 {
     ui_box *Result = UI_AddBox(String, (UI_BoxFlag_Clip|
                                         UI_BoxFlag_DrawDisplayString|
-                                        UI_BoxFlag_DrawBackground|
+                                                                   UI_BoxFlag_DrawBackground|
+                                                                   UI_BoxFlag_CenterTextVertically|
                                         Flags));
     return Result;
 }
@@ -671,17 +672,17 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                             }
                                         }
                                         
-                                        if(UI_ToggleButton(S8("Set target"), RecordingIsEmpty, Color_Disabled))
-                                        {
-                                            Replay.StepTarget = Replay.StepIdx;
-                                        }
-                                        
                                         if(UI_ToggleButton(S8("Load record"), RecordingIsEmpty, Color_Disabled))
                                         {
                                             if(Replay.RecordingSize)
                                             {
                                                 ReplayLoadMemory(&Replay, &AppMemory);
                                             }
+                                        }
+                                        
+                                        if(UI_Button(S8("Save record")))
+                                        {
+                                                ReplayToggleRecording(&Replay, &AppMemory, false);
                                         }
                                         
                                         DebugSpacer();
@@ -731,19 +732,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                             DebugSpacer();
                                         }
                                         
-                                        if(UI_Button(S8("Prev slot")))
-                                        {
-                                            ReplaySlot = ((ReplaySlot == 0) ? (MaxReplaySlots - 1) : (ReplaySlot - 1));
-                                        }
-                                        
-                                        if(UI_Button(S8("Next slot")))
-                                        {
-                                            ReplaySlot = ((ReplaySlot == (MaxReplaySlots - 1)) ? (0) : (ReplaySlot + 1));
-                                        }
-                                        
-                                        DebugSpacer();
-                                        
-                                        
                                         if(UI_ToggleButton(S8("Logging"), Logging, Color_Red))
                                         {
                                             Logging = !Logging;
@@ -776,12 +764,14 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                             UI_Labelf(0, "[" S8Fmt "]###state", S8Arg(StateName));
                                         }
                                         
-                                        u64 LastStepIdx = (Replay.StepsCount > 0 ? Replay.StepsCount - 1 : 0); 
-                                        UI_Labelf(UI_BoxFlag_DrawBorders, "Steps");
-                                        UI_Labelf(0, "idx:    %-4lu###StepIdx", Replay.StepIdx);
-                                        UI_Labelf(0, "target: %-4lu###StepTarget", Replay.StepTarget);
-                                        UI_Labelf(0, "count:  %-4lu###StepsCount", Replay.StepsCount);
-                                        UI_Labelf(0, "Slot: %lu###Slot", ReplaySlot);
+                                        UI_FillWidth()
+                                        UI_Labelf(UI_BoxFlag_CenterTextHorizontally, "Count: %llu", Replay.StepsCount);
+                                        ReplaySlot = (u64)(UI_Slider(0.f, (f32)MaxReplaySlots - 1, 0.f, (f32)ReplaySlot , S8("Slot"), Color_Orange, true));
+                                        
+                                        UI_Slider(0.f, (f32)Replay.StepsCount, 0.f, (f32)Replay.StepIdx, S8("Idx"), Color_Green, false);
+                                        
+                                        Replay.StepTarget = (u64)UI_Slider(0.f, (f32)Replay.StepsCount - 1, 0.f, (f32)Replay.StepTarget, S8("Target"), Color_Orange, true);
+                                        
                                     }
                                 }
                             }
@@ -838,18 +828,16 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                             Assert(Replay.IsStepping);
                         }
                         
-                        if(Replay.IsSkipping)
+                        if(Replay.IsStepping)
                         {
+                            b32 HasReachedStepTarget = false;
+                            
                             if(Replay.StepTarget < Replay.StepIdx)
                             {
                                 ReplayLoadMemory(&Replay, &AppMemory);
                                 Replay.StepIdx = 0;
                             }
-                        }
-                        
-                        if(Replay.IsStepping)
-                        {
-                            b32 HasReachedStepTarget = false;
+                            
                             if(Replay.PlayingPos == 0)
                             {
                                 ReplayLoadMemory(&Replay, &AppMemory);

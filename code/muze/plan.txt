@@ -1,5 +1,13 @@
 # Now
-- Panel resizing
+
+- Step slider 
+
+- Better buttons
+  - Checkbox with differential (linear exp smoothing)
+  - Better rounded corners (SDF)
+  - Fix bug of border being too small
+
+- Proper panel resizing
 
 - Commands
   - Undo?
