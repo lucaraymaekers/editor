@@ -398,7 +398,7 @@ PLATFORM_MIDI_CLOSE(P_MIDIClose)
 P_INIT()
 {
     P_context Result = {0};
-    win32_context *Context = PushStruct(Arena, win32_context);
+    win32_context *Context = PushArray(Arena, win32_context, 1);
     
     Context->UpdateHz = UpdateHz;
     
@@ -409,7 +409,7 @@ P_INIT()
     
     // MIDI
     {    
-        NotesQueue = PushStruct(Arena, win32_midi_notes_queue);
+        NotesQueue = PushArray(Arena, win32_midi_notes_queue, 1);
         NotesQueue->Size = KB(1);
         NotesQueue->Events = PushArray(Arena, app_midi_event, NotesQueue->Size);
     }

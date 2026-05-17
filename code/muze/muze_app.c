@@ -2057,11 +2057,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         //- UI Top "Controls" 
         {
-            local_persist ui_box *Root = 0;
-            if(UI_IsNilBox(Root))
+            if(UI_IsNilBox(App->Muze.TopBox))
             {
-                Root = UI_BoxAlloc(App->UIArena);
+                App->Muze.TopBox = UI_BoxAlloc(App->UIArena);
             }
+            ui_box *Root = App->Muze.TopBox;
             
             // Init root
             {    
@@ -2097,19 +2097,90 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     {
                         b32 DeviceChanged = !Memory->Initialized;
                         
-                        // Keyboard synth enabled
-{
-                            ui_box *Box = UI_AddBox(S8("Checkbox"), (UI_BoxFlag_Clip|
-                                               UI_BoxFlag_MouseClickable|
-                                                         UI_BoxFlag_DrawBackground));
-                            v4 BorderColor = (UI_IsHot(Box) || UI_IsActive(Box) ? Color_Snow2 : Color_ButtonBorder);
+                        // Animation speed slider
+                        {                        
+                            local_persist f32 AnimSpeed = 30.f;
+                            AnimSpeed = UI_Slider(1.f,  64.f, 0.f, AnimSpeed, S8("Speed"), Color_Blue, true);
+                            UI_State->AnimSpeed = (1.f - powf(2.f, -AnimSpeed*UI_State->Input->dtForFrame));
+                        }
+                        
+                        // Checkbox
+                        {
                             
-                            UI_Push() UI_FillAll()
-                                UI_BorderColor(BorderColor)
+                            UI_LayoutAxis(Axis2_X)
+                                UI_AddBox(S8("CheckboxParent"), UI_BoxFlag_Clip);
+                            
+                            UI_Push()
                             {
-                                UI_AddBox(S8("Hello"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBorders);
+                                UI_Labelf("Toggled:");
+                                
+                                
+                                UI_CornerRadii(V4F32(5.f))
+                                    UI_Softness(1.f)
+                                {                                
+                                    b32 Toggled = App->Muze.IsInputVirtualKeyboard;
+                                    
+                                    ui_box *Box;
+                                    UI_FillWidth()
+                                        Box = UI_AddBox(S8("Checkbox"), (UI_BoxFlag_Clip|
+                                                                         UI_BoxFlag_MouseClickable|
+                                                                         UI_BoxFlag_DrawBackground));
+                                    // Input
+                                    v4 BorderColor;
+                                    {
+                                        
+                                        // NOTE(luca): Overwrite Hot and Active -ness to match checkbox behavior
+                                        {                                        
+                                            if(UI_IsActive(UI_NilBox) && Box->Hovered)
+                                            {
+                                                UI_SetHot(Box->Key);
+                                            }
+                                            
+                                            if(UI_IsHot(Box) && Box->WasClicked)
+                                            {
+                                                Toggled = !Toggled;
+                                            }
+                                            
+                                        }
+                                        
+                                        BorderColor = (UI_IsHot(Box) || UI_IsActive(Box) ? Color_Snow2 : Color_Red);
+                                    }
+                                    
+                                    App->Muze.IsInputVirtualKeyboard = Toggled;
+                                    
+                                    UI_Push() 
+                                        //- Checkbox parent 
+                                    {
+                                        UI_FillAll()
+                                            UI_BorderColor(BorderColor)
+                                        {
+                                            UI_AddBox(S8("Borders"), (UI_BoxFlag_Clip|
+                                                                      UI_BoxFlag_DrawBorders));
+                                        }
+                                        
+                                        //- Add padding for border 
+                                        ui_size Padding = UI_SizePx(UI_BorderThicknessTop(), 1.f);
+                                        UI_Push()
+                                            UI_FillAll() UI_Column() UI_Padding(Padding)
+                                            UI_FillAll() UI_Row() UI_Padding(Padding)
+                                        {
+                                            //- Move the circle to the end if toggled 
+                                            if(Toggled)
+                                            {
+                                                UI_Spacer(UI_SizeParent(1.f, 0.f));
+                                            }
+                                            
+                                            //- Draw actual circle
+                                            UI_BackgroundColor(Color_Black)
+                                                UI_SemanticWidth(UI_SizeParent(.15f, 1.f))
+                                                UI_AddBox(S8("Circle"), (UI_BoxFlag_Clip|
+                                                                         UI_BoxFlag_DrawBackground|
+                                                                         UI_BoxFlag_AnimatePosX));
+                                        }
+                                    }
+                                }
                             }
-}
+                        }
                         
                         if(UI_ToggleButton(S8("Virtual Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow))
                         {
@@ -2118,7 +2189,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                 App->Muze.IsInputVirtualKeyboard = true;
                             }
                         }
-                        
                         
                         for EachIndex(Idx, DevicesArray.Count)
                         {
@@ -2636,6 +2706,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             }
             
             UI_ResolveLayout(Root->First);
+            
+            
         }
         
         // UI Panels
@@ -2844,7 +2916,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             ProcessMIDINotes(Memory, App, Voice, Input->MIDI.Events, Input->MIDI.EventCount);
         }
     }
-
+    
     //- Rendering 
     
     // Render rectangles

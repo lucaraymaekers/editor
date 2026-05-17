@@ -20,6 +20,14 @@ enum ui_size_kind
     UI_SizeKind_ChildrenSum,
 };
 typedef enum ui_size_kind ui_size_kind;
+raddbg_type_view(ui_size, rows($, 
+                               Kind == 0 ? "Null" : 
+                               Kind == UI_SizeKind_Pixels ? "Pixels" : 
+                               Kind == UI_SizeKind_TextContent ? "Text" : 
+                               Kind == UI_SizeKind_PercentOfParent ? "ParentPct" : 
+                               Kind == UI_SizeKind_ChildrenSum ? "Children" : 
+                               "???", 
+                               Value, Strictness));
 
 enum font_kind
 {
@@ -35,6 +43,7 @@ struct ui_size
     f32 Value;
     f32 Strictness;
 };
+
 
 typedef struct ui_key ui_key; 
 struct ui_key
@@ -84,9 +93,11 @@ struct ui_box
     v2 FixedPosition;
     v2 FixedSize;
     v4 Rec;
+    v2 AnimatedPos;
     
     // Produced from input
     b32 Clicked;
+    b32 WasClicked;
     b32 Hovered;
     b32 Pressed;
     v2s32 Drag;
@@ -99,6 +110,16 @@ struct ui_box
 (ui_box *Node = First; !UI_IsNilBox(Node); Node = Node->Next)  
 #define UI_EachHashBox(Node, First) \
 (ui_box *Node = First; !UI_IsNilBox(Node); Node = Node->HashNext)
+raddbg_type_view(ui_box, 
+                 rows($, 
+                      &$.First == UI_NilBox || &$.First == 0, 
+                      String, SemanticSize, 
+                      FixedPosition, 
+                      AnimatedPos, 
+                      FixedSize,
+                      Rec, 
+                      list($, Next), 
+                      omit($, String)));
 
 //- Stack nodes 
 // TODO(luca): Metaprogram
@@ -165,6 +186,9 @@ struct ui_state
     arena *Arena;
     u64 BoxTableSize;
     ui_box *BoxTable;
+    
+    // Constants
+    f32 AnimSpeed;
     
     ui_key Active;
     ui_key Hot;
@@ -253,6 +277,9 @@ internal void UI_PopHeightPx()              { UI_StackPop(HeightPx); }
 
 internal void UI_PushFontKind(font_kind FontKind) { UI_StackPush(font_kind, FontKind); }
 internal void UI_PopFontKind()                    { UI_StackPop(FontKind); }
+
+internal v4 UI_BorderColorTop() { return UI_State->BorderColorTop->Value; }
+internal f32 UI_BorderThicknessTop() { return UI_State->BorderThicknessTop->Value; }
 
 #define UI_BackgroundColor(Value) DeferLoop(UI_PushBackgroundColor(Value), UI_PopBackgroundColor())
 #define UI_TextColor(Value) DeferLoop(UI_PushTextColor(Value), UI_PopTextColor())

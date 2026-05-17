@@ -68,5 +68,6 @@ UI_BoxFlag_FloatingX              = (1 << 11),
 UI_BoxFlag_FloatingY              = (1 << 12),
 UI_BoxFlag_Clip                   = (1 << 13),
 UI_BoxFlag_Scroll                 = (1 << 14),
+UI_BoxFlag_AnimatePosX            = (1 << 15),
 };
 typedef enum ui_box_flag ui_box_flag;

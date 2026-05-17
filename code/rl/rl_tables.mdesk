@@ -38,6 +38,7 @@ UI_BoxFlags:
     FloatingY,
     Clip,
     Scroll,
+    AnimatePosX,
 }
 
 // TODO(luca): Metaprogram

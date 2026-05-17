@@ -47,9 +47,6 @@ UI_IsFloatingBox(ui_box *Box, axis2 Axis)
 internal void
 UI_PushBox(void)
 {
-    // NOTE(luca): You may not double push cause it makes no sense
-    Assert(!UI_State->AppendToParent);
-    
     UI_State->AppendToParent = true;
 }
 
@@ -87,6 +84,18 @@ UI_IsHot(ui_box *Box)
 {
     b32 Result = UI_KeyMatch(UI_State->Hot, Box->Key);
     return Result;
+}
+
+internal void
+UI_SetHot(ui_key Key)
+{
+    UI_State->Hot = Key;
+}
+
+internal void
+UI_SetActive(ui_key Key)
+{
+    UI_State->Active = Key;
 }
 
 internal ui_box *
@@ -220,6 +229,7 @@ UI_AddBox(str8 String, s32 Flags)
     Box->Clicked = false;
     Box->Hovered = false;
     Box->Pressed = false;
+    Box->WasClicked = false;
     MemoryZero(&Box->Drag);
     
     if(!FirstTime)
@@ -231,27 +241,26 @@ UI_AddBox(str8 String, s32 Flags)
             if(Box->Flags & UI_BoxFlag_MouseClickable)
             {                
                 v2 MouseP = MousePosFromInput(Input);
-                
                 app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
+                b32 MouseUp = (!MouseLeft.EndedDown);
                 
                 Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
                 Box->Pressed = (Box->Hovered && MouseLeft.EndedDown);
+                Box->WasClicked = WasPressed(MouseLeft);
                 
                 // Set active and hot state
                 {            
-                    b32 MouseUp = (!MouseLeft.EndedDown);
-                    
                     if(Box->Hovered)
                     {
                         if(UI_IsActive(UI_NilBox) ||
                            UI_IsActive(Box)) 
                         {
-                            UI_State->Hot = Box->Key;
+                            UI_SetHot(Box->Key);
                         }
                     }
                     else if(UI_IsHot(Box))
                     {
-                        UI_State->Hot = UI_KeyNull();
+                        UI_SetHot(UI_KeyNull());
                     }
                     
                     if(UI_IsActive(Box))
@@ -262,24 +271,27 @@ UI_AddBox(str8 String, s32 Flags)
                             {
                                 Box->Clicked = true;
                             }
-                            UI_State->Active = UI_KeyNull();
+                            UI_SetActive(UI_KeyNull());
                         }
                     }
                     else if(UI_IsHot(Box))
                     {
-                        if(MouseLeft.EndedDown)
+                        if(Box->WasClicked)
                         {
-                            UI_State->Active = Box->Key;
+                            UI_SetActive(Box->Key);
                         }
                     }
-                    
                 }
                 
-                f32 Speed = 20.f;
-                f32 HotTarget    = UI_IsHot(Box)    ? 1.f : 0.f;
-                f32 ActiveTarget = UI_IsActive(Box) ? 1.f : 0.f;
-                Box->tActive += (ActiveTarget - Box->tActive) * Speed * Input->dtForFrame;
-                Box->tHot += (HotTarget - Box->tHot) * Speed * Input->dtForFrame;
+                // Update tHot and tActive
+                {                
+                    f32 Speed = UI_State->AnimSpeed;
+                    f32 HotTarget    = UI_IsHot(Box)    ? 1.f : 0.f;
+                    f32 ActiveTarget = UI_IsActive(Box) ? 1.f : 0.f;
+                    Box->tActive += Speed*(ActiveTarget - Box->tActive);
+                    Box->tHot    += Speed*(HotTarget - Box->tHot);
+                }
+                
             }
             
             if(Box->Flags & UI_BoxFlag_Scroll)
@@ -374,6 +386,8 @@ UI_DefaultState(ui_box *Root, f32 HeightPx)
     UI_State->Root = Root;
     UI_State->AppendToParent = true;
     
+    UI_State->AnimSpeed = (1.f - powf(2.f, -30.f*UI_State->Input->dtForFrame));
+    
     // Defaults
     // NOTE(luca): This is slightly since what we should be doing here is *setting* and not *pushing*.  But since we don't modify the top item this shouldn't be a problem in practice.t
     UI_PushBackgroundColor(Color_Background);
@@ -387,6 +401,13 @@ UI_DefaultState(ui_box *Root, f32 HeightPx)
     UI_PushSemanticHeight(UI_SizeParent(1.f, 1.f));
     UI_PushHeightPx(HeightPx);
     UI_PushFontKind(FontKind_Text);
+}
+
+internal b32
+UI_IsDebugBox(ui_box *Box)
+{
+    b32 Result = S8Match(Box->DisplayString, S8("DebugBox"), false);
+    return Result;
 }
 
 //~ Calculations Start 
@@ -429,6 +450,11 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
 internal void
 UI_CalculateUpwardSizes(ui_box *Box, axis2 Axis)
 {
+    if(UI_IsDebugBox(Box))
+    {
+        NoOp();
+    }
+    
     if(Box->SemanticSize[Axis].Kind == UI_SizeKind_PercentOfParent)
     {
         Box->FixedSize.e[Axis] = (Box->SemanticSize[Axis].Value * 
@@ -500,7 +526,7 @@ UI_CalculateDownwardSizes(ui_box *Box, axis2 Axis)
 internal void
 UI_CalculateViolations(ui_box *Box, axis2 Axis)
 {
-    if(S8Match(Box->DisplayString, S8("FindMe"), false))
+    if(UI_IsDebugBox(Box))
     {
         NoOp();
     }
@@ -516,44 +542,45 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
     {    
         for UI_EachBox(Child, Box->First)
         {
-            if(Box->LayoutAxis == Axis)
-            {            
-                if(!UI_IsFloatingBox(Child, Axis))
+            // NOTE(luca): Only accumulate size if this is the first child or if this box is laying out along the axis.
+            b32 IsFirstChild = (Child == Box->First);
+            if(IsFirstChild || Box->LayoutAxis == Axis)
+            {
+                if(!UI_IsFloatingBox(Child, Axis) || IsFirstChild)
                 {
                     TotalSize += Child->FixedSize.e[Axis];
                     TotalTakeableSize += Child->FixedSize.e[Axis] * (1.f - Child->SemanticSize[Axis].Strictness);
                 }
             }
         }
-    }
-    
-    f32 ViolationSize = TotalSize - AllowedSize;
-    
-    if(ViolationSize > 0.f)
-    {
-        f32 FixupPct = ViolationSize/TotalTakeableSize;
         
-        for UI_EachBox(Child, Box->First)
+        f32 ViolationSize = TotalSize - AllowedSize;
+        
+        if(ViolationSize > 0.f)
         {
-            // TODO(luca): This is a hack because for now I only have strictness of 1.f or 0.f so this handles most cases.
-            if(Child->SemanticSize[Axis].Strictness < 1.f)
+            f32 FixupPct = ViolationSize/TotalTakeableSize;
+            
+            for UI_EachBox(Child, Box->First)
             {
-                Child->FixedSize.e[Axis] -= Child->FixedSize.e[Axis]*FixupPct;
+                // TODO(luca): This is a hack because for now I only have strictness of 1.f or 0.f so this handles most cases.
+                if(Child->SemanticSize[Axis].Strictness < 1.f)
+                {
+                    Child->FixedSize.e[Axis] -= Child->FixedSize.e[Axis]*FixupPct;
+                }
             }
         }
-    }
-    
-    if(!UI_IsNilBox(Box->Next))
-    {
-        UI_CalculateViolations(Box->Next, Axis);
-    }
-    
-    if(!UI_IsNilBox(Box->First))
-    {
-        UI_CalculateViolations(Box->First, Axis);
+        
+        if(!UI_IsNilBox(Box->First))
+        {
+            UI_CalculateViolations(Box->First, Axis);
+        }
+        
+        if(!UI_IsNilBox(Box->Next))
+        {
+            UI_CalculateViolations(Box->Next, Axis);
+        }
     }
 }
-
 
 internal void
 UI_CalculatePositions(ui_box *Box)
@@ -605,7 +632,18 @@ UI_CalculatePositions(ui_box *Box)
         }
     }
     
-    Box->Rec = RectFromSize(Box->FixedPosition, Box->FixedSize);
+    if(Box->Flags & UI_BoxFlag_AnimatePosX)
+    {
+        Box->AnimatedPos.X += (Box->FixedPosition.X - Box->AnimatedPos.X)*UI_State->AnimSpeed;
+    }
+    else
+    {
+        Box->AnimatedPos.X = Box->FixedPosition.X;
+    }
+    
+    Box->AnimatedPos.Y = Box->FixedPosition.Y;
+    
+    Box->Rec = RectFromSize(Box->AnimatedPos, Box->FixedSize);
     
     if(!UI_IsNilBox(Box->First))
     {
@@ -620,6 +658,11 @@ UI_CalculatePositions(ui_box *Box)
 internal void
 UI_DrawBoxes(ui_box *Box)
 {
+    if(UI_IsDebugBox(Box))
+    {
+        NoOp();
+    }
+    
     ui_box *Parent = Box->Parent;
     
     font_atlas *Atlas = UI_State->Atlas;
@@ -738,15 +781,32 @@ UI_DrawBoxes(ui_box *Box)
 
 global_variable s32 UI_DebugIndentation = 0;
 
+internal char *
+UI_DebugSizeKindString(ui_size_kind Kind)
+{
+    char *Result = (Kind == UI_SizeKind_Null ? "Null" : 
+                    Kind == UI_SizeKind_Pixels ? "Pixels" : 
+                    Kind == UI_SizeKind_TextContent ? "Text" : 
+                    Kind == UI_SizeKind_PercentOfParent ? "ParentPct" : 
+                    Kind == UI_SizeKind_ChildrenSum ? "Children" : 
+                    "???");
+    return Result;
+}
+
 internal void
 UI_DebugPrintBoxes(ui_box *Box)
 {
+    ui_size *SizeX = Box->SemanticSize + 0;
+    ui_size *SizeY = Box->SemanticSize + 1;
+    
     Log("%*s\"" S8Fmt "\":\n"
-        "%*s %d,%d\n"
+        "%*s %s(%.0f,%0.f),%s(%.0f,%.0f)\n"
         "%*s %.0f,%.0f %.0fx%.0f\n"
         ,
         UI_DebugIndentation, "", S8Arg(Box->DisplayString),
-        UI_DebugIndentation, "", Box->SemanticSize[0].Kind, Box->SemanticSize[1].Kind, 
+        UI_DebugIndentation, "", 
+        UI_DebugSizeKindString(SizeX->Kind), SizeX->Value, SizeX->Strictness,
+        UI_DebugSizeKindString(SizeY->Kind), SizeY->Value, SizeY->Strictness,
         UI_DebugIndentation, "", 
         Box->FixedPosition.X, Box->FixedPosition.Y, Box->FixedSize.X, Box->FixedSize.Y);
     

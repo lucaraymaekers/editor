@@ -24,7 +24,7 @@ UI_ToggleButton(str8 Label, b32 Toggle, v4 EnabledColor)
         Result = (UI_AddBox(Label, UI_BoxFlag_Clip| 
                             UI_BoxFlag_MouseClickable|
                             UI_BoxFlag_DrawBorders|
-                                      UI_BoxFlag_DrawBackground|
+                            UI_BoxFlag_DrawBackground|
                             UI_BoxFlag_DrawDisplayString|
                             UI_BoxFlag_DrawHotEffects|
                             UI_BoxFlag_DrawActiveEffects|
@@ -85,7 +85,7 @@ UI_Slider(f32 MinSize, f32 MaxSize,
                     Color_Snow2 : Color_ButtonBorder);
         
         UI_FillWidth()
-        UI_BorderColor(Color)
+            UI_BorderColor(Color)
             UI_AddBox(Str8Fmt(S8Fmt ": %.0f###Label" S8Fmt, 
                               S8Arg(DisplayName), Value,
                               S8Arg(DisplayName)), 
@@ -98,8 +98,13 @@ UI_Slider(f32 MinSize, f32 MaxSize,
                        UI_BoxFlag_FloatingY));
     }
     
+    app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
+    
+    // NOTE(luca): Proper dragging.
+    
     if(!Input->Consumed && 
-       (UI_IsActive(Box) || UI_IsHot(Box)) && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
+       (UI_IsActive(Box) || UI_IsHot(Box)) && 
+       MouseLeft.EndedDown)
     {
         f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPosition.X)/Box->FixedSize.X);
         FillLevel = Clamp(SliderMinPct, PctOnXAxis, 1.f);

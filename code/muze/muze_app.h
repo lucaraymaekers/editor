@@ -150,11 +150,11 @@ struct app_state
     arena *UIArena;
     
     //- Panels 
-        panel *SelectedPanel;
-        panel *FirstPanel;
-        panel *FreePanel;
-        arena *PanelArena;
-        panel *DebugPanel;
+    panel *SelectedPanel;
+    panel *FirstPanel;
+    panel *FreePanel;
+    arena *PanelArena;
+    panel *DebugPanel;
     
     //- Misc. 
     
@@ -164,7 +164,9 @@ struct app_state
     //- Muze 
     
     struct
-    {    
+    {
+        ui_box *TopBox;
+        
         platform_midi_device In;
         platform_midi_device Out;
         
