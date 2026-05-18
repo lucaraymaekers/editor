@@ -837,16 +837,53 @@ struct ui_box_rec
 };
 
 internal ui_box_rec
-UI_BoxDepthFirstPostOrder()
+UI_BoxDepthFirstPostOrderBegin(ui_box *Root)
+{
+    ui_box_rec Result = {0};
+    
+    ui_box *Box = Root;
+    while(true)
+    {    
+        if(!UI_IsNilBox(Box->First))
+        {
+            Box = Box->First;
+    Result.PushCount += 1;
+        }
+        else if(!UI_IsNilBox(Box->Next))
+        {
+            Box = Box->Next;
+        }
+        else
+        {
+            Result.Next = Box;
+            break;
+        }
+    }
+
+    return Result;
+}
+
+internal ui_box_rec
+UI_BoxDepthFirstPostOrder(ui_box *Box)
 {
     ui_box_rec Result = {.Next = UI_NilBox};
     
+    if(!UI_IsNilBox(Box->Next))
+       {
+        Box = Box->Next;
+        while(!UI_IsNilBox(Box->First)) 
+{
+            Box = Box->First;
+            Result.PushCount += 1;
+}
+        Result.Next = Box;
+    }
+    else
+    {
+        Result.Next = Box->Parent;
+        Result.PopCount = 1;
+    }
     
-    //1. while Child go to child && break
-    //2. Else if Next go to next
-    //3. while parent
-    //   Go to parent
-    //   if next go to next && break
     return Result;
 }
 
@@ -868,18 +905,6 @@ UI_ResolveLayout(ui_box *Root)
         }
         UI_CalculatePositions(Root);
 
-#if 0        
-        ui_box *Box = UI_BoxDepthFirstPostOrder(Root);
-        while(!UI_IsNilBox(Box))
-        {
-            
-            Box = UI_BoxDepthFirstPostOrder(Box);
-        }
-        #endif
-
-        // TODO(luca): Do input 
-        
-        
         UI_DrawBoxes(Root);
     }
 }

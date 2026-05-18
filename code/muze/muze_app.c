@@ -2094,7 +2094,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             
                             UI_SemanticHeight(UI_SizeChildren(1.f))
                                 UI_LayoutAxis(Axis2_Y)
-                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                                UI_AddBox(S8("Instruments"), UI_BoxFlag_Clip);
                             {
                                 UI_Push()
                                 {
@@ -2102,11 +2102,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     {
                                         UI_Label(S8("Instruments"));
                                         UI_Spacer(UI_SizeEm(.2f, 1.f));
-                                        UI_Button(S8("Piano"));
                                         
                                         App->Muze.IsInputVirtualKeyboard ^= UI_Checkbox(S8("Virtual keyboard"), App->Muze.IsInputVirtualKeyboard);
-                                        
-                                        UI_State->RectDebugMode ^= UI_Checkbox(S8("Debug"), UI_State->RectDebugMode);
                                     }
                                 }
                             }
@@ -2121,7 +2118,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     {
                                         UI_Label(S8("Muzic"));
                                         UI_Spacer(UI_SizeEm(.2f, 1.f));
-                                        UI_Button(S8("Record##1"));
+                                        
+                                        if(UI_ToggleButton(S8("Record##1"), Voice->IsRecording, Color_Red))
+                                        {
+                                            ToggleRecording(Memory, App, Voice, Input->dtForFrame);
+                                        }
                                         
                                         if(UI_Checkbox(S8("Record##2"), Voice->IsRecording))
                                         {
@@ -2130,6 +2131,23 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     }
                                 }
                             }
+                            
+                            UI_SemanticHeight(UI_SizeChildren(1.f))
+                                UI_LayoutAxis(Axis2_Y)
+                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                            {
+                                UI_Push()
+                                {
+                                    UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                    {
+                                        UI_Label(S8("Debug"));
+                                        UI_Spacer(UI_SizeEm(.2f, 1.f));
+                                        
+                                        UI_State->RectDebugMode ^= UI_Checkbox(S8("UI Rects"), UI_State->RectDebugMode);
+                                    }
+                                }
+                            }
+                            
                         }
                     }
                 }
