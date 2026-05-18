@@ -42,9 +42,11 @@ internal void ArenaSetPos(arena *Arena, u64 Pos);
 internal u64 BeginScratch(arena *Arena);
 internal void EndScratch(arena *Arena, u64 BackPos);
 
-#define Scratch(Arena) for(u64 _J_ = BeginScratch((Arena)), _I_ = 0; \
-!_I_; \
-_I_ += 1, (EndScratch(Arena, _J_)))
+#define Scratch_(Arena, BackPos, Idx) \
+for(u64 BackPos = BeginScratch((Arena)), Idx = 0; \
+!Idx; \
+ Idx += 1, (EndScratch(Arena, BackPos)))
+#define Scratch(Arena) Scratch_(Arena, BackPos##__COUNTER__, Idx##__COUNTER__)
 
 #define PushArray(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), false)
 #define PushArrayZero(Arena, t, Count) (t *)ArenaPush((Arena), (Count)*(sizeof(t)), AlignOf(t), true)

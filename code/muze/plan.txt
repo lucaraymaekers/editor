@@ -1,5 +1,9 @@
 # Now
 
+Input should be computed in post order 
+
+The center vertically code is wrong. 
+
 UI rects have floating point because of ParentPct , so round when doing that multiplication
 Also make it so that the drawable window part is 1600x900 excluding the window border
 

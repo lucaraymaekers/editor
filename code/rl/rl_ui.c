@@ -246,7 +246,7 @@ UI_AddBox(str8 String, s32 Flags)
                 
                 Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
                 Box->Pressed = (Box->Hovered && MouseLeft.EndedDown);
-                Box->WasClicked = WasPressed(MouseLeft);
+                Box->WasClicked = (Box->Hovered && WasPressed(MouseLeft));
                 
                 // Set active and hot state
                 {            
@@ -426,7 +426,8 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
         {
             if(Axis == Axis2_X)
             {
-                Box->FixedSize.e[Axis] = (UI_MeasureTextWidth(Box->DisplayString, Box->FontKind) + 
+                // NOTE(luca): GPU likes exact pixel coordinates
+                Box->FixedSize.e[Axis] = ceilf(UI_MeasureTextWidth(Box->DisplayString, Box->FontKind) + 
                                           2.f*Box->SemanticSize[Axis].Value);
             }
             else
@@ -457,7 +458,8 @@ UI_CalculateUpwardSizes(ui_box *Box, axis2 Axis)
     
     if(Box->SemanticSize[Axis].Kind == UI_SizeKind_PercentOfParent)
     {
-        Box->FixedSize.e[Axis] = (Box->SemanticSize[Axis].Value * 
+        // NOTE(luca): GPU likes exact pixel coordinates
+        Box->FixedSize.e[Axis] = ceilf(Box->SemanticSize[Axis].Value * 
                                   Box->Parent->FixedSize.e[Axis]);
     }
     
@@ -714,7 +716,8 @@ UI_DrawBoxes(ui_box *Box)
             
             if(Box->Flags & UI_BoxFlag_CenterTextHorizontally)
             {
-                f32 TextWidth = UI_MeasureTextWidth(Box->DisplayString, Box->FontKind);
+                // NOTE(luca): GPU likes exact pixel coordinates
+                f32 TextWidth = ceilf(UI_MeasureTextWidth(Box->DisplayString, Box->FontKind));
                 Cur.X += .5f*((Box->FixedSize.X - 2.f*Box->BorderThickness) - TextWidth);
             }
             
@@ -763,7 +766,7 @@ UI_DrawBoxes(ui_box *Box)
         }
     }
     
-    b32 RectDebugMode = false;
+    b32 RectDebugMode = UI_State->RectDebugMode;
     if(RectDebugMode || Box->Flags & UI_BoxFlag_DrawDebugBorder)
     {    
         DrawRect(Dest, V4(1.f, 0.f, 1.f, 1.f), 0.f, 1.f, 0.f);

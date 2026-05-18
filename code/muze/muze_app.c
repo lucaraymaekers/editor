@@ -1198,25 +1198,6 @@ internal void
 UI_PopList(void)
 {
     UI_PopBox();
-    
-    ui_box *Parent = UI_State->Current;
-    axis2 Axis = 1 - Parent->LayoutAxis;
-    
-    f32 MaxSize = 0.f;
-    for UI_EachBox(Box, Parent->First)
-    {
-        f32 Size = UI_MeasureTextWidth(Box->DisplayString, Box->FontKind);
-        MaxSize = Max(MaxSize, Size);
-    }
-    
-    f32 TextPadding = 4.f;
-    
-    for UI_EachBox(Box, Parent->First)
-    {
-        Box->SemanticSize[Axis].Kind = UI_SizeKind_Pixels;
-        Box->SemanticSize[Axis].Value = MaxSize + 2.f*TextPadding;
-        Box->SemanticSize[Axis].Strictness = 1.f;
-    }
 }
 
 //- Stacks 
@@ -2104,83 +2085,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             UI_State->AnimSpeed = (1.f - powf(2.f, -AnimSpeed*UI_State->Input->dtForFrame));
                         }
                         
-                        // Checkbox
-                        {
-                            
-                            UI_LayoutAxis(Axis2_X)
-                                UI_AddBox(S8("CheckboxParent"), UI_BoxFlag_Clip);
-                            
-                            UI_Push()
-                            {
-                                UI_Labelf("Toggled:");
-                                
-                                
-                                UI_CornerRadii(V4F32(5.f))
-                                    UI_Softness(1.f)
-                                {                                
-                                    b32 Toggled = App->Muze.IsInputVirtualKeyboard;
-                                    
-                                    ui_box *Box;
-                                    UI_FillWidth()
-                                        Box = UI_AddBox(S8("Checkbox"), (UI_BoxFlag_Clip|
-                                                                         UI_BoxFlag_MouseClickable|
-                                                                         UI_BoxFlag_DrawBackground));
-                                    // Input
-                                    v4 BorderColor;
-                                    {
-                                        
-                                        // NOTE(luca): Overwrite Hot and Active -ness to match checkbox behavior
-                                        {                                        
-                                            if(UI_IsActive(UI_NilBox) && Box->Hovered)
-                                            {
-                                                UI_SetHot(Box->Key);
-                                            }
-                                            
-                                            if(UI_IsHot(Box) && Box->WasClicked)
-                                            {
-                                                Toggled = !Toggled;
-                                            }
-                                            
-                                        }
-                                        
-                                        BorderColor = (UI_IsHot(Box) || UI_IsActive(Box) ? Color_Snow2 : Color_Red);
-                                    }
-                                    
-                                    App->Muze.IsInputVirtualKeyboard = Toggled;
-                                    
-                                    UI_Push() 
-                                        //- Checkbox parent 
-                                    {
-                                        UI_FillAll()
-                                            UI_BorderColor(BorderColor)
-                                        {
-                                            UI_AddBox(S8("Borders"), (UI_BoxFlag_Clip|
-                                                                      UI_BoxFlag_DrawBorders));
-                                        }
-                                        
-                                        //- Add padding for border 
-                                        ui_size Padding = UI_SizePx(UI_BorderThicknessTop(), 1.f);
-                                        UI_Push()
-                                            UI_FillAll() UI_Column() UI_Padding(Padding)
-                                            UI_FillAll() UI_Row() UI_Padding(Padding)
-                                        {
-                                            //- Move the circle to the end if toggled 
-                                            if(Toggled)
-                                            {
-                                                UI_Spacer(UI_SizeParent(1.f, 0.f));
-                                            }
-                                            
-                                            //- Draw actual circle
-                                            UI_BackgroundColor(Color_Black)
-                                                UI_SemanticWidth(UI_SizeParent(.15f, 1.f))
-                                                UI_AddBox(S8("Circle"), (UI_BoxFlag_Clip|
-                                                                         UI_BoxFlag_DrawBackground|
-                                                                         UI_BoxFlag_AnimatePosX));
-                                        }
-                                    }
-                                }
-                            }
-                        }
                         
                         if(UI_ToggleButton(S8("Virtual Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow))
                         {
@@ -2216,6 +2120,22 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
                     UI_List(Axis2_Y, S8("Output Devices"))
                     {
+                        
+                        UI_State->RectDebugMode ^= UI_Checkbox(S8("Debug"), UI_State->RectDebugMode);
+                        
+                        if(UI_Checkbox(S8("Record"), Voice->IsRecording))
+                        {                                        
+                            if(Voice->IsRecording)
+                            {
+                                StopRecording(Memory, App, Voice, Input->dtForFrame);
+                            }
+                            else
+                            {
+                                StartRecording(Voice);
+                            }
+                            Voice->IsPlaying = false;
+                        }
+                        
                         if(UI_ToggleButton(S8("Virtual Synth"), App->Muze.IsOutputSynth, Color_Yellow))
                         {
                             if(!App->Muze.IsOutputSynth)
@@ -2256,18 +2176,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
                         }
                         
-                        if(UI_ToggleButton(S8("Record"), Voice->IsRecording, Color_Red))
-                        {
-                            StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                            if(!Voice->IsRecording)
-                            {
-                                StartRecording(Voice);
-                            }
-                            else
+                        if(UI_Checkbox(S8("Record"), Voice->IsRecording))
+                        {                                        
+                            if(Voice->IsRecording)
                             {
                                 StopRecording(Memory, App, Voice, Input->dtForFrame);
                             }
-                            
+                            else
+                            {
+                                StartRecording(Voice);
+                            }
                             Voice->IsPlaying = false;
                         }
                         

@@ -208,6 +208,8 @@ struct ui_state
     {
         UI_StateStacks
     };
+    
+    b32 RectDebugMode;
 };
 
 //~ Globals
