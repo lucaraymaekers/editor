@@ -954,6 +954,21 @@ StopRecording(app_memory *Memory, app_state *App, voice *Voice, f32 dtForFrame)
     Voice->IsRecording = false;
 }
 
+internal void
+ToggleRecording(app_memory *Memory, app_state *App, voice *Voice, f32 dtForFrame)
+{
+    if(Voice->IsRecording)
+    {
+        StopRecording(Memory, App, Voice, dtForFrame);
+    }
+    else
+    {
+        StartRecording(Voice);
+    }
+    
+    Voice->IsPlaying = false;
+}
+
 //~ Muze - MIDI
 
 internal void
@@ -1184,8 +1199,6 @@ internal void
 UI_PushList(axis2 Axis, str8 Name)
 {
     UI_LayoutAxis(Axis) 
-        UI_SemanticWidth(UI_SizeChildren(1.f)) 
-        UI_SemanticHeight(UI_SizeChildren(1.f)) 
         UI_AddBox(Name, UI_BoxFlag_Clip);
     UI_PushBox();
     
@@ -2063,18 +2076,72 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 UI_AddBox(S8(""), UI_BoxFlag_Clip);
             
             UI_Push()
-                //- All 
-            {        
-                UI_LayoutAxis(Axis2_X)
-                    UI_SemanticWidth(UI_SizeChildren(1.f))
-                    UI_SemanticHeight(UI_SizeChildren(1.f))
-                    UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                //- All
+            {       
                 
+                //- Top 
+                { 
+                    
+                    UI_SemanticHeight(UI_SizeChildren(1.f))
+                        UI_FillWidth()
+                        UI_LayoutAxis(Axis2_X)
+                        UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                    UI_Push()
+                    {                    
+                        UI_SemanticWidth(UI_SizePx(300.f, 1.f))
+                        {
+                            f32 ItemHeight = UI_State->HeightPxTop->Value + 2.f*8.f;
+                            
+                            UI_SemanticHeight(UI_SizeChildren(1.f))
+                                UI_LayoutAxis(Axis2_Y)
+                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                            {
+                                UI_Push()
+                                {
+                                    UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                    {
+                                        UI_Label(S8("Instruments"));
+                                        UI_Spacer(UI_SizeEm(.2f, 1.f));
+                                        UI_Button(S8("Piano"));
+                                        
+                                        App->Muze.IsInputVirtualKeyboard ^= UI_Checkbox(S8("Virtual keyboard"), App->Muze.IsInputVirtualKeyboard);
+                                        
+                                        UI_State->RectDebugMode ^= UI_Checkbox(S8("Debug"), UI_State->RectDebugMode);
+                                    }
+                                }
+                            }
+                            
+                            UI_SemanticHeight(UI_SizeChildren(1.f))
+                                UI_LayoutAxis(Axis2_Y)
+                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                            {
+                                UI_Push()
+                                {
+                                    UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                    {
+                                        UI_Label(S8("Muzic"));
+                                        UI_Spacer(UI_SizeEm(.2f, 1.f));
+                                        UI_Button(S8("Record##1"));
+                                        
+                                        if(UI_Checkbox(S8("Record##2"), Voice->IsRecording))
+                                        {
+                                            ToggleRecording(Memory, App, Voice, Input->dtForFrame);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+#if 0
                 UI_Push()
-                    UI_SemanticWidth(UI_SizeText(4.f, 1.f))
+                    UI_SemanticWidth(UI_SizePx(100.f, 1.f))
+                    //UI_SemanticWidth(UI_SizeText(4.f, 1.f))
                     UI_SemanticHeight(UI_SizeText(2.f, 1.f))
                 {
-                    UI_List(Axis2_Y, S8("Input Devices"))
+                    UI_SemanticHeight(UI_SizeChildren(1.f))
+                        UI_List(Axis2_Y, S8("Input Devices"))
                     {
                         b32 DeviceChanged = !Memory->Initialized;
                         
@@ -2125,15 +2192,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         
                         if(UI_Checkbox(S8("Record"), Voice->IsRecording))
                         {                                        
-                            if(Voice->IsRecording)
-                            {
-                                StopRecording(Memory, App, Voice, Input->dtForFrame);
-                            }
-                            else
-                            {
-                                StartRecording(Voice);
-                            }
-                            Voice->IsPlaying = false;
+                            ToggleRecording(Memory, App, Voice, Input->dtForFrame);
                         }
                         
                         if(UI_ToggleButton(S8("Virtual Synth"), App->Muze.IsOutputSynth, Color_Yellow))
@@ -2601,6 +2660,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     
 #endif
                 }
+#endif
                 
                 UI_FillWidth() UI_SemanticHeight(UI_SizePx(200.f, 1.f))
                     UI_BackgroundColor(Color_Night3)

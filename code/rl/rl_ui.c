@@ -428,7 +428,7 @@ UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
             {
                 // NOTE(luca): GPU likes exact pixel coordinates
                 Box->FixedSize.e[Axis] = ceilf(UI_MeasureTextWidth(Box->DisplayString, Box->FontKind) + 
-                                          2.f*Box->SemanticSize[Axis].Value);
+                                               2.f*Box->SemanticSize[Axis].Value);
             }
             else
             {
@@ -460,7 +460,7 @@ UI_CalculateUpwardSizes(ui_box *Box, axis2 Axis)
     {
         // NOTE(luca): GPU likes exact pixel coordinates
         Box->FixedSize.e[Axis] = ceilf(Box->SemanticSize[Axis].Value * 
-                                  Box->Parent->FixedSize.e[Axis]);
+                                       Box->Parent->FixedSize.e[Axis]);
     }
     
     if(!UI_IsNilBox(Box->First))
@@ -718,13 +718,13 @@ UI_DrawBoxes(ui_box *Box)
             {
                 // NOTE(luca): GPU likes exact pixel coordinates
                 f32 TextWidth = ceilf(UI_MeasureTextWidth(Box->DisplayString, Box->FontKind));
-                Cur.X += .5f*((Box->FixedSize.X - 2.f*Box->BorderThickness) - TextWidth);
+                Cur.X += .5f*(Box->FixedSize.X - TextWidth);
             }
             
             if(Box->Flags & UI_BoxFlag_CenterTextVertically)
             {
                 f32 TextHeight = Atlas->HeightPx;
-                Cur.Y += .5f*((Box->FixedSize.Y - 2.f*Box->BorderThickness) - TextHeight);
+                Cur.Y += .5f*(Box->FixedSize.Y - TextHeight);
             }
             
             rune Shift = UI_GetShiftForFont(Box->FontKind);
@@ -828,6 +828,28 @@ UI_DebugPrintBoxes(ui_box *Box)
 
 //~ Calculations End
 
+typedef struct ui_box_rec ui_box_rec;
+struct ui_box_rec
+{
+    ui_box *Next;
+    s64 PushCount;
+    s64 PopCount;
+};
+
+internal ui_box_rec
+UI_BoxDepthFirstPostOrder()
+{
+    ui_box_rec Result = {.Next = UI_NilBox};
+    
+    
+    //1. while Child go to child && break
+    //2. Else if Next go to next
+    //3. while parent
+    //   Go to parent
+    //   if next go to next && break
+    return Result;
+}
+
 internal void
 UI_ResolveLayout(ui_box *Root)
 {
@@ -845,6 +867,17 @@ UI_ResolveLayout(ui_box *Root)
             UI_CalculateViolations(Root, Axis);
         }
         UI_CalculatePositions(Root);
+        
+        ui_box *Box = UI_BoxDepthFirstPostOrder(Root);
+        while(!UI_IsNilBox(Box))
+        {
+            
+            Box = UI_BoxDepthFirstPostOrder(Box);
+        }
+        
+        // TODO(luca): Do input 
+        
+        
         UI_DrawBoxes(Root);
     }
 }

@@ -130,82 +130,83 @@ UI_Checkbox(str8 Label, b32 Toggled)
 {
     b32 Clicked = false;
     
-        f32 VerticalPadding = 8.f;
-    
-    f32 HeightPx = UI_State->HeightPxTop->Value;
-    f32 BoxHeight = HeightPx + 2.f*VerticalPadding;
-        
     UI_LayoutAxis(Axis2_X)
-        UI_SemanticWidth(UI_SizeChildren(1.f))
-            UI_SemanticHeight(UI_SizePx(BoxHeight, 1.f))
-            UI_BackgroundColor(Color_ButtonBackground)
-            UI_AddBox(S8("Checkbox"), (UI_BoxFlag_Clip|
-                                       UI_BoxFlag_DrawBackground|
-                                       UI_BoxFlag_DrawBorders));
-        {                            
-            UI_Push()
-                UI_FillHeight() UI_SemanticWidth(UI_SizeChildren(1.f))
+        UI_FillWidth()
+        UI_BackgroundColor(Color_ButtonBackground)
+        UI_AddBox(S8("Checkbox"), (UI_BoxFlag_Clip|
+                                   UI_BoxFlag_DrawBackground|
+                                   UI_BoxFlag_DrawBorders));
+    {                            
+        UI_Push()
+            UI_FillAll()
             UI_Column() UI_Padding(UI_SizePx(5.f, 1.f))
-             UI_Row() UI_Padding(UI_SizePx(5.f, 1.f))
-            {
-            UI_SemanticWidth(UI_SizeText(2.f, 1.f))
+            UI_Row() UI_Padding(UI_SizePx(5.f, 1.f))
+        {
+            UI_FillWidth()
                 UI_AddBox(Label, (UI_BoxFlag_Clip|
                                   UI_BoxFlag_CenterTextVertically|
-                                      UI_BoxFlag_DrawDisplayString));
-                
-                f32 CircleWidth = 20.f;
-                
+                                  UI_BoxFlag_CenterTextHorizontally|
+                                  UI_BoxFlag_DrawDisplayString));
+            
+            f32 CircleWidth = 20.f;
+            
+            // NOTE(luca): Push the switch onto the text so the text can be centered easily.  This might cause the switch to draw on top of the text...
+            // TODO(luca): A better solution would be to allow overflow such that we compute centering as if we own the whole space, but when drawing the text we still clip to the next box?
+            UI_Push()
                 UI_CornerRadii(V4F32(CircleWidth/2.f))
-                    UI_Softness(1.f)
-                {                                
-                    ui_box *Box;
-                    UI_BackgroundColor(Toggled ? Color_Red : Color_Background) 
-                        UI_SemanticWidth(UI_SizePx(50.f, 1.f))
-                        Box = UI_AddBox(S8("Background"), (UI_BoxFlag_Clip|
-                                                           UI_BoxFlag_MouseClickable|
-                                                           UI_BoxFlag_DrawBackground|
-                                                           UI_BoxFlag_DrawHotEffects));
-                    // Input
-                    // NOTE(luca): Overwrite Hot and Active -ness to match checkbox behavior
-                    if(UI_IsHot(Box) && Box->WasClicked)
+                UI_Softness(1.f)
+            {         
+                UI_Spacer(UI_SizeParent(1.f, 0.f));
+                
+                ui_box *Box;
+                UI_BackgroundColor(Toggled ? Color_Red : Color_Background) 
+                    UI_SemanticWidth(UI_SizePx(50.f, 1.f))
+                    Box = UI_AddBox(S8("Background"), (UI_BoxFlag_Clip|
+                                                       UI_BoxFlag_MouseClickable|
+                                                       UI_BoxFlag_DrawBackground|
+                                                       UI_BoxFlag_DrawHotEffects));
+                // Input
+                // NOTE(luca): Overwrite Hot and Active -ness to match checkbox behavior
+                if(UI_IsHot(Box) && Box->WasClicked)
+                {
+                    Clicked = true;
+                }
+                
+                UI_Push() 
+                {
+                    UI_FillAll()
+                        UI_BorderColor(Color_Black)
                     {
-                        Clicked = true;
+                        UI_AddBox(S8("Borders"), (UI_BoxFlag_Clip|
+                                                  UI_BoxFlag_DrawBorders));
                     }
                     
-                    UI_Push() 
+                    //- Add padding for border 
+                    ui_size Padding = UI_SizePx(UI_BorderThicknessTop() + 2.f, 1.f);
+                    UI_Push()
+                        UI_FillAll() 
+                        UI_Column() UI_Padding(Padding)
+                        UI_Row() UI_Padding(Padding)
                     {
-                        UI_FillAll()
-                            UI_BorderColor(Color_Black)
+                        //- Pushes the circle to the end if toggled 
+                        if(Toggled)
                         {
-                            UI_AddBox(S8("Borders"), (UI_BoxFlag_Clip|
-                                                      UI_BoxFlag_DrawBorders));
+                            UI_Spacer(UI_SizeParent(1.f, 0.f));
                         }
                         
-                        //- Add padding for border 
-                        ui_size Padding = UI_SizePx(UI_BorderThicknessTop() + 2.f, 1.f);
-                        UI_Push()
-                            UI_FillAll() UI_Column() UI_Padding(Padding)
-                            UI_FillAll() UI_Row() UI_Padding(Padding)
-                        {
-                            //- Pushes the circle to the end if toggled 
-                            if(Toggled)
-                            {
-                                UI_Spacer(UI_SizeParent(1.f, 0.f));
-                            }
-                            
-                            f32 CircleHeight = BoxHeight - 2.f*VerticalPadding - 2.f*UI_BorderThicknessTop() - 2.f*2.f; 
-                            
-                            //- Draw actual circle
-                            UI_BackgroundColor(Color_Black)
-                                UI_SemanticWidth(UI_SizePx(CircleWidth, 1.f))
-                                UI_CornerRadii(V4F32(CircleHeight/2.f))
-                                UI_AddBox(S8("Circle"), (UI_BoxFlag_Clip|
-                                                         UI_BoxFlag_DrawBackground|
-                                                         UI_BoxFlag_AnimatePosX));
-                        }
+                        f32 CircleHeight = 13.f; 
+                        
+                        //- Draw actual circle
+                        UI_BackgroundColor(Color_Black)
+                            UI_SemanticWidth(UI_SizePx(CircleWidth, 1.f))
+                            UI_CornerRadii(V4F32(CircleHeight/2.f))
+                            UI_AddBox(S8("Circle"), (UI_BoxFlag_Clip|
+                                                     UI_BoxFlag_DrawBackground|
+                                                     UI_BoxFlag_AnimatePosX));
                     }
                 }
             }
+        }
     }
     
     return Clicked;

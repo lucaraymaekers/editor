@@ -1,5 +1,7 @@
 # Now
 
+Text with 0 padding will be clipped, fix this.
+
 Input should be computed in post order 
 
 The center vertically code is wrong. 
