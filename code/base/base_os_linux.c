@@ -153,7 +153,7 @@ OS_SetThreadName(str8 ThreadName)
 internal void *
 OS_AllocateAtOffset(u64 Size, u64 Offset)
 {
-    void *Result = mmap((void *)Offset, Size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+    void *Result = mmap((void *)Offset, Size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     AssertErrno(Result!= MAP_FAILED);
     return Result;
 }

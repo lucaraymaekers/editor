@@ -867,14 +867,16 @@ UI_ResolveLayout(ui_box *Root)
             UI_CalculateViolations(Root, Axis);
         }
         UI_CalculatePositions(Root);
-        
+
+#if 0        
         ui_box *Box = UI_BoxDepthFirstPostOrder(Root);
         while(!UI_IsNilBox(Box))
         {
             
             Box = UI_BoxDepthFirstPostOrder(Box);
         }
-        
+        #endif
+
         // TODO(luca): Do input 
         
         

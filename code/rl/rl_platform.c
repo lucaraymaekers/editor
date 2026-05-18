@@ -75,7 +75,10 @@ ReplayLoadMemory(platform_replay *Replay, app_memory *Memory)
 internal void
 ReplayRecordMemory(platform_replay *Replay, app_memory *Memory)
 {
+    f64 Start = OS_GetWallClock();
     MemoryCopy(Replay->Buffer, Memory->Memory, Memory->MemorySize);
+    f64 End = OS_GetWallClock();
+    Log("Memory copy: %.6f\n", End - Start);
     Replay->RecordingSize = Memory->MemorySize;
 }
 
