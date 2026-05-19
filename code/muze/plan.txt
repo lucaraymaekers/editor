@@ -1,5 +1,12 @@
 # Now
 
+rjf jank
+pushbuffer for rendering
+editor demo: use showkey
+demo debuggin features
+Memory alignment struct
+
+
 Text with 0 padding will be clipped, fix this.
 
 Input should be computed in post order 

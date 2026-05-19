@@ -5,7 +5,7 @@
 internal void
 UI_Spacer(ui_size Size)
 {
-    ui_box *Box = UI_AddBox(S8(""), UI_BoxFlag_Clip);
+    ui_box *Box = UI_AddBox(S8(""), 0);
     axis2 Axis = Box->Parent->LayoutAxis;
     Box->SemanticSize[Axis] = Size;
     Box->SemanticSize[1 - Axis] = UI_SizeParent(1.f, 0.f);

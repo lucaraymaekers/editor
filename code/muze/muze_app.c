@@ -2104,6 +2104,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                         UI_Spacer(UI_SizeEm(.2f, 1.f));
                                         
                                         App->Muze.IsInputVirtualKeyboard ^= UI_Checkbox(S8("Virtual keyboard"), App->Muze.IsInputVirtualKeyboard);
+                                        
+                                        App->Muze.IsOutputSynth ^= UI_Checkbox(S8("Synth"), App->Muze.IsOutputSynth);
                                     }
                                 }
                             }
@@ -2117,17 +2119,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
                                     {
                                         UI_Label(S8("Muzic"));
-                                        UI_Spacer(UI_SizeEm(.2f, 1.f));
                                         
-                                        if(UI_ToggleButton(S8("Record##1"), Voice->IsRecording, Color_Red))
-                                        {
-                                            ToggleRecording(Memory, App, Voice, Input->dtForFrame);
-                                        }
+                                        // TODO(luca): This makes the second one disappear.
+                                        //UI_Spacer(UI_SizeEm(.2f, 1.f));
                                         
                                         if(UI_Checkbox(S8("Record##2"), Voice->IsRecording))
                                         {
                                             ToggleRecording(Memory, App, Voice, Input->dtForFrame);
                                         }
+                                        
                                     }
                                 }
                             }
