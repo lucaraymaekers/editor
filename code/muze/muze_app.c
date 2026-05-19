@@ -685,6 +685,7 @@ PanelGetRegionAndInput(panel *Panel, v4 FreeRegion)
                 if(IsNilPanel(PanelDragging) && Pressed)
                 {                
                     PanelDragging = Panel; 
+                    PanelApp->SelectedPanel = Panel;
                 }
             }
             
