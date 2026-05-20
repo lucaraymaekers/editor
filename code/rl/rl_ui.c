@@ -128,8 +128,6 @@ UI_AddBox(str8 String, s32 Flags)
             if(S8Match(S8From(String, Idx), S8("###"), true))
             {
                 DisplayString = S8To(String, Idx);
-                
-                String = S8From(String, Idx + 3);
                 break;
             }
             if(S8Match(S8From(String, Idx), S8("##"), true))
@@ -226,84 +224,13 @@ UI_AddBox(str8 String, s32 Flags)
     Box->FontKind = UI_State->FontKindTop->Value;
     Box->CustomDraw = 0;
     Box->CustomDrawData = 0;
+#if 0
     Box->Clicked = false;
     Box->Hovered = false;
     Box->Pressed = false;
     Box->WasClicked = false;
+#endif
     MemoryZero(&Box->Drag);
-    
-    if(!FirstTime)
-    {
-        app_input *Input = UI_State->Input;
-        
-        if(!Input->Consumed)
-        {        
-            if(Box->Flags & UI_BoxFlag_MouseClickable)
-            {                
-                v2 MouseP = MousePosFromInput(Input);
-                app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
-                b32 MouseUp = (!MouseLeft.EndedDown);
-                
-                Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
-                Box->Pressed = (Box->Hovered && MouseLeft.EndedDown);
-                Box->WasClicked = (Box->Hovered && WasPressed(MouseLeft));
-                
-                // Set active and hot state
-                {            
-                    if(Box->Hovered)
-                    {
-                        if(UI_IsActive(UI_NilBox) ||
-                           UI_IsActive(Box)) 
-                        {
-                            UI_SetHot(Box->Key);
-                        }
-                    }
-                    else if(UI_IsHot(Box))
-                    {
-                        UI_SetHot(UI_KeyNull());
-                    }
-                    
-                    if(UI_IsActive(Box))
-                    {
-                        if(MouseUp)
-                        {
-                            if(UI_IsHot(Box))
-                            {
-                                Box->Clicked = true;
-                            }
-                            UI_SetActive(UI_KeyNull());
-                        }
-                    }
-                    else if(UI_IsHot(Box))
-                    {
-                        if(Box->WasClicked)
-                        {
-                            UI_SetActive(Box->Key);
-                        }
-                    }
-                }
-                
-                // Update tHot and tActive
-                {                
-                    f32 Speed = UI_State->AnimSpeed;
-                    f32 HotTarget    = UI_IsHot(Box)    ? 1.f : 0.f;
-                    f32 ActiveTarget = UI_IsActive(Box) ? 1.f : 0.f;
-                    Box->tActive += Speed*(ActiveTarget - Box->tActive);
-                    Box->tHot    += Speed*(HotTarget - Box->tHot);
-                }
-                
-            }
-            
-            if(Box->Flags & UI_BoxFlag_Scroll)
-            {            
-                if(Box->Pressed)
-                {
-                    Box->Drag.X = (Input->Mouse.X - Input->Mouse.StartX);
-                    Box->Drag.Y = (Input->Mouse.Y - Input->Mouse.StartY);
-                }
-            }
-        }
-    }
     
     // Add box to the tree
     {    
@@ -693,16 +620,16 @@ UI_DrawBoxes(ui_box *Box)
             rect_instance *Inst = DrawRect(Dest, Box->BackgroundColor, 0.f, 0.f, Box->Softness);
             Inst->CornerRadii = Box->CornerRadii;
             
-            if(Box->Flags & UI_BoxFlag_DrawHotEffects)
+            if(Box->Flags & UI_BoxFlag_DrawHotEffects && UI_IsHot(Box))
             {
-                V3Math Inst->Color0.E *= 1.f - .4f*(Box->tHot - Box->tActive);
-                V3Math Inst->Color1.E *= 1.f - .4f*(Box->tHot - Box->tActive);
+                V3Math Inst->Color0.E *= 1.f - .3f*(Box->tHot - Box->tActive);
+                V3Math Inst->Color1.E *= 1.f - .3f*(Box->tHot - Box->tActive);
             }
             
-            if(Box->Flags & UI_BoxFlag_DrawActiveEffects)
+            if(Box->Flags & UI_BoxFlag_DrawActiveEffects && UI_IsActive(Box))
             {
-                V3Math Inst->Color2.E *= 1.f - .4f*(Box->tActive);
-                V3Math Inst->Color3.E *= 1.f - .4f*(Box->tActive);
+                V3Math Inst->Color2.E *= 1.f - .3f*(Box->tActive);
+                V3Math Inst->Color3.E *= 1.f - .3f*(Box->tActive);
             }
         }
         
@@ -748,12 +675,15 @@ UI_DrawBoxes(ui_box *Box)
         
         if(Box->Flags & UI_BoxFlag_DrawBorders)
         {
-            b32 Selected = (Box->Flags & UI_BoxFlag_DrawHotEffects &&
-                            (UI_IsHot(Box) || UI_IsActive(Box)));
-            
-            if(Selected)
+            if(0)
             {
-                Box->BorderColor = Color_Snow2;
+                b32 Selected = (Box->Flags & UI_BoxFlag_DrawHotEffects &&
+                                (UI_IsHot(Box) || UI_IsActive(Box)));
+                
+                if(Selected)
+                {
+                    Box->BorderColor = Color_Snow2;
+                }
             }
             rect_instance *Inst = DrawRect(Dest, Box->BorderColor, 0.f, Box->BorderThickness, Box->Softness);
             V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
@@ -847,7 +777,7 @@ UI_BoxDepthFirstPostOrderBegin(ui_box *Root)
         if(!UI_IsNilBox(Box->First))
         {
             Box = Box->First;
-    Result.PushCount += 1;
+            Result.PushCount += 1;
         }
         else if(!UI_IsNilBox(Box->Next))
         {
@@ -859,7 +789,7 @@ UI_BoxDepthFirstPostOrderBegin(ui_box *Root)
             break;
         }
     }
-
+    
     return Result;
 }
 
@@ -869,13 +799,13 @@ UI_BoxDepthFirstPostOrder(ui_box *Box)
     ui_box_rec Result = {.Next = UI_NilBox};
     
     if(!UI_IsNilBox(Box->Next))
-       {
+    {
         Box = Box->Next;
         while(!UI_IsNilBox(Box->First)) 
-{
+        {
             Box = Box->First;
             Result.PushCount += 1;
-}
+        }
         Result.Next = Box;
     }
     else
@@ -904,7 +834,96 @@ UI_ResolveLayout(ui_box *Root)
             UI_CalculateViolations(Root, Axis);
         }
         UI_CalculatePositions(Root);
-
+        
+        app_input *Input = UI_State->Input;
+        v2 MouseP = MousePosFromInput(Input);
+        app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
+        b32 MouseUp = (!MouseLeft.EndedDown);
+        
+        for (ui_box *Box = UI_BoxDepthFirstPostOrderBegin(Root).Next;
+             !UI_IsNilBox(Box);
+             Box = UI_BoxDepthFirstPostOrder(Box).Next)
+        {
+            Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
+            
+            if(S8Match(S8("Background"), Box->String, false) &&
+               Box->Hovered &&
+               WasPressed(MouseLeft))
+            {
+                //DebugBreak();
+            }
+            
+            if(!Input->Consumed)
+            {
+                if(Box->Flags & UI_BoxFlag_MouseClickable)
+                {                
+                    Box->Pressed = (Box->Hovered && MouseLeft.EndedDown);
+                    Box->WasClicked = (Box->Hovered && WasPressed(MouseLeft));
+                    
+                    // Set active and hot state
+                    {            
+                        if(Box->Hovered)
+                        {
+                            Input->Consumed = true;
+                            
+                            if(UI_IsActive(UI_NilBox) ||
+                               UI_IsActive(Box)) 
+                            {
+                                UI_SetHot(Box->Key);
+                            }
+                        }
+                        else if(UI_IsHot(Box))
+                        {
+                            UI_SetHot(UI_KeyNull());
+                        }
+                        
+                        if(UI_IsActive(Box))
+                        {
+                            if(MouseUp)
+                            {
+                                if(UI_IsHot(Box))
+                                {
+                                    Box->Clicked = true;
+                                }
+                                UI_SetActive(UI_KeyNull());
+                            }
+                        }
+                        else if(UI_IsHot(Box))
+                        {
+                            if(Box->WasClicked)
+                            {
+                                UI_SetActive(Box->Key);
+                            }
+                        }
+                    }
+                    
+                    // Update tHot and tActive
+                    {                
+                        f32 Speed = UI_State->AnimSpeed;
+                        f32 HotTarget    = UI_IsHot(Box)    ? 1.f : 0.f;
+                        f32 ActiveTarget = UI_IsActive(Box) ? 1.f : 0.f;
+                        Box->tActive += Speed*(ActiveTarget - Box->tActive);
+                        Box->tHot    += Speed*(HotTarget - Box->tHot);
+                    }
+                    
+                }
+                
+                if(Box->Flags & UI_BoxFlag_Scroll)
+                {            
+                    if(Box->Pressed)
+                    {
+                        Box->Drag.X = (Input->Mouse.X - Input->Mouse.StartX);
+                        Box->Drag.Y = (Input->Mouse.Y - Input->Mouse.StartY);
+                    }
+                }
+            }
+        }
+        
+        if(MouseUp)
+        {
+            UI_SetActive(UI_KeyNull());
+        }
+        
         UI_DrawBoxes(Root);
     }
 }

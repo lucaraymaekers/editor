@@ -1,4 +1,15 @@
 # Now
+Input should be computed in post order 
+- Lister
+
+For input and output devices:
+Add icon for keyboard
+Add icon for midi device
+Add icon for synth
+
+Make instrument per voice
+
+Redo panels.
 
 rjf jank
 pushbuffer for rendering
@@ -6,10 +17,12 @@ editor demo: use showkey
 demo debuggin features
 Memory alignment struct
 
+Make button around checkbox also toggle the checkbox.
+
+Pop-pup floating box.
 
 Text with 0 padding will be clipped, fix this.
 
-Input should be computed in post order 
 
 The center vertically code is wrong. 
 
@@ -20,15 +33,14 @@ SDF smoothness should only happen on the corners.
 This way the straight lines will have the crisp color.
 
 - Better buttons
-  - Checkbox with differential (linear exp smoothing)
+  x Checkbox with differential (linear exp smoothing)
   - Better rounded corners (SDF)
-  - Fix bug of border being too small
+  x Fix bug of border being too small
 
 - Proper panel resizing
 
-- Commands
+x Commands
   - Undo?
-- Lister
 
 # Next
 - Better scrolling

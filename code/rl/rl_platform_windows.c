@@ -296,8 +296,6 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
 
 PLATFORM_MIDI_SEND(P_MIDISend) 
 {
-    Assert(Device.IsOutput);
-    
     u64 Port = MIDIDevices[Device.Id].OutPort;
     
     if(Port != SelectedOutPort)
@@ -334,8 +332,6 @@ PLATFORM_MIDI_SEND(P_MIDISend)
 
 PLATFORM_MIDI_LISTEN(P_MIDIListen)
 {
-    Assert(Device.IsInput);
-    
     u64 Port = MIDIDevices[Device.Id].InPort;
     
     if(Port != SelectedInPort)

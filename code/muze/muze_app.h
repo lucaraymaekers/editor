@@ -134,6 +134,38 @@ struct panel_rec
 };
 
 //- State 
+enum command_kind
+{
+    Command_None,
+    
+    Command_SelectInputDevice,
+    
+    Command_SelectVoice,
+    Command_AddVoice,
+    Command_DeleteVoice,
+    
+    Command_PlayAllVoices,
+    Command_StopAllNotes,
+    Command_ToggleRecording,
+    Command_TogglePlaying,
+    
+    Command_ClosePanel,
+    Command_SplitPanelLeft,
+    Command_SplitPanelRight,
+    Command_SplitPanelDown,
+    Command_SplitPanelUp,
+};
+typedef enum command_kind command_kind;
+
+typedef struct command command;
+struct command
+{
+    command_kind Kind;
+    
+    voice *Voice;
+    platform_midi_device *Device;
+};
+
 typedef struct app_state app_state;
 struct app_state
 {
@@ -183,6 +215,11 @@ struct app_state
         
         arena *Arena;
         note_node *FirstFreeNode;
+        
+        // NOTE(luca): PushBuffer
+        umm MaxCommandCount;
+        umm CommandCount;
+        command *Commands;
     } Muze;
     
     //- Rendering 
@@ -197,5 +234,6 @@ struct app_state
 #define DefaultHeightPx 20
 
 global_variable note *NilNote;
+global_variable f32 dtForFrame;
 
 #endif //MUZE_APP_H

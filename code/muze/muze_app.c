@@ -894,18 +894,8 @@ PlayNote(app_memory *Memory, app_state *App, voice *Voice, note *Note)
     }
 }
 
-internal void
-StartRecording(voice *Voice)
-{
-    VoiceReset(Voice);
-    Voice->RecordStart = GetWallTime();
-    Voice->PlayPos = 0.f;
-    Voice->IsRecording = true;
-    Voice->IsPlaying = false;
-}
-
 internal b32
-IsNotePlaying(note *Note, voice *Voice, f32 dtForFrame)
+IsNotePlaying(note *Note, voice *Voice)
 {
     b32 Result = false;
     
@@ -927,11 +917,11 @@ IsNotePlaying(note *Note, voice *Voice, f32 dtForFrame)
 }
 
 internal void
-StopAllPlayingNotes(app_memory *Memory, app_state *App, voice *Voice, f32 dtForFrame)
+StopAllPlayingNotes(app_memory *Memory, app_state *App, voice *Voice)
 {
     for EachNote(Note, Voice->FirstNote)
     {
-        b32 NoteIsPlaying = IsNotePlaying(Note, Voice, dtForFrame);
+        b32 NoteIsPlaying = IsNotePlaying(Note, Voice);
         if(NoteIsPlaying)
         {
             if(Voice->IsRecording)
@@ -948,29 +938,22 @@ StopAllPlayingNotes(app_memory *Memory, app_state *App, voice *Voice, f32 dtForF
     }
 }
 
-internal void
-StopRecording(app_memory *Memory, app_state *App, voice *Voice, f32 dtForFrame)
-{
-    StopAllPlayingNotes(Memory, App, Voice, dtForFrame);
-    Voice->IsRecording = false;
-}
+//~ Muze - MIDI
+global_variable command NilCommand = {0};
 
-internal void
-ToggleRecording(app_memory *Memory, app_state *App, voice *Voice, f32 dtForFrame)
+internal command *
+NewCommand(app_state *App)
 {
-    if(Voice->IsRecording)
+    command *Result = &NilCommand;
+    
+    if(App->Muze.CommandCount < App->Muze.MaxCommandCount)
     {
-        StopRecording(Memory, App, Voice, dtForFrame);
-    }
-    else
-    {
-        StartRecording(Voice);
+        Result = App->Muze.Commands + App->Muze.CommandCount;
+        App->Muze.CommandCount += 1;
     }
     
-    Voice->IsPlaying = false;
+    return Result;
 }
-
-//~ Muze - MIDI
 
 internal void
 MakePanelMuze(panel *Panel, app_state *App)
@@ -1120,6 +1103,32 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
     }
 }
 
+internal void 
+TogglePlayingAllVoices(app_memory *Memory, app_state *App)
+{
+    for EachIndex(VoiceIdx, App->Muze.VoiceCount)
+    {
+        voice *Voice = App->Muze.Voices + VoiceIdx;
+        
+        if(Voice->IsPlaying)
+        {
+            Voice->IsPlaying = false;
+        }
+        else
+        {
+            StopAllPlayingNotes(Memory, App, Voice);
+            Voice->IsPlaying = true;
+        }
+    }
+}
+
+
+internal void
+StopRecording(voice *Voice)
+{
+    Voice->IsRecording = false;
+}
+
 //~ UI 
 
 typedef struct muze_box_data muze_box_data;
@@ -1195,28 +1204,6 @@ ArenaLabel(str8 Name, arena *Arena)
               (f32)Arena->Size/(f32)SizeUnit.Value,
               S8Arg(SizeUnit.Name));
 }
-
-internal void
-UI_PushList(axis2 Axis, str8 Name)
-{
-    UI_LayoutAxis(Axis) 
-        UI_AddBox(Name, UI_BoxFlag_Clip);
-    UI_PushBox();
-    
-    UI_Label(Name);
-    
-    UI_Spacer(UI_SizeEm(.2f, 1.f));
-}
-
-internal void
-UI_PopList(void)
-{
-    UI_PopBox();
-}
-
-//- Stacks 
-
-#define UI_List(Axis, Name) DeferLoop(UI_PushList(Axis, Name), UI_PopList())
 
 //- Custom elements 
 
@@ -1306,7 +1293,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
                 }
             }
             
-            b32 NoteIsPlaying = IsNotePlaying(Note, Voice, Input->dtForFrame);
+            b32 NoteIsPlaying = IsNotePlaying(Note, Voice);
             if(NoteIsPlaying)
             {
                 NoteColor = Color_Yellow;
@@ -1579,7 +1566,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
                     }
                 }
                 
-                v4 NoteColor = (IsNotePlaying(Note, Voice, Input->dtForFrame) ? Color_Yellow :
+                v4 NoteColor = (IsNotePlaying(Note, Voice) ? Color_Yellow :
                                 (Sel ? Color_Blue : 
                                  ((Note->Kind == NoteKind_Pedal) ? Color_Orange : 
                                   (White ? Color_Snow0 : Color_Black))));
@@ -1685,6 +1672,30 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     }
 }
 
+
+internal void
+UI_ListBegin(str8 Name, f32 ItemHeight)
+{
+    UI_SemanticHeight(UI_SizeChildren(1.f))
+        UI_LayoutAxis(Axis2_Y)
+        UI_AddBox(Name, UI_BoxFlag_Clip);
+    UI_PushBox();
+    
+    UI_PushSemanticHeight(UI_SizePx(ItemHeight, 1.f));
+    
+    UI_Label(Name);
+    UI_Spacer(UI_SizeEm(.2f, 1.f));
+}
+
+internal void
+UI_ListEnd(void)
+{
+    UI_PopSemanticHeight();
+    UI_PopBox();
+}
+
+#define UI_List(Name, ItemHeight) DeferLoop(UI_ListBegin(Name, ItemHeight), UI_ListEnd())
+
 //~ EntryPoint
 C_LINKAGE
 UPDATE_AND_RENDER(UpdateAndRender)
@@ -1706,6 +1717,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     Input->PlatformCursor = PlatformCursorShape_Arrow;
     f32 WindowBorderSize = 2.f;
     v2 BufferDim = V2S32(Buffer->Width, Buffer->Height);
+    dtForFrame = Input->dtForFrame;
     
     //- Init state 
     OS_ProfileInit(" G");
@@ -1752,6 +1764,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
     }
     
+    platform_midi_get_devices_result DevicesArray = Memory->PlatformMIDIGetDevices();
+    
     local_persist s32 GLADVersion = 0;
     if(Memory->Reloaded)
     {
@@ -1786,6 +1800,34 @@ UPDATE_AND_RENDER(UpdateAndRender)
             App->Muze.MaxVoiceCount = 5;
             App->Muze.Voices = PushArray(App->Muze.Arena, voice, App->Muze.MaxVoiceCount);
             App->Muze.LastSelectedVoice = App->Muze.Voices;
+            
+            App->Muze.MaxCommandCount = KB(4);
+            App->Muze.Commands = PushArray(App->Muze.Arena, command, App->Muze.MaxCommandCount);
+            
+            // Select default input and output device
+            {
+                b32 InputFound = false;
+                b32 OutputFound = false;
+                for EachIndex(Idx, DevicesArray.Count)
+                {
+                    platform_midi_device *Device = DevicesArray.Devices + Idx;
+                    if(Device->IsOutput)
+                    {
+                        App->Muze.Out = *Device;
+                        OutputFound = true;
+                    }
+                    if(Device->IsInput)
+                    {
+                        App->Muze.In = *Device;
+                        InputFound = true;
+                    }
+                    
+                    if(InputFound && OutputFound)
+                    {
+                        break;
+                    }
+                }
+            }
         }
         
         OS_ProfileAndPrint("Muze init");
@@ -1838,20 +1880,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
         OS_ProfileAndPrint("RO Init");
         
-        //- Renderer 
-        
         RenderInit(&App->Render);
-        
         OS_ProfileAndPrint("Renderer Init");
         
-        //- UI 
+        // Init UI 
         {
             UI_State->Arena = App->UIArena;
             UI_State->BoxTableSize = 4096;
             UI_State->BoxTable = PushArray(UI_State->Arena, ui_box, UI_State->BoxTableSize);
         }
         
-        // Panels
+        // Init panels
         { 
             App->FirstPanel = PanelAdd(1.f);
             
@@ -1859,23 +1898,23 @@ UPDATE_AND_RENDER(UpdateAndRender)
             MakePanelMuze(App->SelectedPanel, App);
         }
         
-        OS_ProfileAndPrint("Memory Init");
-    }
-    
-    // Setup global variables
-    {    
-        InitReadOnlyGlobals(App->ReadOnlyArena);
     }
     
     voice *Voice;
-    // Set default voice
-    {    
-        if(App->SelectedPanel->Kind == PanelKind_Muze)
-        {
-            App->Muze.LastSelectedVoice = App->SelectedPanel->Voice;
+    // Frame Initialization
+    {
+        // Init read-only variables
+        {    
+            InitReadOnlyGlobals(App->ReadOnlyArena);
         }
         
-        Voice = App->Muze.LastSelectedVoice;
+        // Init Muze
+        {
+            App->Muze.CommandCount = 0;
+            Voice = App->Muze.LastSelectedVoice;
+        }
+        
+        OS_ProfileAndPrint("Misc. Init");
     }
     
     for EachIndex(Idx, Input->Text.Count)
@@ -1894,37 +1933,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
                 switch(Key.Codepoint)
                 {
-                    case 'p':
-                    {
-                        for EachIndex(VoiceIdx, App->Muze.VoiceCount)
-                        {
-                            voice *VoiceAt = App->Muze.Voices + VoiceIdx;
-                            StopRecording(Memory, App, VoiceAt, Input->dtForFrame);
-                            
-                            if(VoiceAt->IsPlaying)
-                            {
-                                VoiceAt->IsPlaying = false;
-                            }
-                            else
-                            {
-                                StopAllPlayingNotes(Memory, App, VoiceAt, Input->dtForFrame);
-                                VoiceAt->IsPlaying = true;
-                            }
-                        }
-                    } break;
                     
-                    case ' ':
-                    {
-                        if(Voice->IsRecording)
-                        {
-                            StopRecording(Memory, App, Voice, Input->dtForFrame);
-                        }
-                        else
-                        {
-                            StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                            StartRecording(Voice);
-                        }
-                    } break;
                     default: break;
                 }
                 
@@ -1935,37 +1944,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                     case 'b': DebugBreak();  break;
                     
-                    //- Panels 
-                    case 'p':
-                    {
-                        if(!Shift)
-                        {
-                            App->SelectedPanel = SplitPanel(App->SelectedPanel, Axis2_X, false);
-                            MakePanelMuze(App->SelectedPanel, App);
-                        }
-                        else
-                        {
-                            App->SelectedPanel = ClosePanel(App, App->SelectedPanel);
-                        }
-                    } break;
-                    
-                    case '-':
-                    {
-                        if(!Shift)
-                        {                        
-                            App->SelectedPanel = SplitPanel(App->SelectedPanel, Axis2_Y, false);
-                            MakePanelMuze(App->SelectedPanel, App);
-                        }
-                    } break;
-                    
-                    case ',':
-                    {
-                        App->SelectedPanel = (IsNilPanel(App->SelectedPanel) ?
-                                              PanelNextLeaf(App->FirstPanel, true) :
-                                              (!Shift ?
-                                               PanelNextLeaf(App->SelectedPanel, false) :
-                                               PanelNextLeaf(App->SelectedPanel, true)));
-                    } break;
                 }
             }
         }
@@ -1986,7 +1964,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     // TODO(luca): Exponential smoothing curve
     // Scrolling
     {    
-        f32 dt = Input->dtForFrame;
+        f32 dt = dtForFrame;
         
         f32 MaxSpeed = 2000.f;
         f32 Accel = 8000.f;
@@ -2036,16 +2014,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
             UI_State->Atlas = &App->FontAtlas;
             UI_State->FrameIdx = App->FrameIdx;
             UI_State->Input = Input;
-            if(UI_IsActive(UI_NilBox))
-            {
-                UI_State->Hot = UI_KeyNull();
-            }
             UI_State->FrameArena = FrameArena;
         }
         
         OS_ProfileAndPrint("UI setup");
         
-        platform_midi_get_devices_result DevicesArray = Memory->PlatformMIDIGetDevices();
         // NOTE(luca): There are two UI passes, one for the top controls and on for the bottom half which will be the panels.  The free space for the panels is calculated in the first pass.
         // Maybe we can merge them?
         ui_box *RootPanelBox;
@@ -2079,607 +2052,88 @@ UPDATE_AND_RENDER(UpdateAndRender)
             UI_Push()
                 //- All
             {       
-                
                 //- Top 
-                { 
-                    
+                {
                     UI_SemanticHeight(UI_SizeChildren(1.f))
                         UI_FillWidth()
                         UI_LayoutAxis(Axis2_X)
                         UI_AddBox(S8(""), UI_BoxFlag_Clip);
                     UI_Push()
                     {                    
-                        UI_SemanticWidth(UI_SizePx(300.f, 1.f))
+                        UI_SemanticWidth(UI_SizePx(200.f, 1.f))
                         {
                             f32 ItemHeight = UI_State->HeightPxTop->Value + 2.f*8.f;
                             
-                            UI_SemanticHeight(UI_SizeChildren(1.f))
-                                UI_LayoutAxis(Axis2_Y)
-                                UI_AddBox(S8("Instruments"), UI_BoxFlag_Clip);
-                            {
-                                UI_Push()
-                                {
-                                    UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
-                                    {
-                                        UI_Label(S8("Instruments"));
-                                        UI_Spacer(UI_SizeEm(.2f, 1.f));
-                                        
-                                        App->Muze.IsInputVirtualKeyboard ^= UI_Checkbox(S8("Virtual keyboard"), App->Muze.IsInputVirtualKeyboard);
-                                        
-                                        App->Muze.IsOutputSynth ^= UI_Checkbox(S8("Synth"), App->Muze.IsOutputSynth);
-                                    }
-                                }
-                            }
-                            
-                            UI_SemanticHeight(UI_SizeChildren(1.f))
-                                UI_LayoutAxis(Axis2_Y)
-                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
-                            {
-                                UI_Push()
-                                {
-                                    UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
-                                    {
-                                        UI_Label(S8("Muzic"));
-                                        
-                                        // TODO(luca): This makes the second one disappear.
-                                        //UI_Spacer(UI_SizeEm(.2f, 1.f));
-                                        
-                                        if(UI_Checkbox(S8("Record##2"), Voice->IsRecording))
-                                        {
-                                            ToggleRecording(Memory, App, Voice, Input->dtForFrame);
-                                        }
-                                        
-                                    }
-                                }
-                            }
-                            
-                            UI_SemanticHeight(UI_SizeChildren(1.f))
-                                UI_LayoutAxis(Axis2_Y)
-                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
-                            {
-                                UI_Push()
-                                {
-                                    UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
-                                    {
-                                        UI_Label(S8("Debug"));
-                                        UI_Spacer(UI_SizeEm(.2f, 1.f));
-                                        
-                                        UI_State->RectDebugMode ^= UI_Checkbox(S8("UI Rects"), UI_State->RectDebugMode);
-                                    }
-                                }
-                            }
-                            
-                        }
-                    }
-                }
-                
-#if 0
-                UI_Push()
-                    UI_SemanticWidth(UI_SizePx(100.f, 1.f))
-                    //UI_SemanticWidth(UI_SizeText(4.f, 1.f))
-                    UI_SemanticHeight(UI_SizeText(2.f, 1.f))
-                {
-                    UI_SemanticHeight(UI_SizeChildren(1.f))
-                        UI_List(Axis2_Y, S8("Input Devices"))
-                    {
-                        b32 DeviceChanged = !Memory->Initialized;
-                        
-                        // Animation speed slider
-                        {                        
-                            local_persist f32 AnimSpeed = 30.f;
-                            AnimSpeed = UI_Slider(1.f,  64.f, 0.f, AnimSpeed, S8("Speed"), Color_Blue, true);
-                            UI_State->AnimSpeed = (1.f - powf(2.f, -AnimSpeed*UI_State->Input->dtForFrame));
-                        }
-                        
-                        
-                        if(UI_ToggleButton(S8("Virtual Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow))
-                        {
-                            if(!App->Muze.IsInputVirtualKeyboard)
-                            {
-                                App->Muze.IsInputVirtualKeyboard = true;
-                            }
-                        }
-                        
-                        for EachIndex(Idx, DevicesArray.Count)
-                        {
-                            platform_midi_device *Device = DevicesArray.Devices + Idx;
-                            if(Device->IsInput)
-                            {
-                                b32 Selected = (!App->Muze.IsInputVirtualKeyboard && 
-                                                (Device->Id == App->Muze.In.Id));
-                                
-                                if(UI_ToggleButton(Device->Name, Selected, Color_Yellow))
-                                {
-                                    if(!Selected)
-                                    {
-                                        StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                                        
-                                        App->Muze.IsInputVirtualKeyboard = false;
-                                        App->Muze.In = *Device;
-                                        Memory->PlatformMIDIListen(App->Muze.In);
-                                    }
-                                }
-                            }
-                        }
-                        
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Output Devices"))
-                    {
-                        
-                        UI_State->RectDebugMode ^= UI_Checkbox(S8("Debug"), UI_State->RectDebugMode);
-                        
-                        if(UI_Checkbox(S8("Record"), Voice->IsRecording))
-                        {                                        
-                            ToggleRecording(Memory, App, Voice, Input->dtForFrame);
-                        }
-                        
-                        if(UI_ToggleButton(S8("Virtual Synth"), App->Muze.IsOutputSynth, Color_Yellow))
-                        {
-                            if(!App->Muze.IsOutputSynth)
-                            {
-                                StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                                App->Muze.IsOutputSynth = true;
-                            }
-                        }
-                        
-                        for EachIndex(Idx, DevicesArray.Count)
-                        {         
-                            platform_midi_device *Device = DevicesArray.Devices + Idx;
-                            if(Device->IsOutput)
+                            UI_List(S8("Input"), ItemHeight) 
                             {                            
-                                b32 Selected = (!App->Muze.IsOutputSynth && (Device->Id == App->Muze.Out.Id));
+                                App->Muze.IsInputVirtualKeyboard ^= UI_Checkbox(S8("Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow);
                                 
-                                if(UI_ToggleButton(Device->Name, Selected, Color_Yellow))
+                                for EachIndex(Idx, DevicesArray.Count)
                                 {
-                                    if(!Selected)
+                                    platform_midi_device *Device = DevicesArray.Devices + Idx;
+                                    if(Device->IsInput)
                                     {
-                                        StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
+                                        b32 Selected = (Device->Id == App->Muze.In.Id);
                                         
-                                        App->Muze.IsOutputSynth = false;
-                                        App->Muze.Out = *Device;
+                                        if(UI_ToggleButton(Device->Name, Selected, Color_Yellow))
+                                        {
+                                            command *Command = NewCommand(App);
+                                            Command->Kind = Command_SelectInputDevice;
+                                            Command->Device = Device;
+                                        }
+                                        
                                     }
                                 }
                             }
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Controls"))
-                    {
-                        if(UI_Button(S8("Reset")))
-                        {
-                            VoiceReset(Voice);
-                            Voice->IsRecording = false;
-                            Voice->IsPlaying = false;
-                            StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                        }
-                        
-                        if(UI_Checkbox(S8("Record"), Voice->IsRecording))
-                        {                                        
-                            if(Voice->IsRecording)
+                            UI_List(S8("Music"), ItemHeight)
                             {
-                                StopRecording(Memory, App, Voice, Input->dtForFrame);
-                            }
-                            else
-                            {
-                                StartRecording(Voice);
-                            }
-                            Voice->IsPlaying = false;
-                        }
-                        
-                        if(UI_ToggleButton(S8("Play"), Voice->IsPlaying, Color_Green))
-                        {
-                            StopRecording(Memory, App, Voice, Input->dtForFrame);
-                            
-                            if(Voice->IsPlaying)
-                            {
-                                Voice->IsPlaying = false;
-                            }
-                            else
-                            {
-                                Voice->IsPlaying = true;
-                            }
-                        }
-                        
-                        if(UI_Button(S8("Stop")))
-                        {
-                            StopRecording(Memory, App, Voice, Input->dtForFrame);
-                            Voice->IsPlaying = false;
-                            Voice->PlayPos = 0.f;
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y,  S8("Edits"))
-                    {
-                        if(UI_Button(S8("Trim")))
-                        {
-                            if(!IsNilNote(Voice->FirstNote))
-                            {
-                                StopAllPlayingNotes(Memory, App, Voice, Input->dtForFrame);
-                                
-                                note *LastNote = Voice->LastNote;
-                                
-                                f32 LastNoteEnd = (LastNote->Timestamp + LastNote->Duration); 
-                                //- Find the last note's end.
+                                if(UI_Checkbox(S8("Record"), Voice->IsRecording, Color_Red))
                                 {
-                                    for EachNote(Note, Voice->FirstNote)
-                                    {
-                                        if(Note->Kind == NoteKind_Note)
-                                        {
-                                            LastNoteEnd = Max(LastNoteEnd, (Note->Timestamp + Note->Duration));
-                                        }
-                                    }
+                                    command *Command = NewCommand(App);
+                                    Command->Kind = Command_ToggleRecording;
                                 }
                                 
-                                Voice->RecordLength = LastNoteEnd;
-                                
-                                note *FirstNote = Voice->FirstNote;
-                                //- Find the first note played.
+                                if(UI_Checkbox(S8("Play"), Voice->IsPlaying, Color_Green))
                                 {
-                                    for EachNote(Note, FirstNote)
-                                    {
-                                        if(Note->Kind == NoteKind_Note)
-                                        {
-                                            FirstNote = Note;
-                                            break;
-                                        }
-                                    }
+                                    command *Command = NewCommand(App);
+                                    Command->Kind = Command_TogglePlaying;
                                 }
+                            }
+                            
+                            UI_List(S8("Debug"), ItemHeight)
+                            {
+                                UI_State->RectDebugMode ^= UI_Checkbox(S8("UI Rects"), UI_State->RectDebugMode, V4(1.f, 0.f, 1.f, 1.f));
                                 
-                                f32 StartSilence = FirstNote->Timestamp;
                                 
-                                //- Get new voice length 
-                                {                                    
-                                    Voice->RecordLength -= StartSilence;
-                                    
-                                    f32 BeatsPerSecond = App->Muze.BPM/60.f;
-                                    f32 SecondsPerBeat = 1.f/BeatsPerSecond;
-                                    
-                                    f32 BarTime = SecondsPerBeat*(f32)App->Muze.TimeSig;
-                                    // TODO(luca): Intrinsic
-                                    f32 Pad = ceilf(Voice->RecordLength/BarTime)*BarTime;
-                                    
-                                    Voice->RecordLength = Pad;
-                                }
+                                ui_box *Hot = UI_BoxFromKey(UI_State->Hot);
+                                ui_box *Active = UI_BoxFromKey(UI_State->Active);
+                                str8 ActiveDisplayString = Active->String;
+                                str8 HotDisplayString = Hot->String;
+                                if(ActiveDisplayString.Size == 0) ActiveDisplayString = S8("null");
+                                if(HotDisplayString.Size == 0) HotDisplayString = S8("null");
                                 
-                                //- Update notes .
+                                ui_box *Box;
+                                
+                                if(UI_IsNilBox(Active))
                                 {
-                                    for EachNote(Note, Voice->FirstNote)
-                                    {
-                                        
-                                        if(Note->Kind == NoteKind_Pedal)
-                                        {
-                                            // If the pedal note is before the first note, then we forward it up to the firstnote.
-                                            f32 Diff = (FirstNote->Timestamp - Note->Timestamp);
-                                            if(Diff > 0.f)
-                                            {
-                                                Note->Duration -= Diff;
-                                                Note->Timestamp += Diff;
-                                            }
-                                            
-                                            // Clamp the end to the record's length.
-                                            {
-                                                f32 NewTimestamp = Note->Timestamp - StartSilence;
-                                                
-                                                f32 NoteEnd = NewTimestamp + Note->Duration;
-                                                f32 NewEnd = Min(NoteEnd, Voice->RecordLength);
-                                                Note->Duration = (NewEnd - NewTimestamp);
-                                            }
-                                        }
-                                        
-                                        Note->Timestamp -= StartSilence;
-                                        
-                                    }
-                                }
-                            }
-                        }
-                        
-                        if(UI_Button(S8("Round")))
-                        {
-                            f32 BPS = App->Muze.BPM/60.f;
-                            
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 NoteLength = Note->Duration*BPS;
-                                f32 DenomOfFraction = roundf(-log2f(NoteLength));
-                                f32 NoteValue = (DenomOfFraction > 0.f ? 
-                                                 (1.f/2.f*DenomOfFraction) : 
-                                                 roundf(NoteLength));
-                                f32 NewDuration = NoteValue/BPS;
-                                Note->Duration = NewDuration;
-                            }
-                        }
-                        
-                        if(UI_Button(S8("Sync")))
-                        {
-                            f32 BPS = App->Muze.BPM/60.f;
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 NoteLength = Note->Duration*BPS;
-                                f32 DenomOfFraction = roundf(-log2f(NoteLength));
-                                f32 NoteValue = (DenomOfFraction > 0.f ? 
-                                                 (1.f/2.f*DenomOfFraction) : 
-                                                 roundf(NoteLength));
-                                
-                                f32 Timestamp = BPS*Note->Timestamp;
-                                
-                                f32 NewTimestamp = Note->Timestamp;
-                                NewTimestamp = (NoteValue >= 1.f ? 
-                                                roundf(Timestamp) : 
-                                                (roundf(Timestamp/NoteValue)*NoteValue));
-                                
-                                f32 RealNewTimestamp = NewTimestamp/BPS;
-                                Note->Timestamp = RealNewTimestamp;
-                                
-                            }
-                        }
-                        
-                        if(UI_Button(S8("Clear")))
-                        {
-                            Voice->NoteSel = 0;
-                        }
-                        
-                        if(UI_Button(S8("Delete")))
-                        {
-                            for(note_node *Node = Voice->NoteSel;
-                                Node;
-                                )
-                            {
-                                Voice->NoteCount -= 1;
-                                
-                                note *Note = Node->Value;
-                                
-                                // Remove the note
-                                {                                
-                                    if(!IsNilNote(Note->Next))
-                                    {
-                                        Note->Next->Prev = Note->Prev;
-                                    }
-                                    
-                                    if(!IsNilNote(Note->Prev))
-                                    {
-                                        Note->Prev->Next = Note->Next;
-                                    }
-                                    
-                                    if(Note == Voice->FirstNote)
-                                    {
-                                        Voice->FirstNote = Note->Next;
-                                    }
-                                    
-                                    if(Note == Voice->LastNote)
-                                    {
-                                        Voice->LastNote = Note->Prev;
-                                    }
+                                    Log("Null.\n");
                                 }
                                 
-                                note_node *NextNode = Node->Next;
+                                Box = UI_Labelf("Active");
+                                Box->DisplayString = Str8Fmt("Active: " S8Fmt, S8Arg(ActiveDisplayString));
+                                Box = UI_Labelf("Hot");
+                                Box->DisplayString = Str8Fmt("Hot: " S8Fmt, S8Arg(HotDisplayString));
                                 
-                                // Remove from selection
-                                {                                
-                                    // Remove links
-                                    {
-                                        if(Node->Prev)
-                                        {
-                                            Node->Prev->Next = Node->Next;
-                                        }
-                                        
-                                        if(Node->Next)
-                                        {
-                                            Node->Next->Prev = Node->Prev;
-                                        }
-                                        
-                                        if(Node == Voice->NoteSel)
-                                        {
-                                            Voice->NoteSel = (Node->Next ? Node->Next : Node->Prev);
-                                        }
-                                    }
-                                    
-                                    // Put on free list
-                                    {
-                                        Node->Next = App->Muze.FirstFreeNode;
-                                        App->Muze.FirstFreeNode = Node;
-                                    }
-                                }
-                                
-                                Node = NextNode;
+                                UI_Labelf("Active->tHot = %.2f", Active->tHot);
+                                UI_Labelf("Active->tActive = %.2f", Active->tActive);
+                                UI_Labelf("Hot->tHot = %.2f", Hot->tHot);
+                                UI_Labelf("Hot->tActive = %.2f", Hot->tActive);
                             }
                             
-                        }
-                        
-                        if(UI_Button(S8("GuessBPM")))
-                        {
-                            note_node *Node = Voice->NoteSel;
-                            
-                            f32 AveragedDiff = 0.f;
-                            f32 Diff = 0.f;
-                            
-                            if(Node && Node->Next)
-                            {
-                                note *Start = Node->Value;
-                                note *End = Node->Next->Value;
-                                
-                                if(Start->Timestamp > End->Timestamp) Swap(Start, End);
-                                
-                                Diff = (End->Timestamp - Start->Timestamp);
-                                
-                                Node = Node->Next;
-                                
-                                // Time that goes in a bar
-                                f32 SecondsPerBeat = Diff/(f32)App->Muze.TimeSig;
-                                App->Muze.BPM = (1.f/SecondsPerBeat)*60.f;
-                            }
                             
                         }
                     }
-                    
-                    UI_List(Axis2_Y, S8("Set Length"))
-                    {
-                        if(UI_Button(S8("4")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 4.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("2")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 2.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("1")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 1.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("1/2")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 1.f/2.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("1/4")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 1.f/4.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                        if(UI_Button(S8("1/8")))
-                        {
-                            for EachNoteNode(Note, Voice->NoteSel)
-                            {
-                                f32 Ratio = 1.f/8.f;
-                                f32 SecondsPerBeat = (1.f/(App->Muze.BPM/60.f));
-                                Note->Duration = Ratio*SecondsPerBeat;
-                            }
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Music"))
-                    {         
-                        App->Muze.BPM = UI_Slider(30.f, 180.f, .1f, App->Muze.BPM, S8("BPM"), Color_Orange, true);
-                        App->Muze.TimeSig = (s32)UI_Slider(1.f, 4.f, .25f, (f32)App->Muze.TimeSig, S8("TimeSig"), Color_Orange, true);
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Voices"))
-                    {
-                        if(UI_Button(S8("+")))
-                        {
-                            if((u64)App->Muze.VoiceCount < App->Muze.MaxVoiceCount)
-                            {
-                                voice *New = VoiceAdd(App);
-                                
-                                App->Muze.LastSelectedVoice = New;
-                                App->SelectedPanel->Voice = New;
-                            }
-                        }
-                        
-                        for EachIndex(Idx, App->Muze.VoiceCount)
-                        {
-                            voice *VoiceAt = App->Muze.Voices + Idx;
-                            b32 Selected = (VoiceAt == App->SelectedPanel->Voice);
-                            if(UI_ToggleButton(Str8Fmt("%lu", Idx), Selected, Color_Yellow))
-                            {
-                                App->SelectedPanel->Voice = VoiceAt;
-                                App->Muze.LastSelectedVoice = VoiceAt;
-                            }
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Instruments"))
-                    {
-                        // TODO(luca): Proper lister
-                        s32 Count = tsf_get_presetcount(GlobalTSF);;
-                        for EachIndex(Idx, Count)
-                        {
-                            if(UI_ToggleButton(Str8Fmt("%s", tsf_get_presetname(GlobalTSF, Idx)), (Voice->PresetIdx == Idx), Color_Yellow))
-                            {
-                                Voice->PresetIdx = Idx;
-                                tsf_channel_note_off_all(GlobalTSF, Voice->Channel);
-                                tsf_channel_set_presetindex(GlobalTSF, Voice->Channel, Voice->PresetIdx);
-                            }
-                            
-                            if(Idx == 5) break;
-                        }
-                    }
-                    
-#if MUZE_INTERNAL        
-                    if(0)
-                    {                    
-                        UI_List(Axis2_Y, S8("Recording"))
-                        {                  
-                            UI_Labelf("Length: %.2f/%.2f###RecordLength", Voice->RecordLength, ((f32)App->Muze.BPM/60.f)*Voice->RecordLength);
-                        }
-                        
-                        UI_List(Axis2_Y, S8("Playing"))
-                        {                    
-                            UI_Labelf("Pos: %.2f###RecordEnd", Voice->PlayPos);
-                        }
-                        
-                        if(Voice->NoteSel)
-                        {
-                            UI_List(Axis2_Y, S8("Note"))
-                            {                    
-                                note *Sel = Voice->NoteSel->Value;
-                                f32 BPS = App->Muze.BPM/60.f;
-                                UI_Labelf("Duration: %.2f/%.2f###Duration", Sel->Duration, BPS*Sel->Duration);
-                                UI_Labelf("Start: %.2f/%.2f###Start", Sel->Timestamp, BPS*Sel->Timestamp);
-                                UI_Labelf("Pitch/Vel: %d/%d###PitchAndVelocity", Sel->Pitch, Sel->Velocity);
-                            }
-                        }
-                        
-                        UI_List(Axis2_Y, S8("UI"))
-                        {                    
-                            UI_Labelf("ScrollX: %.2f###ScrollX", ScrollX);
-                            
-                            ui_box *Hot = UI_BoxFromKey(UI_State->Hot);
-                            ui_box *Active = UI_BoxFromKey(UI_State->Active);
-                            str8 ActiveDisplayString = Active->DisplayString;
-                            str8 HotDisplayString = Hot->DisplayString;
-                            if(ActiveDisplayString.Size == 0) ActiveDisplayString = S8("null");
-                            if(HotDisplayString.Size == 0) HotDisplayString = S8("null");
-                            
-                            UI_Labelf("Active: " S8Fmt, S8Arg(ActiveDisplayString));
-                            UI_Labelf("Hot: " S8Fmt, S8Arg(HotDisplayString));
-                            
-                            UI_Labelf("Active->tHot = %.2f", Active->tHot);
-                            UI_Labelf("Active->tActive = %.2f", Active->tActive);
-                            UI_Labelf("Hot->tHot = %.2f", Hot->tHot);
-                            UI_Labelf("Hot->tActive = %.2f", Hot->tActive);
-                        }
-                    }
-                    
-                    UI_List(Axis2_Y, S8("Memory"))
-                    {
-                        arena *Arena = App->Muze.Arena;
-                        ArenaLabel(S8("Perm"), PermanentArena);
-                        ArenaLabel(S8("Frame"), FrameArena);
-                        ArenaLabel(S8("R/O"), App->ReadOnlyArena);
-                        ArenaLabel(S8("Font"), App->FontAtlasArena);
-                        ArenaLabel(S8("UI"), App->UIArena);
-                        ArenaLabel(S8("Panel"), App->PanelArena);
-                        ArenaLabel(S8("Muze"), App->Muze.Arena);
-                        ArenaLabel(S8("TSF"), App->TSFArena);
-                    }
-                    
-#endif
                 }
-#endif
                 
                 UI_FillWidth() UI_SemanticHeight(UI_SizePx(200.f, 1.f))
                     UI_BackgroundColor(Color_Night3)
@@ -2703,8 +2157,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             }
             
             UI_ResolveLayout(Root->First);
-            
-            
         }
         
         // UI Panels
@@ -2791,7 +2243,54 @@ UPDATE_AND_RENDER(UpdateAndRender)
         OS_ProfileAndPrint("UI");
     }
     
+    for EachIndex(Idx, App->Muze.CommandCount)
+    {
+        command *Command = App->Muze.Commands + Idx;
+        
+        switch(Command->Kind)
+        {
+            default: InvalidPath(); break;
+            
+            case Command_ToggleRecording:
+            {
+                StopAllPlayingNotes(Memory, App, Voice);
+                
+                if(Voice->IsRecording)
+                {
+                    StopRecording(Voice);
+                }
+                else
+                {
+                    VoiceReset(Voice);
+                    Voice->RecordStart = GetWallTime();
+                    Voice->PlayPos = 0.f;
+                    Voice->IsRecording = true;
+                }
+                
+                Voice->IsPlaying = false;
+            } break;
+            
+            case Command_TogglePlaying:
+            {
+                StopAllPlayingNotes(Memory, App, Voice);
+                StopRecording(Voice);
+                
+                Voice->IsPlaying ^= 1;
+            } break;
+            
+            case Command_SelectInputDevice:
+            {
+                StopAllPlayingNotes(Memory, App, Voice);
+                
+                App->Muze.In = *Command->Device;
+                Memory->PlatformMIDIListen(App->Muze.In);
+            } break;
+            
+        }
+    }
+    
     // Window borders
+    // TODO(luca): Move to platform
     {
         v4 WindowBorderColor;
         if(0) {}
@@ -2824,38 +2323,37 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 // TODO(luca): If a note is shorter than dtForFrame it could skip it.
                 
                 if(NoteStart <= VoiceAt->PlayPos &&
-                   NoteStart > (VoiceAt->PlayPos - Input->dtForFrame))
+                   NoteStart > (VoiceAt->PlayPos - dtForFrame))
                 {
                     PlayNote(Memory, App, VoiceAt, Note);
                 }
                 
                 if(NoteEnd <= VoiceAt->PlayPos &&
-                   NoteEnd > (VoiceAt->PlayPos - Input->dtForFrame))
+                   NoteEnd > (VoiceAt->PlayPos - dtForFrame))
                 {
                     note OffNote = *Note;
                     OffNote.Velocity = 0;
                     PlayNote(Memory, App, VoiceAt, &OffNote);
                 }
-                
             }
             
-            VoiceAt->PlayPos += Input->dtForFrame;
+            VoiceAt->PlayPos += dtForFrame;
             if(VoiceAt->PlayPos >= VoiceAt->RecordLength)
             {
-                StopAllPlayingNotes(Memory, App, VoiceAt, Input->dtForFrame);
+                StopAllPlayingNotes(Memory, App, VoiceAt);
                 
                 VoiceAt->PlayPos = 0.f;
             }
         }
-    }
-    
-    if(Voice->IsRecording)
-    {
-        Voice->RecordLength = (GetWallTime() - Voice->RecordStart);
         
-        if(Voice->RecordLength >= MaxRecordingLength)
+        if(VoiceAt->IsRecording)
         {
-            StopRecording(Memory, App, Voice, Input->dtForFrame);
+            VoiceAt->RecordLength = (GetWallTime() - VoiceAt->RecordStart);
+            
+            if(VoiceAt->RecordLength >= MaxRecordingLength)
+            {
+                StopRecording(VoiceAt);
+            }
         }
     }
     
@@ -2907,11 +2405,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
             
             ProcessMIDINotes(Memory, App, Voice, Events, EventCount);
         }
-        else
-        {            
-            //- MIDI notes from Input 
-            ProcessMIDINotes(Memory, App, Voice, Input->MIDI.Events, Input->MIDI.EventCount);
-        }
+        
+        //- MIDI notes from Input 
+        ProcessMIDINotes(Memory, App, Voice, Input->MIDI.Events, Input->MIDI.EventCount);
     }
     
     //- Rendering 

@@ -32,9 +32,7 @@ UI_ToggleButton(str8 Label, b32 Toggle, v4 EnabledColor)
                             UI_BoxFlag_DrawDisplayString|
                             UI_BoxFlag_DrawHotEffects|
                             UI_BoxFlag_DrawActiveEffects|
-                            UI_BoxFlag_CenterTextVertically|
-                            UI_BoxFlag_CenterTextHorizontally
-                            )->Clicked);
+                            UI_BoxFlag_CenterTextVertically)->WasClicked);
     }
     return Result;
 }
@@ -126,51 +124,47 @@ UI_Slider(f32 MinSize, f32 MaxSize,
 }
 
 internal b32
-UI_Checkbox(str8 Label, b32 Toggled)
+UI_Checkbox(str8 Label, b32 Toggled, v4 EnabledColor)
 {
     b32 Clicked = false;
+    
+    ui_box *Parent;
+    ui_box *Box;
     
     UI_LayoutAxis(Axis2_X)
         UI_FillWidth()
         UI_BackgroundColor(Color_ButtonBackground)
-        UI_AddBox(S8("Checkbox"), (UI_BoxFlag_Clip|
-                                   UI_BoxFlag_DrawBackground|
-                                   UI_BoxFlag_DrawBorders));
-    {                            
+        Parent = UI_AddBox(S8("Checkbox"), (UI_BoxFlag_Clip|
+                                            UI_BoxFlag_DrawBackground|
+                                            UI_BoxFlag_DrawBorders|
+                                            UI_BoxFlag_MouseClickable|
+                                            UI_BoxFlag_DrawHotEffects|
+                                            UI_BoxFlag_DrawActiveEffects));
+    { 
+        ui_size Padding = UI_SizePx(5.f, 1.f);
         UI_Push()
             UI_FillAll()
-            UI_Column() UI_Padding(UI_SizePx(5.f, 1.f))
-            UI_Row() UI_Padding(UI_SizePx(5.f, 1.f))
+            UI_Column() UI_Padding(Padding)
+            UI_Row() UI_Padding(Padding)
         {
-            UI_FillWidth()
+            UI_FillAll()
                 UI_AddBox(Label, (UI_BoxFlag_Clip|
                                   UI_BoxFlag_CenterTextVertically|
-                                  UI_BoxFlag_CenterTextHorizontally|
                                   UI_BoxFlag_DrawDisplayString));
             
             f32 CircleWidth = 20.f;
             
             // NOTE(luca): Push the switch onto the text so the text can be centered easily.  This might cause the switch to draw on top of the text...
             // TODO(luca): A better solution would be to allow overflow such that we compute centering as if we own the whole space, but when drawing the text we still clip to the next box?
-            UI_Push()
-                UI_CornerRadii(V4F32(CircleWidth/2.f))
+            UI_CornerRadii(V4F32(CircleWidth/2.f))
                 UI_Softness(1.f)
             {         
-                UI_Spacer(UI_SizeParent(1.f, 0.f));
-                
-                ui_box *Box;
-                UI_BackgroundColor(Toggled ? Color_Red : Color_Background) 
+                UI_BackgroundColor(Toggled ? EnabledColor : Color_Background) 
                     UI_SemanticWidth(UI_SizePx(50.f, 1.f))
                     Box = UI_AddBox(S8("Background"), (UI_BoxFlag_Clip|
                                                        UI_BoxFlag_MouseClickable|
                                                        UI_BoxFlag_DrawBackground|
                                                        UI_BoxFlag_DrawHotEffects));
-                // Input
-                // NOTE(luca): Overwrite Hot and Active -ness to match checkbox behavior
-                if(UI_IsHot(Box) && Box->WasClicked)
-                {
-                    Clicked = true;
-                }
                 
                 UI_Push() 
                 {
@@ -182,11 +176,11 @@ UI_Checkbox(str8 Label, b32 Toggled)
                     }
                     
                     //- Add padding for border 
-                    ui_size Padding = UI_SizePx(UI_BorderThicknessTop() + 2.f, 1.f);
+                    ui_size CirclePadding = UI_SizePx(UI_BorderThicknessTop() + 2.f, 1.f);
                     UI_Push()
                         UI_FillAll() 
-                        UI_Column() UI_Padding(Padding)
-                        UI_Row() UI_Padding(Padding)
+                        UI_Column() UI_Padding(CirclePadding)
+                        UI_Row() UI_Padding(CirclePadding)
                     {
                         //- Pushes the circle to the end if toggled 
                         if(Toggled)
@@ -208,6 +202,8 @@ UI_Checkbox(str8 Label, b32 Toggled)
             }
         }
     }
+    
+    Clicked = Box->WasClicked || Parent->WasClicked;
     
     return Clicked;
 }
