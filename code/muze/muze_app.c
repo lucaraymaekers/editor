@@ -2057,10 +2057,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     UI_SemanticHeight(UI_SizeChildren(1.f))
                         UI_FillWidth()
                         UI_LayoutAxis(Axis2_X)
-                        UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                        UI_AddBox(S8("TopControls"), UI_BoxFlag_Clip);
                     UI_Push()
                     {                    
-                        UI_SemanticWidth(UI_SizePx(200.f, 1.f))
+                        UI_SemanticWidth(UI_SizePx(300.f, 1.f))
                         {
                             f32 ItemHeight = UI_State->HeightPxTop->Value + 2.f*8.f;
                             
@@ -2068,20 +2068,95 @@ UPDATE_AND_RENDER(UpdateAndRender)
                             {                            
                                 App->Muze.IsInputVirtualKeyboard ^= UI_Checkbox(S8("Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow);
                                 
+                                UI_SemanticHeight(UI_SizeChildren(1.f))
+                                    UI_LayoutAxis(Axis2_X)
+                                    UI_AddBox(S8("Instruments"), UI_BoxFlag_Clip);
+                                
+                                u64 InputDevCount = 0;
                                 for EachIndex(Idx, DevicesArray.Count)
                                 {
-                                    platform_midi_device *Device = DevicesArray.Devices + Idx;
-                                    if(Device->IsInput)
-                                    {
-                                        b32 Selected = (Device->Id == App->Muze.In.Id);
-                                        
-                                        if(UI_ToggleButton(Device->Name, Selected, Color_Yellow))
+                                    InputDevCount += !!(DevicesArray.Devices[Idx].IsInput);
+                                }
+                                
+                                f32 ListHeight = ItemHeight*InputDevCount; 
+                                
+                                UI_SemanticHeight(UI_SizePx(ListHeight, 1.f))
+                                    UI_Push()
+                                {
+                                    UI_FillWidth()
+                                        UI_LayoutAxis(Axis2_Y)
+                                        UI_AddBox(S8("Input devices"), UI_BoxFlag_Clip);
+                                    UI_FillWidth()
+                                        UI_Push()
+                                    {                                        
+                                        for EachIndex(Idx, DevicesArray.Count)
                                         {
-                                            command *Command = NewCommand(App);
-                                            Command->Kind = Command_SelectInputDevice;
-                                            Command->Device = Device;
+                                            platform_midi_device *Device = DevicesArray.Devices + Idx;
+                                            if(Device->IsInput)
+                                            {
+                                                b32 Selected = (Device->Id == App->Muze.In.Id);
+                                                
+                                                b32 Clicked = false;
+                                                ui_size BorderPadding = UI_SizePx(5.f, 1.f);
+                                                UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                                {                                     
+                                                    UI_BackgroundColor(Selected ? Color_Yellow : Color_ButtonBackground)
+                                                        Clicked = UI_AddBox(Device->Name, 
+                                                                            UI_BoxFlag_Clip|
+                                                                            UI_BoxFlag_MouseClickable|
+                                                                            UI_BoxFlag_DrawBackground|
+                                                                            UI_BoxFlag_DrawBorders|
+                                                                            UI_BoxFlag_DrawHotEffects|
+                                                                            UI_BoxFlag_DrawActiveEffects)->WasClicked;
+                                                    UI_Push()
+                                                        UI_FillAll() 
+                                                        UI_Column() UI_Padding(BorderPadding)
+                                                        UI_Row() UI_Padding(BorderPadding)
+                                                        UI_AddBox(Device->Name, 
+                                                                  UI_BoxFlag_Clip|
+                                                                  UI_BoxFlag_DrawDisplayString|
+                                                                  UI_BoxFlag_CenterTextVertically);
+                                                    if(Clicked)
+                                                    {
+                                                        command *Command = NewCommand(App);
+                                                        Command->Kind = Command_SelectInputDevice;
+                                                        Command->Device = Device;
+                                                    }
+                                                }
+                                            }
                                         }
-                                        
+                                    }
+                                    
+                                    UI_SemanticWidth(UI_SizePx(16.f, 1.f))
+                                        UI_AddBox(S8("Scrollbar"), 
+                                                  UI_BoxFlag_Clip|
+                                                  UI_BoxFlag_DrawBackground|
+                                                  UI_BoxFlag_DrawBorders);
+                                    UI_Push()
+                                    {
+                                        ui_size Padding = UI_SizePx(UI_BorderThicknessTop(), 1.f);
+                                        UI_FillAll()
+                                            UI_Column() UI_Padding(Padding)
+                                            UI_Row() UI_Padding(Padding)
+                                        {    
+                                            ui_box *Slider;
+                                            UI_FillWidth()
+                                                UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                                UI_BorderThickness(2.f)
+                                                UI_BorderColor(Color_Black)
+                                                UI_BackgroundColor(Color_Yellow)
+                                                Slider = UI_AddBox(S8("Slider"), 
+                                                                   UI_BoxFlag_Clip|
+                                                                   UI_BoxFlag_MouseClickable|
+                                                                   UI_BoxFlag_DrawBackground|
+                                                                   UI_BoxFlag_DrawBorders|
+                                                                   UI_BoxFlag_DrawHotEffects|
+                                                                   UI_BoxFlag_DrawActiveEffects);
+                                            ui_box *Box = Slider;
+                                            f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPosition.X)/Box->FixedSize.X);
+                                            
+                                            
+                                        }
                                     }
                                 }
                             }

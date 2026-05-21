@@ -846,9 +846,7 @@ UI_ResolveLayout(ui_box *Root)
         {
             Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
             
-            if(S8Match(S8("Background"), Box->String, false) &&
-               Box->Hovered &&
-               WasPressed(MouseLeft))
+            if(Box->Hovered && Box->Flags & UI_BoxFlag_DrawHotEffects)
             {
                 //DebugBreak();
             }

@@ -108,6 +108,7 @@ UI_Slider(f32 MinSize, f32 MaxSize,
        (UI_IsActive(Box) || UI_IsHot(Box)) && 
        MouseLeft.EndedDown)
     {
+        // TODO(luca): Axis independent
         f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPosition.X)/Box->FixedSize.X);
         FillLevel = Clamp(SliderMinPct, PctOnXAxis, 1.f);
         
