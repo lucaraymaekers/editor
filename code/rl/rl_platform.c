@@ -175,8 +175,8 @@ UI_Label(s32 Flags, str8 String)
 {
     ui_box *Result = UI_AddBox(String, (UI_BoxFlag_Clip|
                                         UI_BoxFlag_DrawDisplayString|
-                                                                   UI_BoxFlag_DrawBackground|
-                                                                   UI_BoxFlag_CenterTextVertically|
+                                        UI_BoxFlag_DrawBackground|
+                                        UI_BoxFlag_CenterTextVertically|
                                         Flags));
     return Result;
 }
@@ -598,7 +598,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                         DrawRect(Root->Rec, V4(0.f, 0.f, 0.f, 0.1f), 0.f, 0.f, 0.f);
                     }
                     
-                    UI_DefaultState(Root, DebugHeightPx);
+                    UI_BeginLayout(Root, DebugHeightPx);
                     
                     // UI
                     {
@@ -685,7 +685,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                         
                                         if(UI_Button(S8("Save record")))
                                         {
-                                                ReplayToggleRecording(&Replay, &AppMemory, false);
+                                            ReplayToggleRecording(&Replay, &AppMemory, false);
                                         }
                                         
                                         DebugSpacer();
@@ -768,7 +768,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                                         }
                                         
                                         UI_FillWidth()
-                                        UI_Labelf(UI_BoxFlag_CenterTextHorizontally, "Count: %llu", Replay.StepsCount);
+                                            UI_Labelf(UI_BoxFlag_CenterTextHorizontally, "Count: %llu", Replay.StepsCount);
                                         ReplaySlot = (u64)(UI_Slider(0.f, (f32)MaxReplaySlots - 1, 0.f, (f32)ReplaySlot , S8("Slot"), Color_Orange, true));
                                         
                                         UI_Slider(0.f, (f32)Replay.StepsCount, 0.f, (f32)Replay.StepIdx, S8("Idx"), Color_Green, false);
@@ -780,7 +780,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                             }
                         }
                         
-                        UI_ResolveLayout(Root->First);
+                        UI_EndLayout(Root->First);
                         
                         if(!UI_IsActive(UI_NilBox) || !UI_IsHot(UI_NilBox))
                         {

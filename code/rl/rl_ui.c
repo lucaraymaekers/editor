@@ -304,8 +304,59 @@ UI_MeasureTextWidth(str8 String, font_kind FontKind)
     return Result;
 }
 
+internal ui_box_rec
+UI_BoxDepthFirstPostOrderBegin(ui_box *Root)
+{
+    ui_box_rec Result = {0};
+    
+    ui_box *Box = Root;
+    while(true)
+    {    
+        if(!UI_IsNilBox(Box->First))
+        {
+            Box = Box->First;
+            Result.PushCount += 1;
+        }
+        else if(!UI_IsNilBox(Box->Next))
+        {
+            Box = Box->Next;
+        }
+        else
+        {
+            Result.Next = Box;
+            break;
+        }
+    }
+    
+    return Result;
+}
+
+internal ui_box_rec
+UI_BoxDepthFirstPostOrder(ui_box *Box)
+{
+    ui_box_rec Result = {.Next = UI_NilBox};
+    
+    if(!UI_IsNilBox(Box->Next))
+    {
+        Box = Box->Next;
+        while(!UI_IsNilBox(Box->First)) 
+        {
+            Box = Box->First;
+            Result.PushCount += 1;
+        }
+        Result.Next = Box;
+    }
+    else
+    {
+        Result.Next = Box->Parent;
+        Result.PopCount = 1;
+    }
+    
+    return Result;
+}
+
 internal void
-UI_DefaultState(ui_box *Root, f32 HeightPx)
+UI_BeginLayout(ui_box *Root, f32 HeightPx)
 {
     Assert(!UI_IsNilBox(Root));
     
@@ -328,6 +379,96 @@ UI_DefaultState(ui_box *Root, f32 HeightPx)
     UI_PushSemanticHeight(UI_SizeParent(1.f, 1.f));
     UI_PushHeightPx(HeightPx);
     UI_PushFontKind(FontKind_Text);
+    
+    // Input 
+    {        
+        app_input *Input = UI_State->Input;
+        v2 MouseP = MousePosFromInput(Input);
+        app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
+        b32 MouseUp = (!MouseLeft.EndedDown);
+        
+        for (ui_box *Box = UI_BoxDepthFirstPostOrderBegin(Root).Next;
+             !UI_IsNilBox(Box);
+             Box = UI_BoxDepthFirstPostOrder(Box).Next)
+        {
+            Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
+            
+            if(Box->Hovered && Box->Flags & UI_BoxFlag_DrawHotEffects)
+            {
+                //DebugBreak();
+            }
+            
+            if(!Input->Consumed)
+            {
+                if(Box->Flags & UI_BoxFlag_MouseClickable)
+                {                
+                    Box->Pressed = (Box->Hovered && MouseLeft.EndedDown);
+                    Box->WasClicked = (Box->Hovered && WasPressed(MouseLeft));
+                    
+                    // Set active and hot state
+                    {            
+                        if(Box->Hovered)
+                        {
+                            Input->Consumed = true;
+                            
+                            if(UI_IsActive(UI_NilBox) ||
+                               UI_IsActive(Box)) 
+                            {
+                                UI_SetHot(Box->Key);
+                            }
+                        }
+                        else if(UI_IsHot(Box))
+                        {
+                            UI_SetHot(UI_KeyNull());
+                        }
+                        
+                        if(UI_IsActive(Box))
+                        {
+                            if(MouseUp)
+                            {
+                                if(UI_IsHot(Box))
+                                {
+                                    Box->Clicked = true;
+                                }
+                                UI_SetActive(UI_KeyNull());
+                            }
+                        }
+                        else if(UI_IsHot(Box))
+                        {
+                            if(Box->WasClicked)
+                            {
+                                UI_SetActive(Box->Key);
+                            }
+                        }
+                    }
+                    
+                    // Update tHot and tActive
+                    {                
+                        f32 Speed = UI_State->AnimSpeed;
+                        f32 HotTarget    = UI_IsHot(Box)    ? 1.f : 0.f;
+                        f32 ActiveTarget = UI_IsActive(Box) ? 1.f : 0.f;
+                        Box->tActive += Speed*(ActiveTarget - Box->tActive);
+                        Box->tHot    += Speed*(HotTarget - Box->tHot);
+                    }
+                    
+                }
+                
+                if(Box->Flags & UI_BoxFlag_Scroll)
+                {            
+                    if(Box->Pressed)
+                    {
+                        Box->Drag.X = (Input->Mouse.X - Input->Mouse.StartX);
+                        Box->Drag.Y = (Input->Mouse.Y - Input->Mouse.StartY);
+                    }
+                }
+            }
+        }
+        
+        if(MouseUp)
+        {
+            UI_SetActive(UI_KeyNull());
+        }
+    }
 }
 
 internal b32
@@ -758,67 +899,8 @@ UI_DebugPrintBoxes(ui_box *Box)
 
 //~ Calculations End
 
-typedef struct ui_box_rec ui_box_rec;
-struct ui_box_rec
-{
-    ui_box *Next;
-    s64 PushCount;
-    s64 PopCount;
-};
-
-internal ui_box_rec
-UI_BoxDepthFirstPostOrderBegin(ui_box *Root)
-{
-    ui_box_rec Result = {0};
-    
-    ui_box *Box = Root;
-    while(true)
-    {    
-        if(!UI_IsNilBox(Box->First))
-        {
-            Box = Box->First;
-            Result.PushCount += 1;
-        }
-        else if(!UI_IsNilBox(Box->Next))
-        {
-            Box = Box->Next;
-        }
-        else
-        {
-            Result.Next = Box;
-            break;
-        }
-    }
-    
-    return Result;
-}
-
-internal ui_box_rec
-UI_BoxDepthFirstPostOrder(ui_box *Box)
-{
-    ui_box_rec Result = {.Next = UI_NilBox};
-    
-    if(!UI_IsNilBox(Box->Next))
-    {
-        Box = Box->Next;
-        while(!UI_IsNilBox(Box->First)) 
-        {
-            Box = Box->First;
-            Result.PushCount += 1;
-        }
-        Result.Next = Box;
-    }
-    else
-    {
-        Result.Next = Box->Parent;
-        Result.PopCount = 1;
-    }
-    
-    return Result;
-}
-
 internal void
-UI_ResolveLayout(ui_box *Root)
+UI_EndLayout(ui_box *Root)
 {
     if(!UI_IsNilBox(Root))
     { 
@@ -834,93 +916,6 @@ UI_ResolveLayout(ui_box *Root)
             UI_CalculateViolations(Root, Axis);
         }
         UI_CalculatePositions(Root);
-        
-        app_input *Input = UI_State->Input;
-        v2 MouseP = MousePosFromInput(Input);
-        app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
-        b32 MouseUp = (!MouseLeft.EndedDown);
-        
-        for (ui_box *Box = UI_BoxDepthFirstPostOrderBegin(Root).Next;
-             !UI_IsNilBox(Box);
-             Box = UI_BoxDepthFirstPostOrder(Box).Next)
-        {
-            Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
-            
-            if(Box->Hovered && Box->Flags & UI_BoxFlag_DrawHotEffects)
-            {
-                //DebugBreak();
-            }
-            
-            if(!Input->Consumed)
-            {
-                if(Box->Flags & UI_BoxFlag_MouseClickable)
-                {                
-                    Box->Pressed = (Box->Hovered && MouseLeft.EndedDown);
-                    Box->WasClicked = (Box->Hovered && WasPressed(MouseLeft));
-                    
-                    // Set active and hot state
-                    {            
-                        if(Box->Hovered)
-                        {
-                            Input->Consumed = true;
-                            
-                            if(UI_IsActive(UI_NilBox) ||
-                               UI_IsActive(Box)) 
-                            {
-                                UI_SetHot(Box->Key);
-                            }
-                        }
-                        else if(UI_IsHot(Box))
-                        {
-                            UI_SetHot(UI_KeyNull());
-                        }
-                        
-                        if(UI_IsActive(Box))
-                        {
-                            if(MouseUp)
-                            {
-                                if(UI_IsHot(Box))
-                                {
-                                    Box->Clicked = true;
-                                }
-                                UI_SetActive(UI_KeyNull());
-                            }
-                        }
-                        else if(UI_IsHot(Box))
-                        {
-                            if(Box->WasClicked)
-                            {
-                                UI_SetActive(Box->Key);
-                            }
-                        }
-                    }
-                    
-                    // Update tHot and tActive
-                    {                
-                        f32 Speed = UI_State->AnimSpeed;
-                        f32 HotTarget    = UI_IsHot(Box)    ? 1.f : 0.f;
-                        f32 ActiveTarget = UI_IsActive(Box) ? 1.f : 0.f;
-                        Box->tActive += Speed*(ActiveTarget - Box->tActive);
-                        Box->tHot    += Speed*(HotTarget - Box->tHot);
-                    }
-                    
-                }
-                
-                if(Box->Flags & UI_BoxFlag_Scroll)
-                {            
-                    if(Box->Pressed)
-                    {
-                        Box->Drag.X = (Input->Mouse.X - Input->Mouse.StartX);
-                        Box->Drag.Y = (Input->Mouse.Y - Input->Mouse.StartY);
-                    }
-                }
-            }
-        }
-        
-        if(MouseUp)
-        {
-            UI_SetActive(UI_KeyNull());
-        }
         
         UI_DrawBoxes(Root);
     }

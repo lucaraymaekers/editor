@@ -121,6 +121,14 @@ raddbg_type_view(ui_box,
                       list($, Next), 
                       omit($, String)));
 
+typedef struct ui_box_rec ui_box_rec;
+struct ui_box_rec
+{
+    ui_box *Next;
+    s64 PushCount;
+    s64 PopCount;
+};
+
 //- Stack nodes 
 // TODO(luca): Metaprogram
 typedef struct b32_stack_node b32_stack_node;
