@@ -139,6 +139,7 @@ enum command_kind
     Command_None,
     
     Command_SelectInputDevice,
+    Command_SelectInstrument,
     
     Command_SelectVoice,
     Command_AddVoice,
@@ -163,6 +164,7 @@ struct command
     command_kind Kind;
     
     voice *Voice;
+    s32 PresetIdx;
     platform_midi_device *Device;
 };
 

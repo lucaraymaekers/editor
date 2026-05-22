@@ -2072,13 +2072,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     UI_LayoutAxis(Axis2_X)
                                     UI_AddBox(S8("Instruments"), UI_BoxFlag_Clip);
                                 
-                                u64 InputDevCount = 0;
-                                for EachIndex(Idx, DevicesArray.Count)
-                                {
-                                    InputDevCount += !!(DevicesArray.Devices[Idx].IsInput);
-                                }
-                                
-                                f32 ListHeight = ItemHeight*InputDevCount; 
+                                s32 InstrumentCount = (0 ? tsf_get_presetcount(GlobalTSF) : 5);
+                                f32 ListHeight = (f32)InstrumentCount*ItemHeight;
                                 
                                 UI_SemanticHeight(UI_SizePx(ListHeight, 1.f))
                                     UI_Push()
@@ -2089,19 +2084,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                     UI_FillWidth()
                                         UI_Push()
                                     {                                        
-                                        for EachIndex(Idx, DevicesArray.Count)
+                                        for EachIndex(Idx, InstrumentCount)
                                         {
-                                            platform_midi_device *Device = DevicesArray.Devices + Idx;
-                                            if(Device->IsInput)
-                                            {
-                                                b32 Selected = (Device->Id == App->Muze.In.Id);
+                                            str8 InstrumentName = Str8Fmt("%s", tsf_get_presetname(GlobalTSF, Idx));
+                                                b32 Selected = (Voice->PresetIdx == Idx);
                                                 
                                                 b32 Clicked = false;
                                                 ui_size BorderPadding = UI_SizePx(5.f, 1.f);
                                                 UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
                                                 {                                     
                                                     UI_BackgroundColor(Selected ? Color_Yellow : Color_ButtonBackground)
-                                                        Clicked = UI_AddBox(Device->Name, 
+                                                        Clicked = UI_AddBox(InstrumentName, 
                                                                             UI_BoxFlag_Clip|
                                                                             UI_BoxFlag_MouseClickable|
                                                                             UI_BoxFlag_DrawBackground|
@@ -2112,33 +2105,40 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                         UI_FillAll() 
                                                         UI_Column() UI_Padding(BorderPadding)
                                                         UI_Row() UI_Padding(BorderPadding)
-                                                        UI_AddBox(Device->Name, 
+                                                        UI_AddBox(InstrumentName, 
                                                                   UI_BoxFlag_Clip|
                                                                   UI_BoxFlag_DrawDisplayString|
                                                                   UI_BoxFlag_CenterTextVertically);
                                                     if(Clicked)
-                                                    {
-                                                        command *Command = NewCommand(App);
-                                                        Command->Kind = Command_SelectInputDevice;
-                                                        Command->Device = Device;
+                                                {
+                                                    command *Command = NewCommand(App);
+                                                    Command->Kind = Command_SelectInstrument;
+                                                    Command->PresetIdx = Idx;
                                                     }
                                                 }
                                             }
-                                        }
                                     }
                                     
+                                    ui_box *ScrollbarBox;
                                     UI_SemanticWidth(UI_SizePx(16.f, 1.f))
-                                        UI_AddBox(S8("Scrollbar"), 
+                                        ScrollbarBox = UI_AddBox(S8("Scrollbar"), 
                                                   UI_BoxFlag_Clip|
                                                   UI_BoxFlag_DrawBackground|
-                                                  UI_BoxFlag_DrawBorders);
+                                                             UI_BoxFlag_DrawBorders);
+                                    
                                     UI_Push()
                                     {
                                         ui_size Padding = UI_SizePx(UI_BorderThicknessTop(), 1.f);
                                         UI_FillAll()
-                                            UI_Column() UI_Padding(Padding)
                                             UI_Row() UI_Padding(Padding)
+                                            UI_Column() UI_Padding(Padding)
                                         {    
+                                            local_persist f32 PctOnYAxis = 0.f;
+                                            
+                                            PctOnYAxis = Clamp(0.f, PctOnYAxis, 1.f);
+                                            UI_SemanticHeight(UI_SizeParent(PctOnYAxis, 1.f))
+                                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+
                                             ui_box *Slider;
                                             UI_FillWidth()
                                                 UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
@@ -2152,9 +2152,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                                    UI_BoxFlag_DrawBorders|
                                                                    UI_BoxFlag_DrawHotEffects|
                                                                    UI_BoxFlag_DrawActiveEffects);
-                                            ui_box *Box = Slider;
-                                            f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPosition.X)/Box->FixedSize.X);
+
+                                            ui_box *Box = ScrollbarBox;
                                             
+                                            f32 RelY = ((f32)Input->Mouse.Y - Box->FixedPosition.Y - ItemHeight);
+                                            f32 Height = (Box->FixedSize.Y);
+                                            if(Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
+{
+                                            PctOnYAxis = (RelY/Height);
+                                            Log("%.3f\n", PctOnYAxis);
+}
                                             
                                         }
                                     }
@@ -2351,6 +2358,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 StopRecording(Voice);
                 
                 Voice->IsPlaying ^= 1;
+            } break;
+            
+            case Command_SelectInstrument:
+            {
+                if(Command->PresetIdx != Voice->PresetIdx)
+                {
+                tsf_channel_note_off_all(GlobalTSF, Voice->Channel);
+}
+                
+                Voice->PresetIdx = Command->PresetIdx;
+                    tsf_channel_set_presetindex(GlobalTSF, Voice->Channel, Voice->PresetIdx);
             } break;
             
             case Command_SelectInputDevice:
