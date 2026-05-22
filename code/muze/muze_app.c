@@ -2155,6 +2155,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
 
                                             ui_box *Box = ScrollbarBox;
                                             
+                                            //1. Get the position of initial click
+                                            //2. Get the travel distance dragged as delta percent
+                                            //3. Calculate the new position in function of start + delta
+                                            //3. Clamp the Y position to (FixedSize.Y - ItemHeight)
+                                            
                                             f32 RelY = ((f32)Input->Mouse.Y - Box->FixedPosition.Y - ItemHeight);
                                             f32 Height = (Box->FixedSize.Y);
                                             if(Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
