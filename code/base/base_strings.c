@@ -2,6 +2,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include "lib/stb_sprintf.h"
 
 global_variable arena *StringsScratch = 0;
 
@@ -110,7 +111,7 @@ StringLength(char *String)
 {
     u64 Result = 0;
     
-    while(*String)
+    while(String && *String)
     {
         String += 1;
         Result += 1;
@@ -148,7 +149,7 @@ Str8VFmt(char *Format, va_list Args)
     
     arena *Arena = StringsScratch;
     Result.Data = PushArray(Arena, u8, 256);
-    Result.Size = (u64)vsprintf((char *)Result.Data, Format, Args);
+    Result.Size = (u64)stbsp_vsprintf((char *)Result.Data, Format, Args);
     
     return Result;
 }

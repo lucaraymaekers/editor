@@ -2070,39 +2070,49 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                 App->Muze.IsInputVirtualKeyboard ^= UI_Checkbox(S8("Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow);
                                 
                                 // Selected instrument and output synth toggle
-                                {                                
-                                    str8 SelectedName = S8FromCString(tsf_get_presetname(GlobalTSF, Voice->PresetIdx));
+                                {      
+                                    b32 SoundFontLoaded = (GlobalTSF != NilTSF);
+                                    str8 SelectedName = (SoundFontLoaded ? 
+                                                         S8FromCString(tsf_get_presetname(GlobalTSF, Voice->PresetIdx)) :
+                                                         S8("No soundfont loaded."));
                                     
                                     UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
                                         UI_FillWidth()
                                         UI_BackgroundColor(Color_Yellow)
+                                        UI_LayoutAxis(Axis2_X)
                                         UI_AddBox(S8("SelectedInstrument"), 
                                                   UI_BoxFlag_Clip|
                                                   UI_BoxFlag_DrawBackground|
                                                   UI_BoxFlag_DrawBorders);
-                                    UI_Push()
-                                        UI_Column() UI_Padding(ItemPadding)
                                     {
-                                        UI_FillAll()
-                                            UI_DebugAddBox(UI_AddBox(S8(""), 0));
                                         UI_Push()
-                                        {                                            
-#if 0
-                                            UI_SemanticWidth(UI_SizePx(50.f, 1.f))
-                                                UI_AddBox(SelectedName, 
+                                        {
+                                            UI_Spacer(ItemPadding);
+                                        UI_FillWidth()
+                                            UI_AddBox(SelectedName, 
                                                           UI_BoxFlag_Clip|
                                                           UI_BoxFlag_DrawDisplayString|
-                                                          UI_BoxFlag_CenterTextVertically|
-                                                          UI_BoxFlag_CenterTextHorizontally);
-#endif
-                                            UI_Spacer(UI_SizeParent(1.f, 0.f));
-                                            UI_SemanticWidth(UI_SizePx(50.f, 1.f))
+                                                          UI_BoxFlag_CenterTextVertically);
+                                            
+                                            if(SoundFontLoaded)
+{
+                                            UI_LayoutAxis(Axis2_Y)
+                                            UI_SemanticWidth(UI_SizePx(62.f, 0.f))
+                                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                                            UI_Push()
+                                            {                             
+                                            UI_Spacer(ItemPadding);
                                                 UI_FillHeight()
-                                                App->Muze.IsOutputSynth ^= UI_Checkbox_(App->Muze.IsOutputSynth, Color_Yellow);
-                                        }
+                                                    App->Muze.IsOutputSynth ^= UI_Checkbox_(App->Muze.IsOutputSynth, Color_Yellow);
+                                                UI_Spacer(ItemPadding);
+}
+                                            UI_Spacer(ItemPadding);
+}
                                     }
+}
                                 }
                                 
+                                // TODO(luca): Only if soundfont loaded.
                                 UI_SemanticHeight(UI_SizeChildren(1.f))
                                     UI_LayoutAxis(Axis2_X)
                                     UI_AddBox(S8("Instruments"), UI_BoxFlag_Clip);
@@ -2124,9 +2134,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                         ui_box *Box = UI_AddBox(S8("Instruments"), UI_BoxFlag_Clip);
                                         f32 FullHeight = (f32)InstrumentCount*ItemHeight;
                                         Box->Scroll.Y = PctOnYAxis*FullHeight;
-                                        MinIdx = Box->Scroll.Y/ItemHeight;
+                                        MinIdx = (s32)(Box->Scroll.Y/ItemHeight);
                                     }
-                                    
                                     
                                     UI_FillWidth()
                                         UI_Push()

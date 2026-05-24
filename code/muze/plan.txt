@@ -2,6 +2,8 @@
 
 Debug:
  Show debug borders from parent to all children
+ Stack for adding debug elements.
+ Stack for adding flags.
 
 Input should be computed in post order 
 - Lister

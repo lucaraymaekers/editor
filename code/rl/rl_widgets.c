@@ -140,11 +140,13 @@ UI_Checkbox_(b32 Toggled, v4 EnabledColor)
     {         
         UI_BackgroundColor(Toggled ? EnabledColor : Color_Background) 
             UI_SemanticWidth(UI_SizePx(50.f, 1.f))
+{
             Box = UI_AddBox(S8("Background"), (UI_BoxFlag_Clip|
                                                UI_BoxFlag_MouseClickable|
                                                UI_BoxFlag_DrawBackground|
                                                UI_BoxFlag_DrawHotEffects));
-        
+            UI_DebugAddBox(Box);
+            
         UI_Push() 
         {
             UI_FillAll()
@@ -173,10 +175,11 @@ UI_Checkbox_(b32 Toggled, v4 EnabledColor)
                 UI_BackgroundColor(Color_Black)
                     UI_SemanticWidth(UI_SizePx(CircleWidth, 1.f))
                     UI_CornerRadii(V4F32(CircleHeight/2.f))
-                    UI_AddBox(S8("Circle"), (UI_BoxFlag_Clip|
+                        UI_AddBox(S8("Circle"), (UI_BoxFlag_Clip|
                                              UI_BoxFlag_DrawBackground|
-                                             UI_BoxFlag_AnimatePosX));
+                                                                                                    UI_BoxFlag_AnimatePosX));
             }
+}
         }
     }
     
@@ -201,7 +204,7 @@ UI_Checkbox(str8 Label, b32 Toggled, v4 EnabledColor)
                                             UI_BoxFlag_DrawBorders|
                                             UI_BoxFlag_MouseClickable|
                                             UI_BoxFlag_DrawHotEffects|
-                                            UI_BoxFlag_DrawActiveEffects));
+                                                           UI_BoxFlag_DrawActiveEffects));
     { 
         ui_size Padding = UI_SizePx(5.f, 1.f);
         UI_Push()
