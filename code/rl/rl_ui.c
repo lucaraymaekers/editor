@@ -101,16 +101,25 @@ UI_SetActive(ui_key Key)
 internal ui_box *
 UI_BoxFromKey(ui_key Key)
 {
-    u64 Slot = (Key.U64[0] % UI_State->BoxTableSize);
-    ui_box *HashBox = UI_State->BoxTable + Slot;
+    ui_box *Result = UI_NilBox;
     
-    while(!UI_KeyMatch(HashBox->Key, Key) &&
-          !UI_IsNilBox(HashBox))
+    if(!UI_KeyMatch(UI_KeyNull(), Key))
     {
-        HashBox = HashBox->Next;
+        u64 Slot = (Key.U64[0] % UI_State->BoxTableSize);
+        ui_box *HashBox = UI_State->BoxTable + Slot;
+        
+        while(!UI_IsNilBox(HashBox))
+        {
+            if(UI_KeyMatch(HashBox->Key, Key))
+            {
+                Result = HashBox;
+                break;
+            }
+            HashBox = HashBox->Next;
+        }
     }
     
-    return HashBox;
+    return Result;
 }
 
 internal ui_box *
@@ -119,7 +128,6 @@ UI_AddBox(str8 String, s32 Flags)
     str8 DisplayString = String;
     ui_box *Box;
     ui_key Key = UI_KeyNull();
-    b32 FirstTime = true;
     
     if(String.Size)
     {
@@ -138,14 +146,15 @@ UI_AddBox(str8 String, s32 Flags)
         }
         
         // TODO(luca): Seed with sibling's hash as well?
-        // if parent key is null, you sould find top most parent whose key is not null
         
         ui_box *Search = UI_NilBox;
-        
-        for(Search = UI_State->Current; 
-            UI_KeyMatch(Search->Key, UI_KeyNull()) &&
-            Search != UI_State->Root;
-            Search = Search->Parent);
+        // Find youngest parent with non-zero key
+        {
+            for(Search = UI_State->Current; 
+                UI_KeyMatch(Search->Key, UI_KeyNull()) &&
+                Search != UI_State->Root;
+                Search = Search->Parent);
+        }
         
         u64 AncestorKey = Search->Key.U64[0];
         Key.U64[0] = U64HashFromSeedStr8(AncestorKey, String);
@@ -164,14 +173,11 @@ UI_AddBox(str8 String, s32 Flags)
             
             if(UI_KeyMatch(UI_KeyNull(), HashBox->Key))
             {
-                // 1.
                 Box = HashBox;
                 Box->HashNext = Box->HashPrev = UI_NilBox;
             }
             else
             {
-                //2.
-                
                 while(!UI_IsNilBox(HashBox))
                 {        
                     if(UI_KeyMatch(HashBox->Key, Key))
@@ -183,19 +189,14 @@ UI_AddBox(str8 String, s32 Flags)
                     HashBox = HashBox->HashNext;
                 }
                 
-                if(!UI_IsNilBox(HashBox))
+                if(UI_IsNilBox(HashBox))
                 {
-                    //2.1
-                    Box = HashBox;
-                    FirstTime = false;
-                }
-                else
-                {
-                    //2.2
                     HashLast->HashNext = PushArray(UI_State->Arena, ui_box, 1);
-                    Box = HashLast->HashNext;
-                    Box->HashPrev = HashLast;
+                    HashBox = HashLast->HashNext;
+                    HashBox->HashPrev = HashLast;
                 }
+                
+                Box = HashBox;
             }
         }
     }
@@ -211,6 +212,7 @@ UI_AddBox(str8 String, s32 Flags)
     Box->DisplayString = DisplayString;
     Box->Flags = Flags;
     
+    Box->LastTouchedFrameIdx = UI_State->FrameIdx;
     Box->BackgroundColor = UI_State->BackgroundColorTop->Value;
     Box->BorderColor = UI_State->BorderColorTop->Value;
     Box->TextColor = UI_State->TextColorTop->Value;
@@ -224,13 +226,7 @@ UI_AddBox(str8 String, s32 Flags)
     Box->FontKind = UI_State->FontKindTop->Value;
     Box->CustomDraw = 0;
     Box->CustomDrawData = 0;
-#if 0
-    Box->Clicked = false;
-    Box->Hovered = false;
-    Box->Pressed = false;
-    Box->WasClicked = false;
-#endif
-    MemoryZero(&Box->Drag);
+    Box->Scroll = (v2){0};
     
     // Add box to the tree
     {    
@@ -305,6 +301,29 @@ UI_MeasureTextWidth(str8 String, font_kind FontKind)
 }
 
 internal ui_box_rec
+UI_BoxDepthFirstPreOrder(ui_box *Box)
+{
+    ui_box_rec Rec = {0};
+    
+    if(!UI_IsNilBox(Box->First))
+    {
+        Rec.Next = Box->First;
+        Rec.PushCount = 1;
+    }
+    else for(ui_box *B = Box; !UI_IsNilBox(B); B = B->Parent)
+    {
+        if(!UI_IsNilBox(B->Next))
+        {
+            Rec.Next = B->Next;
+            break;
+        }
+        Rec.PopCount += 1;
+    }
+    
+    return Rec;
+}
+
+internal ui_box_rec
 UI_BoxDepthFirstPostOrderBegin(ui_box *Root)
 {
     ui_box_rec Result = {0};
@@ -363,7 +382,7 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
     UI_State->Current = Root;
     UI_State->Root = Root;
     UI_State->AppendToParent = true;
-    
+    UI_State->FirstDebugBox = 0;
     UI_State->AnimSpeed = (1.f - powf(2.f, -30.f*UI_State->Input->dtForFrame));
     
     // Defaults
@@ -387,16 +406,16 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
         app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
         b32 MouseUp = (!MouseLeft.EndedDown);
         
-        for (ui_box *Box = UI_BoxDepthFirstPostOrderBegin(Root).Next;
-             !UI_IsNilBox(Box);
-             Box = UI_BoxDepthFirstPostOrder(Box).Next)
+        for(ui_box *Box = UI_BoxDepthFirstPostOrderBegin(Root).Next;
+            !UI_IsNilBox(Box);
+            Box = UI_BoxDepthFirstPostOrder(Box).Next)
         {
-            Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
+            Box->Clicked = false;
+            Box->Hovered = false;
+            Box->Pressed = false;
+            Box->WasClicked = false;
             
-            if(Box->Hovered && Box->Flags & UI_BoxFlag_DrawHotEffects)
-            {
-                //DebugBreak();
-            }
+            Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
             
             if(!Input->Consumed)
             {
@@ -450,16 +469,6 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
                         Box->tActive += Speed*(ActiveTarget - Box->tActive);
                         Box->tHot    += Speed*(HotTarget - Box->tHot);
                     }
-                    
-                }
-                
-                if(Box->Flags & UI_BoxFlag_Scroll)
-                {            
-                    if(Box->Pressed)
-                    {
-                        Box->Drag.X = (Input->Mouse.X - Input->Mouse.StartX);
-                        Box->Drag.Y = (Input->Mouse.Y - Input->Mouse.StartY);
-                    }
                 }
             }
         }
@@ -471,15 +480,39 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
     }
 }
 
+internal void
+UI_DebugAddBox(ui_box *Box)
+{
+    ui_box_node *Node = PushArrayZero(UI_State->FrameArena, ui_box_node, 1);
+    
+    Node->Box = Box;
+    Node->Next = UI_State->FirstDebugBox;
+    UI_State->FirstDebugBox = Node;
+}
+
 internal b32
 UI_IsDebugBox(ui_box *Box)
 {
-    b32 Result = S8Match(Box->DisplayString, S8("DebugBox"), false);
+    b32 Result = false;
+    
+#if MUZE_INTERNAL    
+    if(!UI_IsNilBox(Box))
+    {
+        for EachNode(Node, ui_box_node, UI_State->FirstDebugBox)
+        {
+            if(Node->Box == Box)
+            {
+                Result = true;
+                break;
+            }
+        }
+    }
+#endif
+    
     return Result;
 }
 
 //~ Calculations Start 
-
 internal void
 UI_CalculateStandaloneSizes(ui_box *Box, axis2 Axis)
 {
@@ -653,96 +686,98 @@ UI_CalculateViolations(ui_box *Box, axis2 Axis)
 }
 
 internal void
-UI_CalculatePositions(ui_box *Box)
+UI_CalculatePositions(ui_box *Root)
 {
-    ui_box *Parent = Box->Parent;
-    
-    // TODO(luca): This won't work since the root box will never be passed only the first child of that box, so its index will never be set.
-    Box->LastTouchedFrameIdx = UI_State->FrameIdx;
-    
-    if(Parent->First == Box)
-    {
-        Box->FixedPosition.X = Parent->FixedPosition.X;
-        Box->FixedPosition.Y = Parent->FixedPosition.Y;
-    }
-    else
-    {  
-        axis2 Axis = Parent->LayoutAxis;
-        Assert(Axis == Axis2_X || Axis == Axis2_Y);
-        axis2 OtherAxis = 1 - Axis;
+    for(ui_box *Box = Root;
+        !UI_IsNilBox(Box);
+        Box = UI_BoxDepthFirstPreOrder(Box).Next)
+    {        
+        ui_box *Parent = Box->Parent;
         
-        ui_box *NonFloatingSibling = UI_NilBox;
-        for(ui_box *Sibling = Box->Prev; !UI_IsNilBox(Sibling); Sibling = Sibling->Prev)
+        if(UI_IsDebugBox(Box))
         {
-            if(!UI_IsFloatingBox(Sibling, Axis2_X))
+            NoOp();
+        }
+        
+        if(Parent->First == Box)
+        {
+            Box->FixedPos = V2SubV2(Parent->FixedPos, Parent->Scroll);
+        }
+        else
+        {  
+            axis2 Axis = Parent->LayoutAxis;
+            axis2 OtherAxis = 1 - Axis;
+            
+            ui_box *NonFloatingSibling = UI_NilBox;
+            for(ui_box *Sibling = Box->Prev; !UI_IsNilBox(Sibling); Sibling = Sibling->Prev)
             {
-                NonFloatingSibling = Sibling;
-                break;
+                if(!UI_IsFloatingBox(Sibling, Axis))
+                {
+                    NonFloatingSibling = Sibling;
+                    break;
+                }
+            }
+            
+            if(!UI_IsNilBox(NonFloatingSibling))
+            {
+                Box->FixedPos.e[Axis] = (NonFloatingSibling->FixedPos.e[Axis] + 
+                                         NonFloatingSibling->FixedSize.e[Axis]);
+                Box->FixedPos.e[OtherAxis] = (NonFloatingSibling->FixedPos.e[OtherAxis]);
+            }
+            else
+            {
+                Box->FixedPos = Parent->FixedPos;
+            }
+            
+            if(UI_IsFloatingBox(Box, Axis2_X))
+            {
+                Box->FixedPos.X = NonFloatingSibling->FixedPos.X;
+            }
+            if(UI_IsFloatingBox(Box, Axis2_Y))
+            {
+                Box->FixedPos.Y = NonFloatingSibling->FixedPos.Y;
             }
         }
         
-        if(!UI_IsNilBox(NonFloatingSibling))
-        {
-            Box->FixedPosition.e[Axis] = (NonFloatingSibling->FixedPosition.e[Axis] + 
-                                          NonFloatingSibling->FixedSize.e[Axis]);
-            Box->FixedPosition.e[OtherAxis] = (NonFloatingSibling->FixedPosition.e[OtherAxis]);
-        }
-        else
-        {
-            Box->FixedPosition = Parent->FixedPosition;
+        // Update animated position
+        {    
+            for UI_EachAxis(Axis)
+            {    
+                if(Box->Flags & UI_BoxFlag_AnimatePosX << Axis)
+                {
+                    Box->AnimatedPos.e[Axis] += (Box->FixedPos.e[Axis] - Box->AnimatedPos.e[Axis])*UI_State->AnimSpeed;
+                }
+                else
+                {
+                    Box->AnimatedPos.e[Axis] = Box->FixedPos.e[Axis];
+                }
+            }
         }
         
-        if(UI_IsFloatingBox(Box, Axis2_X))
+        Box->Rec = RectFromSize(Box->AnimatedPos, Box->FixedSize);
+        
+        if(Box->Flags & UI_BoxFlag_Clip)
         {
-            Box->FixedPosition.X = NonFloatingSibling->FixedPosition.X;
+            Box->Rec = RectIntersect(Parent->Rec, Box->Rec);
         }
-        if(UI_IsFloatingBox(Box, Axis2_Y))
-        {
-            Box->FixedPosition.Y = NonFloatingSibling->FixedPosition.Y;
-        }
-    }
-    
-    if(Box->Flags & UI_BoxFlag_AnimatePosX)
-    {
-        Box->AnimatedPos.X += (Box->FixedPosition.X - Box->AnimatedPos.X)*UI_State->AnimSpeed;
-    }
-    else
-    {
-        Box->AnimatedPos.X = Box->FixedPosition.X;
-    }
-    
-    Box->AnimatedPos.Y = Box->FixedPosition.Y;
-    
-    Box->Rec = RectFromSize(Box->AnimatedPos, Box->FixedSize);
-    
-    if(!UI_IsNilBox(Box->First))
-    {
-        UI_CalculatePositions(Box->First);
-    }
-    if(!UI_IsNilBox(Box->Next))
-    {
-        UI_CalculatePositions(Box->Next);
     }
 }
 
 internal void
 UI_DrawBoxes(ui_box *Box)
 {
+    ui_box *Parent = Box->Parent;
+    font_atlas *Atlas = UI_State->Atlas;
+    v4 Dest = Box->Rec;
+    
     if(UI_IsDebugBox(Box))
     {
         NoOp();
     }
     
-    ui_box *Parent = Box->Parent;
-    
-    font_atlas *Atlas = UI_State->Atlas;
-    
-    v4 Dest = Box->Rec;
-    
     if(Box->Flags & UI_BoxFlag_Clip)
     {
         Dest = RectIntersect(Parent->Rec, Dest);
-        Box->Rec = Dest;
     }
     
     if(RectValid(Dest))
@@ -776,9 +811,8 @@ UI_DrawBoxes(ui_box *Box)
         
         if(Box->Flags & UI_BoxFlag_DrawDisplayString)
         {
-            v2 TextPos = Box->FixedPosition;
-            TextPos.Y += Box->BorderThickness;
-            TextPos.X += Box->BorderThickness;
+            v2 TextPos = Box->AnimatedPos;
+            V2Math TextPos.E += Box->BorderThickness;
             
             v2 Cur = TextPos;
             
@@ -816,31 +850,25 @@ UI_DrawBoxes(ui_box *Box)
         
         if(Box->Flags & UI_BoxFlag_DrawBorders)
         {
+            // NOTE(luca): Highlight border when selected
             if(0)
             {
                 b32 Selected = (Box->Flags & UI_BoxFlag_DrawHotEffects &&
                                 (UI_IsHot(Box) || UI_IsActive(Box)));
-                
                 if(Selected)
                 {
                     Box->BorderColor = Color_Snow2;
                 }
             }
+            
             rect_instance *Inst = DrawRect(Dest, Box->BorderColor, 0.f, Box->BorderThickness, Box->Softness);
             V4Math Inst->CornerRadii.E = Box->CornerRadii.E;
         }
-        
         
         if(Box->CustomDraw)
         {
             Box->CustomDraw(Box->CustomDrawData);
         }
-    }
-    
-    b32 RectDebugMode = UI_State->RectDebugMode;
-    if(RectDebugMode || Box->Flags & UI_BoxFlag_DrawDebugBorder)
-    {    
-        DrawRect(Dest, V4(1.f, 0.f, 1.f, 1.f), 0.f, 1.f, 0.f);
     }
     
     if(!UI_IsNilBox(Box->First))
@@ -882,7 +910,7 @@ UI_DebugPrintBoxes(ui_box *Box)
         UI_DebugSizeKindString(SizeX->Kind), SizeX->Value, SizeX->Strictness,
         UI_DebugSizeKindString(SizeY->Kind), SizeY->Value, SizeY->Strictness,
         UI_DebugIndentation, "", 
-        Box->FixedPosition.X, Box->FixedPosition.Y, Box->FixedSize.X, Box->FixedSize.Y);
+        Box->FixedPos.X, Box->FixedPos.Y, Box->FixedSize.X, Box->FixedSize.Y);
     
     if(!UI_IsNilBox(Box->First))
     {
@@ -898,7 +926,6 @@ UI_DebugPrintBoxes(ui_box *Box)
 }
 
 //~ Calculations End
-
 internal void
 UI_EndLayout(ui_box *Root)
 {
@@ -918,5 +945,20 @@ UI_EndLayout(ui_box *Root)
         UI_CalculatePositions(Root);
         
         UI_DrawBoxes(Root);
+        
+        for(ui_box *Box = Root;
+            !UI_IsNilBox(Box);
+            Box = UI_BoxDepthFirstPreOrder(Box).Next)
+        {
+            b32 DrawDebugBorder = (UI_State->RectDebugMode ||
+                                   Box->Flags & UI_BoxFlag_DrawDebugBorder ||
+                                   UI_IsDebugBox(Box));
+            if(DrawDebugBorder)
+            {
+                DrawRect(Box->Rec, V4(1.f, 0.f, 1.f, 1.f), 0.f, 1.f, 0.f);
+            }
+        }
+        
+        UI_SetHot(UI_KeyNull());
     }
 }

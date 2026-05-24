@@ -580,9 +580,9 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
                     if(Root == 0) Root = UI_BoxAlloc(UI_State->Arena);
                     f32 BorderSize = 2.f;
                     v2 BufferDim = V2S32(WindowBuffer.Width, WindowBuffer.Height);
-                    V2Math Root->FixedPosition.E = (BorderSize);
+                    V2Math Root->FixedPos.E = (BorderSize);
                     V2Math Root->FixedSize.E = (BufferDim.E - 2.f*BorderSize);
-                    Root->Rec = RectFromSize(Root->FixedPosition, Root->FixedSize);
+                    Root->Rec = RectFromSize(Root->FixedPos, Root->FixedSize);
                     
                     UI_State->Atlas = &DebugRenderAtlas;
                     UI_State->FrameIdx = FrameIdx;

@@ -10,6 +10,7 @@ enum axis2
     Axis2_Count
 };
 typedef enum axis2 axis2;
+#define UI_EachAxis(Idx) (axis2 Idx = 0; Idx < Axis2_Count; Idx += 1)
 
 enum ui_size_kind
 {
@@ -43,7 +44,6 @@ struct ui_size
     f32 Value;
     f32 Strictness;
 };
-
 
 typedef struct ui_key ui_key; 
 struct ui_key
@@ -90,7 +90,7 @@ struct ui_box
     font_kind FontKind;
     
     // Produced from layout resolving
-    v2 FixedPosition;
+    v2 FixedPos;
     v2 FixedSize;
     v4 Rec;
     v2 AnimatedPos;
@@ -100,8 +100,8 @@ struct ui_box
     b32 WasClicked;
     b32 Hovered;
     b32 Pressed;
-    v2s32 Drag;
-    // TODO(luca): Scroll Offset
+    
+    v2 Scroll;
     
     f32 tHot;
     f32 tActive;
@@ -114,7 +114,7 @@ raddbg_type_view(ui_box,
                  rows($, 
                       &$.First == UI_NilBox || &$.First == 0, 
                       String, SemanticSize, 
-                      FixedPosition, 
+                      FixedPos, 
                       AnimatedPos, 
                       FixedSize,
                       Rec, 
@@ -127,6 +127,13 @@ struct ui_box_rec
     ui_box *Next;
     s64 PushCount;
     s64 PopCount;
+};
+
+typedef struct ui_box_node ui_box_node;
+struct ui_box_node
+{
+    ui_box *Box;
+    ui_box_node *Next;
 };
 
 //- Stack nodes 
@@ -210,8 +217,7 @@ struct ui_state
     b32 AppendToParent;
     ui_box *Current;
     ui_box *Root;
-    // TODO(luca): Remove
-    ui_box *DebugBox;
+    ui_box_node *FirstDebugBox;
     struct
     {
         UI_StateStacks

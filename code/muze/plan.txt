@@ -1,6 +1,12 @@
 # Now
+
+Debug:
+ Show debug borders from parent to all children
+
 Input should be computed in post order 
 - Lister
+
+For scrolling, when pressing the scrollbar and not the thumb I would like linear exp 0%-100% scrolling for fast scrolling.
 
 For input and output devices:
 Add icon for keyboard

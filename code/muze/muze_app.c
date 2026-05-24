@@ -1231,7 +1231,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     v4 NoteColor = ForegroundColor;
     v4 BarColor = ForegroundColor;
     
-    v2 BoxPos = V2(Box->FixedPosition.X - ScrollX, Box->FixedPosition.Y);
+    v2 BoxPos = V2(Box->FixedPos.X - ScrollX, Box->FixedPos.Y);
     v2 BoxSize = Box->FixedSize;
     
     f32 BPS = (App->Muze.BPM/60.f);
@@ -1465,15 +1465,15 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
         f32 NoteWidth = 1.5f*NoteHeight;
         f32 PianoKeyGap = 1.f;
         
-        f32 RollX = (Box->FixedPosition.X - Data->ScrollX);
-        f32 RollY = (Box->FixedPosition.Y + (Box->FixedSize.Y - Box->FixedSize.Y));
+        f32 RollX = (Box->FixedPos.X - Data->ScrollX);
+        f32 RollY = (Box->FixedPos.Y + (Box->FixedSize.Y - Box->FixedSize.Y));
         f32 RollHeight = Box->FixedSize.Y;
         f32 RollWidth = Box->FixedSize.X;
         
         // Draw piano overlay
         {
             f32 PianoWidth = 1.5f*NoteWidth;
-            v2 PianoPos = Box->FixedPosition;
+            v2 PianoPos = Box->FixedPos;
             
             for EachIndex(Idx, Range)
             {
@@ -1943,7 +1943,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 switch(Key.Codepoint)
                 {
                     case 'b': DebugBreak();  break;
-                    
                 }
             }
         }
@@ -2038,16 +2037,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 Pos = V2AddF32(Pos, WindowBorderSize);
                 Size = V2SubF32(Size, 2.f*WindowBorderSize);
                 
-                Root->FixedPosition = Pos;
+                Root->Key.U64[0] = U64HashFromSeedStr8((u64)Root, S8("Root"));
+                Root->FixedPos = Pos;
                 Root->FixedSize = Size;
-                Root->Rec = RectFromSize(Root->FixedPosition, Root->FixedSize);
-                Root->Key.U64[0] = U64HashFromSeedStr8((u64)Root, S8("muze panel root"));
+                Root->Rec = RectFromSize(Root->FixedPos, Root->FixedSize);
+                Root->LastTouchedFrameIdx = App->FrameIdx;
             }
             
             UI_BeginLayout(Root, App->HeightPx);
             
             UI_LayoutAxis(Axis2_Y)
-                UI_AddBox(S8(""), UI_BoxFlag_Clip);
+                UI_AddBox(S8("RootFirst"), UI_BoxFlag_Clip);
             
             UI_Push()
                 //- All
@@ -2063,38 +2063,89 @@ UPDATE_AND_RENDER(UpdateAndRender)
                         UI_SemanticWidth(UI_SizePx(300.f, 1.f))
                         {
                             f32 ItemHeight = UI_State->HeightPxTop->Value + 2.f*8.f;
+                            ui_size ItemPadding = UI_SizePx(5.f, 1.f);
                             
                             UI_List(S8("Input"), ItemHeight) 
                             {                            
                                 App->Muze.IsInputVirtualKeyboard ^= UI_Checkbox(S8("Keyboard"), App->Muze.IsInputVirtualKeyboard, Color_Yellow);
                                 
+                                // Selected instrument and output synth toggle
+                                {                                
+                                    str8 SelectedName = S8FromCString(tsf_get_presetname(GlobalTSF, Voice->PresetIdx));
+                                    
+                                    UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                        UI_FillWidth()
+                                        UI_BackgroundColor(Color_Yellow)
+                                        UI_AddBox(S8("SelectedInstrument"), 
+                                                  UI_BoxFlag_Clip|
+                                                  UI_BoxFlag_DrawBackground|
+                                                  UI_BoxFlag_DrawBorders);
+                                    UI_Push()
+                                        UI_Column() UI_Padding(ItemPadding)
+                                    {
+                                        UI_FillAll()
+                                            UI_DebugAddBox(UI_AddBox(S8(""), 0));
+                                        UI_Push()
+                                        {                                            
+#if 0
+                                            UI_SemanticWidth(UI_SizePx(50.f, 1.f))
+                                                UI_AddBox(SelectedName, 
+                                                          UI_BoxFlag_Clip|
+                                                          UI_BoxFlag_DrawDisplayString|
+                                                          UI_BoxFlag_CenterTextVertically|
+                                                          UI_BoxFlag_CenterTextHorizontally);
+#endif
+                                            UI_Spacer(UI_SizeParent(1.f, 0.f));
+                                            UI_SemanticWidth(UI_SizePx(50.f, 1.f))
+                                                UI_FillHeight()
+                                                App->Muze.IsOutputSynth ^= UI_Checkbox_(App->Muze.IsOutputSynth, Color_Yellow);
+                                        }
+                                    }
+                                }
+                                
                                 UI_SemanticHeight(UI_SizeChildren(1.f))
                                     UI_LayoutAxis(Axis2_X)
                                     UI_AddBox(S8("Instruments"), UI_BoxFlag_Clip);
                                 
-                                s32 InstrumentCount = (0 ? tsf_get_presetcount(GlobalTSF) : 5);
-                                f32 ListHeight = (f32)InstrumentCount*ItemHeight;
+                                s32 InstrumentCount = tsf_get_presetcount(GlobalTSF); 
+                                s32 MaxListItems = 5;
+                                f32 ListHeight = (f32)MaxListItems*ItemHeight;
+                                
+                                local_persist f32 PctOnYAxis = 0.f;
                                 
                                 UI_SemanticHeight(UI_SizePx(ListHeight, 1.f))
                                     UI_Push()
                                 {
+                                    s32 MinIdx;
+                                    
                                     UI_FillWidth()
                                         UI_LayoutAxis(Axis2_Y)
-                                        UI_AddBox(S8("Input devices"), UI_BoxFlag_Clip);
+                                    {
+                                        ui_box *Box = UI_AddBox(S8("Instruments"), UI_BoxFlag_Clip);
+                                        f32 FullHeight = (f32)InstrumentCount*ItemHeight;
+                                        Box->Scroll.Y = PctOnYAxis*FullHeight;
+                                        MinIdx = Box->Scroll.Y/ItemHeight;
+                                    }
+                                    
+                                    
                                     UI_FillWidth()
                                         UI_Push()
-                                    {                                        
-                                        for EachIndex(Idx, InstrumentCount)
+                                    {
+                                        s32 MaxIdx = Min(InstrumentCount, MinIdx + 6);
+                                        UI_Spacer(UI_SizePx(ItemHeight*(f32)MinIdx, 1.f));
+                                        for(s32 Idx = MinIdx; Idx < MaxIdx; Idx += 1)
                                         {
-                                            str8 InstrumentName = Str8Fmt("%s", tsf_get_presetname(GlobalTSF, Idx));
+                                            str8 InstrumentString = Str8Fmt("%s###Instrument%d", 
+                                                                            tsf_get_presetname(GlobalTSF, Idx),
+                                                                            Idx);
+                                            
                                             b32 Selected = (Voice->PresetIdx == Idx);
                                             
                                             b32 Clicked = false;
-                                            ui_size BorderPadding = UI_SizePx(5.f, 1.f);
                                             UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
                                             {                                     
                                                 UI_BackgroundColor(Selected ? Color_Yellow : Color_ButtonBackground)
-                                                    Clicked = UI_AddBox(InstrumentName, 
+                                                    Clicked = UI_AddBox(S8("Instrument"), 
                                                                         UI_BoxFlag_Clip|
                                                                         UI_BoxFlag_MouseClickable|
                                                                         UI_BoxFlag_DrawBackground|
@@ -2103,12 +2154,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                                         UI_BoxFlag_DrawActiveEffects)->WasClicked;
                                                 UI_Push()
                                                     UI_FillAll() 
-                                                    UI_Column() UI_Padding(BorderPadding)
-                                                    UI_Row() UI_Padding(BorderPadding)
-                                                    UI_AddBox(InstrumentName, 
-                                                              UI_BoxFlag_Clip|
-                                                              UI_BoxFlag_DrawDisplayString|
-                                                              UI_BoxFlag_CenterTextVertically);
+                                                    UI_Column() UI_Padding(ItemPadding)
+                                                    UI_Row() UI_Padding(ItemPadding)
+                                                {
+                                                    ui_box *Box = UI_AddBox(InstrumentString, 
+                                                                            UI_BoxFlag_Clip|
+                                                                            UI_BoxFlag_DrawDisplayString|
+                                                                            UI_BoxFlag_CenterTextVertically);
+                                                }
                                                 if(Clicked)
                                                 {
                                                     command *Command = NewCommand(App);
@@ -2117,14 +2170,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                 }
                                             }
                                         }
+                                        
+                                        UI_Spacer(UI_SizePx(0.f, 1.f));
                                     }
                                     
-                                    ui_box *ScrollbarBox;
+                                    ui_box *Scrollbar;
                                     UI_SemanticWidth(UI_SizePx(16.f, 1.f))
-                                        ScrollbarBox = UI_AddBox(S8("Scrollbar"), 
-                                                                 UI_BoxFlag_Clip|
-                                                                 UI_BoxFlag_DrawBackground|
-                                                                 UI_BoxFlag_DrawBorders);
+                                        Scrollbar = UI_AddBox(S8("Scrollbar"), 
+                                                              UI_BoxFlag_Clip|
+                                                              UI_BoxFlag_MouseClickable|
+                                                              UI_BoxFlag_DrawBackground|
+                                                              UI_BoxFlag_DrawBorders);
                                     
                                     UI_Push()
                                     {
@@ -2132,42 +2188,50 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                         UI_FillAll()
                                             UI_Row() UI_Padding(Padding)
                                             UI_Column() UI_Padding(Padding)
-                                        {    
-                                            local_persist f32 PctOnYAxis = 0.f;
-                                            
-                                            PctOnYAxis = Clamp(0.f, PctOnYAxis, 1.f);
-                                            UI_SemanticHeight(UI_SizeParent(PctOnYAxis, 1.f))
-                                                UI_AddBox(S8(""), UI_BoxFlag_Clip);
-                                            
-                                            ui_box *Slider;
-                                            UI_FillWidth()
-                                                UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
-                                                UI_BorderThickness(2.f)
-                                                UI_BorderColor(Color_Black)
-                                                UI_BackgroundColor(Color_Yellow)
-                                                Slider = UI_AddBox(S8("Slider"), 
-                                                                   UI_BoxFlag_Clip|
-                                                                   UI_BoxFlag_MouseClickable|
-                                                                   UI_BoxFlag_DrawBackground|
-                                                                   UI_BoxFlag_DrawBorders|
-                                                                   UI_BoxFlag_DrawHotEffects|
-                                                                   UI_BoxFlag_DrawActiveEffects);
-                                            
-                                            ui_box *Box = ScrollbarBox;
-                                            
-                                            //1. Get the position of initial click
-                                            //2. Get the travel distance dragged as delta percent
-                                            //3. Calculate the new position in function of start + delta
-                                            //3. Clamp the Y position to (FixedSize.Y - ItemHeight)
-                                            
-                                            f32 RelY = ((f32)Input->Mouse.Y - Box->FixedPosition.Y - ItemHeight);
-                                            f32 Height = (Box->FixedSize.Y);
-                                            if(UI_IsActive(Slider) && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
+                                        { 
+                                            // Ideas for scrolling
                                             {
-                                                PctOnYAxis = (RelY/Height);
-                                                Log("%.3f\n", PctOnYAxis);
+                                                // TODO(luca): 
+                                                //1. Thumb is a control that directly sets scroll offset
+                                                //2. Spacer based on if clicking before the thumb or after should just set a target
+                                                //2.1. This target should be approached exponentially
+                                                
+                                                //3. Idea of step size - Scrolling one item at a time instead of half scrolling them
+                                                
+                                                //4. Implementing this as drag
+                                                //4.1. Get the position of initial click
+                                                //4.2. Get the travel distance dragged as delta percent
+                                                //4.3. Calculate the new position in function of start + delta
+                                                //4.4. Clamp the Y position to (FixedSize.Y - ItemHeight)
                                             }
                                             
+                                            ui_box *Box = Scrollbar;
+                                            
+                                            f32 RelY = ((f32)Input->Mouse.Y - Box->FixedPos.Y - .5f*ItemHeight);
+                                            f32 Height = (Box->FixedSize.Y - ItemHeight);
+                                            RelY = Clamp(0.f, RelY, Height);
+                                            
+                                            if(UI_IsActive(Scrollbar) && Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown)
+                                            {
+                                                PctOnYAxis = Clamp(0.f, (RelY/Height), 1.f);
+                                                Log("%.2f\n", PctOnYAxis);
+                                            }
+                                            
+                                            UI_Spacer(UI_SizeParent(PctOnYAxis, 0.f));
+                                            
+                                            ui_box *Thumb;
+                                            UI_FillWidth()
+                                                UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                                                UI_BorderThickness(1.f)
+                                                UI_BorderColor(Color_Black)
+                                                UI_BackgroundColor(Color_Orange)
+                                                Thumb = UI_AddBox(S8("Thumb"), 
+                                                                  UI_BoxFlag_Clip|
+                                                                  UI_BoxFlag_MouseClickable|
+                                                                  UI_BoxFlag_DrawHotEffects|
+                                                                  UI_BoxFlag_DrawActiveEffects|
+                                                                  UI_BoxFlag_DrawBackground|
+                                                                  UI_BoxFlag_DrawBorders);
                                         }
                                     }
                                 }
@@ -2200,11 +2264,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                 if(HotDisplayString.Size == 0) HotDisplayString = S8("null");
                                 
                                 ui_box *Box;
-                                
-                                if(UI_IsNilBox(Active))
-                                {
-                                    Log("Null.\n");
-                                }
                                 
                                 Box = UI_Labelf("Active");
                                 Box->DisplayString = Str8Fmt("Active: " S8Fmt, S8Arg(ActiveDisplayString));
@@ -2259,17 +2318,19 @@ UPDATE_AND_RENDER(UpdateAndRender)
                     Panel->Root = UI_BoxAlloc(App->UIArena);
                 }
                 
-                // NOTE(luca): Do the input here
+                // NOTE(luca): Do the panel input here
                 
+                Panel->Root->Key.U64[0] = U64HashFromSeedStr8((u64)Panel->Root, S8("PanelRoot"));
                 Panel->Root->Rec = Panel->Region;
-                Panel->Root->FixedPosition = Panel->Region.Min;
+                Panel->Root->FixedPos = Panel->Region.Min;
                 Panel->Root->FixedSize = SizeFromRect(Panel->Region);
+                Panel->Root->LastTouchedFrameIdx = App->FrameIdx;
                 
                 UI_BeginLayout(Panel->Root, App->HeightPx);
                 
                 UI_FillAll()
                     UI_LayoutAxis(Axis2_Y)
-                    UI_AddBox(Str8Fmt("%p", Panel), 0);
+                    UI_AddBox(S8("RootFirst"), 0);
                 UI_Push()
                 {
                     if(0) {}
@@ -2537,7 +2598,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
 
 GET_AUDIO_SAMPLES(GetAudioSamples)
 {
-#if SAMPLE_FORMAT == f32
+#if 0
+#elif SAMPLE_FORMAT == f32
     tsf_render_float(GlobalTSF, Sound->Samples, (int)SampleCount, 0);
 #elif SAMPLE_FORMAT == s16
     tsf_render_short(GlobalTSF, Sound->Samples, (int)SampleCount, 0);

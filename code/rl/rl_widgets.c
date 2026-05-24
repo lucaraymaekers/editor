@@ -5,7 +5,7 @@
 internal void
 UI_Spacer(ui_size Size)
 {
-    ui_box *Box = UI_AddBox(S8(""), 0);
+    ui_box *Box = UI_AddBox(S8(""), UI_BoxFlag_Clip);
     axis2 Axis = Box->Parent->LayoutAxis;
     Box->SemanticSize[Axis] = Size;
     Box->SemanticSize[1 - Axis] = UI_SizeParent(1.f, 0.f);
@@ -15,7 +15,7 @@ internal void
 UI_PushContainer(axis2 Axis)
 {
     UI_LayoutAxis(Axis)
-        UI_AddBox(S8(""), 0);
+        UI_AddBox(S8(""), UI_BoxFlag_Clip);
     UI_PushBox();
 }
 
@@ -109,7 +109,7 @@ UI_Slider(f32 MinSize, f32 MaxSize,
        MouseLeft.EndedDown)
     {
         // TODO(luca): Axis independent
-        f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPosition.X)/Box->FixedSize.X);
+        f32 PctOnXAxis = (((f32)Input->Mouse.X - Box->FixedPos.X)/Box->FixedSize.X);
         FillLevel = Clamp(SliderMinPct, PctOnXAxis, 1.f);
         
         Input->Consumed = true;
@@ -120,6 +120,67 @@ UI_Slider(f32 MinSize, f32 MaxSize,
         f32 New = MinSize + (Range*(FillLevel - SliderMinPct)/(1.f - SliderMinPct));
         Result = roundf(New);
     }
+    
+    return Result;
+}
+
+internal b32
+UI_Checkbox_(b32 Toggled, v4 EnabledColor)
+{
+    b32 Result = false;
+    
+    ui_box *Box;
+    
+    f32 CircleWidth = 20.f;
+    
+    // NOTE(luca): Push the switch onto the text so the text can be centered easily.  This might cause the switch to draw on top of the text...
+    // TODO(luca): A better solution would be to allow overflow such that we compute centering as if we own the whole space, but when drawing the text we still clip to the next box?
+    UI_CornerRadii(V4F32(CircleWidth/2.f))
+        UI_Softness(1.f)
+    {         
+        UI_BackgroundColor(Toggled ? EnabledColor : Color_Background) 
+            UI_SemanticWidth(UI_SizePx(50.f, 1.f))
+            Box = UI_AddBox(S8("Background"), (UI_BoxFlag_Clip|
+                                               UI_BoxFlag_MouseClickable|
+                                               UI_BoxFlag_DrawBackground|
+                                               UI_BoxFlag_DrawHotEffects));
+        
+        UI_Push() 
+        {
+            UI_FillAll()
+                UI_BorderColor(Color_Black)
+            {
+                UI_AddBox(S8("Borders"), (UI_BoxFlag_Clip|
+                                          UI_BoxFlag_DrawBorders));
+            }
+            
+            //- Add padding for border 
+            ui_size CirclePadding = UI_SizePx(UI_BorderThicknessTop() + 2.f, 1.f);
+            UI_Push()
+                UI_FillAll() 
+                UI_Column() UI_Padding(CirclePadding)
+                UI_Row() UI_Padding(CirclePadding)
+            {
+                //- Pushes the circle to the end if toggled 
+                if(Toggled)
+                {
+                    UI_Spacer(UI_SizeParent(1.f, 0.f));
+                }
+                
+                f32 CircleHeight = 13.f; 
+                
+                //- Draw actual circle
+                UI_BackgroundColor(Color_Black)
+                    UI_SemanticWidth(UI_SizePx(CircleWidth, 1.f))
+                    UI_CornerRadii(V4F32(CircleHeight/2.f))
+                    UI_AddBox(S8("Circle"), (UI_BoxFlag_Clip|
+                                             UI_BoxFlag_DrawBackground|
+                                             UI_BoxFlag_AnimatePosX));
+            }
+        }
+    }
+    
+    Result = Box->WasClicked;
     
     return Result;
 }

@@ -828,7 +828,7 @@ P_LOAD_APP_CODE()
     
     char *LockFileName = PathFromExe(Arena, S8("lock.tmp"));
     StringsScratch = Arena;
-    str8 TempDLLFileName = Str8Fmt("editor_app_temp_%lu.dll", (u64)OS_GetWallClock());
+    str8 TempDLLFileName = Str8Fmt(Stringify(RL_PLATFORM_APP_NAME) "_temp_%lu.dll", (u64)OS_GetWallClock());
     
     char *TempDLLPath = PathFromExe(Arena, TempDLLFileName);
     
