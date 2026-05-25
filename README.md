@@ -6,10 +6,10 @@ It runs on Linux and Windows (OpenGL) with nice debug features such as code prof
 ### Demo's
 
 Muze, my music composition software.
-<video autoplay loop src="https://git.keyfried.com/editor/plain/data/muze/demo/showcase_muze_260423.gif?h=main">
+<video autoplay loop src="https://git.keyfried.com/editor/plain/data/muze/showcase_260423.gif?h=main">
 
 Editor, text editing playground.
-<video autoplay loop src="https://git.keyfried.com/editor/data/editor/showcase_260404.gif?h=main">
+<video autoplay loop src="https://git.keyfried.com/editor/plain/data/editor/showcase_260404.gif?h=main">
 
 ### Building 
 This will ultimately run "cling", a self-hosted C build script that is also acts as the metaprogram when required.
