@@ -8,17 +8,17 @@
 typedef struct arena arena;
 struct arena
 {
-    void *Base;
-    u64 Pos;
-    u64 Size;
+ void *Base;
+ u64 Pos;
+ u64 Size;
 };
 
 typedef struct arena_alloc_params arena_alloc_params;
 struct arena_alloc_params
 {
-    u64 DefaultSize;
-    u64 Size;
-    u64 Offset;
+ u64 DefaultSize;
+ u64 Size;
+ u64 Offset;
 };
 
 #define ArenaAllocDefaultSize MB(64)

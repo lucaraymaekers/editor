@@ -67,17 +67,28 @@
 #include <string.h> // memset
 
 #if OS_WINDOWS
-
 # define _CRT_SECURE_NO_WARNINGS 1
 # define WIN32_LEAN_AND_MEAN 1
 # include <windows.h>
 # include <stdio.h>
-# define RADDBG_MARKUP_IMPLEMENTATION
 # define ssize_t SSIZE_T
-#else
+#endif
+
+#if OS_WINDOWS
+# if defined(RL_LIBS_IMPLEMENTATION) 
+#  if RL_LIBS_IMPLEMENTATION
+#   define RADDBG_MARKUP_IMPLEMENTATION
+#  else
+#   define RADDBG_MARKUP_STUBS
+#  endif
+# else
+#  define RADDBG_MARKUP_IMPLEMENTATION
+# endif
+#elif OS_LINUX
 # define RADDBG_MARKUP_STUBS
 # include <sys/types.h>
 #endif
+#include "lib/raddbg_markup.h"
 
 #if defined(COMPILER_MSVC)
 #  if LANG_CPP

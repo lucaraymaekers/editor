@@ -95,7 +95,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
                 Assert(ArrayCount(NotePianoColors) == ArrayCount(NotePitches));
                 Assert(ArrayCount(NotePitches) == 12);
                 
-                str8 LengthString = Str8Fmt(S8Fmt " %.2f", S8Arg(NotePitches[PitchClass]), NoteLength);
+                str8 LengthString = Str8Fmt("%S %.2f", NotePitches[PitchClass], NoteLength);
                 
                 font_atlas *Atlas = UI_State->Atlas;
                 

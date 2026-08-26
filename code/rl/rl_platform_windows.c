@@ -662,11 +662,10 @@ P_PROCESS_MESSAGES()
         ProcessKeyPress(&Input->ActionRight, IsDown);
        }
        
-       // TODO(luca): Metaprogram
 #if defined(RL_PLATFORM_COLEMAK)
-       uint Symbols[] = { 'A', 'W', 'R', 'F', 'S', 'T', 'G', 'D', 'J', 'H', 'L', 'N', 'E', 'Y', 'I', };
+       uint Symbols[] = Win32ColemakMIDIKeySymbols;
 #else
-       uint Symbols[] = { 'A', 'W', 'S', 'E', 'D', 'F', 'T', 'G', 'Y', 'H', 'U', 'J', 'K', 'I', 'L', };
+       uint Symbols[] = Win32QwertyMIDIKeySymbols;
 #endif
        for EachElement(Idx, Symbols)
        {

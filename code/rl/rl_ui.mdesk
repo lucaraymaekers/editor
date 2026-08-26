@@ -1,0 +1,81 @@
+@table(Name)
+UI_BoxFlags:
+{
+ None,
+ DrawBackground,
+ DrawBorders,
+ DrawDebugBorder,
+ DrawShadow,
+ DrawDisplayString,
+ DrawHotEffects,
+ DrawActiveEffects,
+ CenterTextHorizontally,
+ CenterTextVertically,
+ MouseClickable,
+ FloatingX,
+ FloatingY,
+ Clip,
+ Scroll,
+ AnimatePosX,
+ AnimatePosY,
+ MirrorEffects,
+}
+
+@table(Type, Name)
+LayoutStacks:
+{
+ { v4        BackgroundColor }
+ { v4        TextColor }
+ { v4        BorderColor }
+ { f32       BorderThickness }
+ { f32       Softness }
+ { v4        CornerRadii }
+ { axis2     LayoutAxis }
+ { ui_size   SemanticWidth }
+ { ui_size   SemanticHeight }
+ { f32       HeightPx }
+ { font_kind FontKind }
+}
+
+@table(Type)
+LayoutTypes:
+{
+ { v4        }
+ { f32       }
+ { axis2     }
+ { ui_size   }
+ { font_kind }
+}
+
+@data_flag_enum(UI_BoxFlags.Name)
+ui_box_flag
+
+@data
+LayoutStacks:
+{
+ `#define UI_LayoutStacks `;
+ @expand(LayoutTypes)
+  `typedef struct $(Type)_stack_node $(Type)_stack_node; struct $(Type)_stack_node { $(Type)_stack_node *Prev; $(Type) Value; }; `;
+ ```
+  ```;
+}
+
+@data
+LayoutProperties:
+{
+ `#define UI_StateStacks `;
+ @expand(LayoutStacks)
+  `$(Type)_stack_node *$(Name)Top; `;
+ ```
+  ```;
+}
+
+@data
+LayoutFunctions:
+{
+ `#define UI_StackFunctions `;
+ @expand(LayoutStacks)
+  `internal void UI_Push$(Name)($(Type) $(Name))  { UI_StackPush($(Type), $(Name)); } internal void UI_Pop$(Name)(void)                       { UI_StackPop($(Name)); } `;
+ ```
+  ```
+}

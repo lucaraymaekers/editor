@@ -678,7 +678,7 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
         str8 ClingSourcePath = Cng_PathFromExe(CommandName, S8(CLING_SOURCE_PATH));
         str8 ClingCodePath = Cng_PathFromExe(CommandName, S8(CLING_CODE_PATH));
         
-        Log(S8Fmt "\n", S8Arg(Cng_GetBaseFileName(ClingSourcePath)));
+        Log("%S\n", Cng_GetBaseFileName(ClingSourcePath));
         
         Cng_Str8ArrayAppendMultiple(S8("-o"), S8FromCString(CommandName),
                                     S8("-I"), ClingCodePath,

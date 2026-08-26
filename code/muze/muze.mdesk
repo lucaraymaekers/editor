@@ -1,0 +1,22 @@
+@table(Name)
+PanelTypes:
+{
+ { Empty,}
+ { Sheet, }
+ { Roll, }
+ { Settings, }
+ { Debug, }
+}
+
+@data_enum("panel_kind")
+PanelKind:
+{
+ @expand(PanelTypes)
+  ```PanelKind_$(Name),
+ ```;
+ `PanelKind_Count`;
+}
+
+
+@data_strings(PanelTypes Name)
+PanelTypeStrings: {}

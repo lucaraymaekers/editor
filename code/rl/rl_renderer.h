@@ -64,3 +64,17 @@ internal void RenderCleanup(gl_render_state *Render);
 internal void RenderBeginFrame(arena *Arena, s32 X, s32 Y, s32 Width, s32 Height);
 internal void RenderClear(void);
 internal void RenderDrawAllRectangles(gl_render_state *Render, v2 BufferDim, font_atlas *Atlas);
+
+s32 RectVSAttribOffsets[] =
+{
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    1,
+    1,
+    1,
+};

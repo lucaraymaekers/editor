@@ -261,7 +261,7 @@ PLATFORM_MIDI_GET_DEVICES(P_MIDIGetDevices)
   platform_midi_device *Device = Result.Devices + Result.Count;
   Result.Count += 1;
   
-  str8 Name = Str8Fmt(S8Fmt ": %d", S8Arg(LnxDev->Name), LnxDev->Port);
+  str8 Name = Str8Fmt("%S: %d", LnxDev->Name, LnxDev->Port);
   
   Device->Id = LnxDev->Id;
   Device->IsOutput = LnxDev->CanRead;
@@ -288,8 +288,7 @@ PLATFORM_MIDI_SEND(P_MIDISend)
   if(MIDISendDevInitialized)
   {    
    linux_midi_device *OldDev = MIDIDevices + MIDISendDevId;
-   Log("Disconnecting: " S8Fmt " %d,%d.\n", 
-       S8Arg(OldDev->Name), OldDev->Client, OldDev->Port);
+   Log("Disconnecting: %S %d,%d.\n", OldDev->Name, OldDev->Client, OldDev->Port);
    snd_seq_disconnect_to(MIDISeq, MIDIOutPort, OldDev->Client, OldDev->Port);
   }
   
@@ -612,7 +611,9 @@ P_INIT()
      
      LinuxSetSizeHint(DisplayHandle, WindowHandle, Buffer->Width, Buffer->Height, Buffer->Width, Buffer->Height);
      
+     b32 DisableWindowDecorations = false;
      // Disable window decorations
+     if(DisableWindowDecorations)
      {
       Atom MotifWMHintsAtom = XInternAtom(DisplayHandle, "_MOTIF_WM_HINTS", false);
       if(MotifWMHintsAtom == None) 
@@ -1268,11 +1269,10 @@ P_PROCESS_MESSAGES()
      else if(Symbol == XK_w) ProcessKeyPress(&Input->MoveUp, IsDown);
      else if(Symbol == XK_r) ProcessKeyPress(&Input->MoveDown, IsDown);
      
-     // TODO(luca): Metaprogram
 #if defined(RL_PLATFORM_COLEMAK)
-     uint Symbols[] = { XK_a, XK_w, XK_r, XK_f, XK_s, XK_t, XK_g, XK_d, XK_j, XK_h, XK_l, XK_n, XK_e, XK_y, XK_i, };
+     uint Symbols[] = {LinuxColemakMIDIKeySymbolsDef};
 #else
-     uint Symbols[] = { XK_a, XK_w, XK_s, XK_e, XK_d, XK_f, XK_t, XK_g, XK_y, XK_h, XK_u, XK_j, XK_k, XK_i, XK_l, };
+     uint Symbols[] = {LinuxQwertyMIDIKeySymbolsDef};
 #endif
      for EachElement(Idx, Symbols)
      {

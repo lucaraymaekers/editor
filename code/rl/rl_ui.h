@@ -5,20 +5,20 @@
 //~ Types
 enum axis2
 {
-    Axis2_X,
-    Axis2_Y,
-    Axis2_Count
+ Axis2_X,
+ Axis2_Y,
+ Axis2_Count
 };
 typedef enum axis2 axis2;
 #define UI_EachAxis(Idx) (axis2 Idx = 0; Idx < Axis2_Count; Idx += 1)
 
 enum ui_size_kind
 {
-    UI_SizeKind_Null,
-    UI_SizeKind_Pixels,
-    UI_SizeKind_TextContent,
-    UI_SizeKind_ParentPct,
-    UI_SizeKind_ChildrenSum,
+ UI_SizeKind_Null,
+ UI_SizeKind_Pixels,
+ UI_SizeKind_TextContent,
+ UI_SizeKind_ParentPct,
+ UI_SizeKind_ChildrenSum,
 };
 typedef enum ui_size_kind ui_size_kind;
 #if 0
@@ -34,23 +34,23 @@ raddbg_type_view(ui_size, rows($,
 
 enum font_kind
 {
-    FontKind_Text,
-    FontKind_Icon
+ FontKind_Text,
+ FontKind_Icon
 };
 typedef enum font_kind font_kind;
 
 typedef struct ui_size ui_size;
 struct ui_size
 {
-    ui_size_kind Kind;
-    f32 Value;
-    f32 Strictness;
+ ui_size_kind Kind;
+ f32 Value;
+ f32 Strictness;
 };
 
 typedef struct ui_key ui_key; 
 struct ui_key
 {
-    u64 U64[1];
+ u64 U64[1];
 }; 
 
 #define UI_CUSTOM_DRAW(Name) void Name(void *CustomDrawData)
@@ -59,54 +59,55 @@ typedef UI_CUSTOM_DRAW(ui_custom_draw);
 typedef struct ui_box ui_box;
 struct ui_box
 {
-    // Tree links
-    ui_box *First;
-    ui_box *Last;
-    ui_box *Prev;
-    ui_box *Next;
-    ui_box *Parent;
-    
-    // Hash links
-    ui_box *HashNext;
-    ui_box *HashPrev;
-    
-    // Key and generation info
-    str8 String;
-    ui_key Key;
-    u64 LastTouchedFrameIdx;
-    
-    // TODO(luca): Metaprogram
-    s32 Flags;
-    ui_size SemanticSize[Axis2_Count];
-    str8 DisplayString;
-    f32 BorderThickness;
-    f32 Softness;
-    v4 BackgroundColor;
-    v4 BorderColor;
-    v4 TextColor;
-    v4 CornerRadii;
-    axis2 LayoutAxis;
-    ui_custom_draw *CustomDraw; 
-    void *CustomDrawData;
-    f32 HeightPx;
-    font_kind FontKind;
-    
-    // Produced from layout resolving
-    v2 FixedPos;
-    v2 FixedSize;
-    v4 Rec;
-    v2 AnimatedPos;
-    
-    // Produced from input
-    b32 Clicked;
-    b32 WasClicked;
-    b32 Hovered;
-    b32 Pressed;
-    
-    v2 Scroll;
-    
-    f32 tHot;
-    f32 tActive;
+ // Tree links
+ ui_box *First;
+ ui_box *Last;
+ ui_box *Prev;
+ ui_box *Next;
+ ui_box *Parent;
+ 
+ // Hash links
+ ui_box *HashNext;
+ ui_box *HashPrev;
+ 
+ // Key and generation info
+ str8 String;
+ ui_key Key;
+ u64 LastTouchedFrameIdx;
+ 
+ s32 Flags;
+ // TODO(luca): Metaprogram
+ v4 BackgroundColor;
+ v4 TextColor;
+ v4 BorderColor;
+ f32 BorderThickness;
+ f32 Softness;
+ v4 CornerRadii;
+ axis2 LayoutAxis;
+ f32 HeightPx;
+ font_kind FontKind;
+ 
+ str8 DisplayString;
+ ui_custom_draw *CustomDraw; 
+ void *CustomDrawData;
+ ui_size SemanticSize[Axis2_Count];
+ 
+ // Produced from layout resolving
+ v2 FixedPos;
+ v2 FixedSize;
+ v4 Rec;
+ v2 AnimatedPos;
+ 
+ // Produced from input
+ b32 Clicked;
+ b32 WasClicked;
+ b32 Hovered;
+ b32 Pressed;
+ 
+ v2 Scroll;
+ 
+ f32 tHot;
+ f32 tActive;
 };
 #define UI_EachBox(Node, First) \
 (ui_box *Node = First; !UI_IsNilBox(Node); Node = Node->Next)  
@@ -126,110 +127,55 @@ raddbg_type_view(ui_box,
 typedef struct ui_box_rec ui_box_rec;
 struct ui_box_rec
 {
-    ui_box *Next;
-    s64 PushCount;
-    s64 PopCount;
+ ui_box *Next;
+ s64 PushCount;
+ s64 PopCount;
 };
 
 typedef struct ui_box_node ui_box_node;
 struct ui_box_node
 {
-    ui_box *Box;
-    ui_box_node *Next;
+ ui_box *Box;
+ ui_box_node *Next;
 };
 
 //- Stack nodes 
-// TODO(luca): Metaprogram
-typedef struct b32_stack_node b32_stack_node;
-struct b32_stack_node
-{
-    b32_stack_node *Prev;
-    b32 Value;
-};
-
-typedef struct f32_stack_node f32_stack_node;
-struct f32_stack_node
-{
-    f32_stack_node *Prev;
-    f32 Value;
-};
-
-typedef struct ui_size_stack_node ui_size_stack_node;
-struct ui_size_stack_node
-{
-    ui_size_stack_node *Prev;
-    ui_size Value;
-};
-
-typedef struct v4_stack_node v4_stack_node;
-struct v4_stack_node
-{
-    v4_stack_node *Prev;
-    v4 Value;
-};
-
-typedef struct axis2_stack_node axis2_stack_node;
-struct axis2_stack_node
-{
-    axis2_stack_node *Prev;
-    axis2 Value;
-};
-
-typedef struct font_kind_stack_node font_kind_stack_node;
-struct font_kind_stack_node
-{
-    font_kind_stack_node *Prev;
-    font_kind Value;
-};
-
-// TODO(luca): Metaprogram
-#define UI_StateStacks \
-v4_stack_node *BackgroundColorTop; \
-v4_stack_node *BorderColorTop; \
-v4_stack_node *TextColorTop; \
-f32_stack_node *SoftnessTop; \
-f32_stack_node *BorderThicknessTop; \
-v4_stack_node *CornerRadiiTop; \
-axis2_stack_node *LayoutAxisTop; \
-ui_size_stack_node *SemanticHeightTop; \
-ui_size_stack_node *SemanticWidthTop; \
-f32_stack_node *HeightPxTop; \
-font_kind_stack_node *FontKindTop;
+UI_LayoutStacks
 
 //-
 typedef struct ui_state ui_state;
 struct ui_state
 {
-    arena *Arena;
-    u64 BoxTableSize;
-    ui_box *BoxTable;
-    
-    // Constants
-    f32 AnimSpeed;
-    
-    ui_key Active;
-    ui_key Hot;
-    
-    // Per build information
-    app_input *Input;
-    ui_box *InputConsumerBox;
-    font_atlas *Atlas;
-    u64 FrameIdx;
-    arena *StyleArena;
-    
-    arena *FrameArenaFront;
-    arena *FrameArenaBack;
-    
-    b32 AppendToParent;
-    ui_box *Current;
-    ui_box *Root;
-    ui_box_node *FirstDebugBox;
-    struct
-    {
-        UI_StateStacks
-    };
-    
-    b32 RectDebugMode;
+ arena *Arena;
+ u64 BoxTableSize;
+ ui_box *BoxTable;
+ 
+ // Constants
+ f32 AnimSpeed;
+ 
+ ui_key Active;
+ ui_key Hot;
+ 
+ // Per build information
+ app_input *Input;
+ ui_box *InputConsumerBox;
+ font_atlas *Atlas;
+ u64 FrameIdx;
+ arena *StyleArena;
+ 
+ arena *FrameArenaFront;
+ arena *FrameArenaBack;
+ 
+ b32 AppendToParent;
+ ui_box *Current;
+ ui_box *Root;
+ ui_box_node *FirstDebugBox;
+ struct
+ {
+  UI_StateStacks
+ };
+ 
+ b32 RectDebugMode;
 };
 
 //~ Globals
@@ -271,38 +217,8 @@ Top = Push;
 #define UI_StackPush(t, Name) StackPush(UI_State->StyleArena, t##_stack_node, Name, UI_State->Name##Top)
 #define UI_StackPop(Name) StackPop(UI_State->Name##Top)
 
-internal void UI_PushBackgroundColor(v4 BackgroundColor)  { UI_StackPush(v4, BackgroundColor); }
-internal void UI_PopBackgroundColor()                     { UI_StackPop(BackgroundColor); }
-
-internal void UI_PushTextColor(v4 TextColor)              { UI_StackPush(v4, TextColor); }
-internal void UI_PopTextColor()                           { UI_StackPop(TextColor); }
-
-internal void UI_PushBorderColor(v4 BorderColor)          { UI_StackPush(v4, BorderColor); }
-internal void UI_PopBorderColor()                         { UI_StackPop(BorderColor); }
-
-internal void UI_PushBorderThickness(f32 BorderThickness) { UI_StackPush(f32, BorderThickness); }
-internal void UI_PopBorderThickness()                     { UI_StackPop(BorderThickness); }
-
-internal void UI_PushSoftness(f32 Softness)               { UI_StackPush(f32, Softness); }
-internal void UI_PopSoftness()                            { UI_StackPop(Softness); }
-
-internal void UI_PushCornerRadii(v4 CornerRadii)          { UI_StackPush(v4, CornerRadii); }
-internal void UI_PopCornerRadii()                         { UI_StackPop(CornerRadii); }
-
-internal void UI_PushLayoutAxis(axis2 LayoutAxis)         { UI_StackPush(axis2, LayoutAxis); }
-internal void UI_PopLayoutAxis()                          { UI_StackPop(LayoutAxis); }
-
-internal void UI_PushSemanticWidth(ui_size SemanticWidth) { UI_StackPush(ui_size, SemanticWidth); }
-internal void UI_PopSemanticWidth() { UI_StackPop(SemanticWidth); }
-
-internal void UI_PushSemanticHeight(ui_size SemanticHeight) { UI_StackPush(ui_size, SemanticHeight); }
-internal void UI_PopSemanticHeight()                        { UI_StackPop(SemanticHeight); }
-
-internal void UI_PushHeightPx(f32 HeightPx) { UI_StackPush(f32, HeightPx); }
-internal void UI_PopHeightPx()              { UI_StackPop(HeightPx); }
-
-internal void UI_PushFontKind(font_kind FontKind) { UI_StackPush(font_kind, FontKind); }
-internal void UI_PopFontKind()                    { UI_StackPop(FontKind); }
+//- Generated stack functions 
+UI_StackFunctions
 
 internal v4 UI_BorderColorTop() { return UI_State->BorderColorTop->Value; }
 internal f32 UI_BorderThicknessTop() { return UI_State->BorderThicknessTop->Value; }
@@ -310,29 +226,29 @@ internal f32 UI_BorderThicknessTop() { return UI_State->BorderThicknessTop->Valu
 internal void
 UI_PushSemanticSizeOnAxis(axis2 Axis, ui_size Size)
 {
-    if(0) {}
-    else if(Axis == Axis2_X)
-    {
-        UI_PushSemanticWidth(Size);
-    }
-    else if(Axis == Axis2_Y)
-    {
-        UI_PushSemanticHeight(Size);
-    }
+ if(0) {}
+ else if(Axis == Axis2_X)
+ {
+  UI_PushSemanticWidth(Size);
+ }
+ else if(Axis == Axis2_Y)
+ {
+  UI_PushSemanticHeight(Size);
+ }
 }
 
 internal void
 UI_PopSemanticSizeOnAxis(axis2 Axis)
 {
-    if(0) {}
-    else if(Axis == Axis2_X)
-    {
-        UI_PopSemanticWidth();
-    }
-    else if(Axis == Axis2_Y)
-    {
-        UI_PopSemanticHeight();
-    }
+ if(0) {}
+ else if(Axis == Axis2_X)
+ {
+  UI_PopSemanticWidth();
+ }
+ else if(Axis == Axis2_Y)
+ {
+  UI_PopSemanticHeight();
+ }
 }
 
 #define UI_BackgroundColor(Value) DeferLoop(UI_PushBackgroundColor(Value), UI_PopBackgroundColor())

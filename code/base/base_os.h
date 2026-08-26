@@ -34,6 +34,31 @@ struct os_thread
     entry_point_params Params;
 };
 
+typedef enum os_dir_entry_kind os_dir_entry_kind;
+enum os_dir_entry_kind
+{
+    OS_DirEntryKind_None,
+    OS_DirEntryKind_File,
+    OS_DirEntryKind_Directory,
+    OS_DirEntryKind_Count,
+};
+
+typedef struct os_dir_entry os_dir_entry;
+struct os_dir_entry
+{
+    str8 Name;
+    os_dir_entry_kind Kind;
+};
+
+typedef struct os_dir_opaque os_dir_opaque;
+typedef struct os_dir os_dir;
+struct os_dir
+{
+    str8 Path;
+    os_dir *Parent;
+    os_dir_opaque *Opaque;
+};
+
 //~ Globals
 global_variable u8 LogBuffer[KB(64)];
 global_variable os_profiler GlobalProfiler = {0}; 
@@ -51,15 +76,11 @@ typedef ENTRY_POINT(entry_point_func);
 
 C_LINKAGE ENTRY_POINT(EntryPoint);
 
-#if OS_LINUX
-# include "base_os_linux.h"
-#endif
-
 internal str8  OS_ReadEntireFileIntoMemory(char *FileName);
 internal b32   OS_FileExists(char *FileName);
 internal void  OS_FreeFileMemory(str8 File);
 internal b32   OS_WriteEntireFile(char *FileName, str8 File);
-internal void  OS_PrintFormat(char *Format, ...) PrintfFunc(1, 2);
+internal void  OS_PrintFormat(char *Format, ...);
 internal void  OS_BarrierWait(barrier Barrier);
 internal void  OS_SetThreadName(str8 ThreadName);
 internal void *OS_AllocateAtOffset(u64 Size, u64 Offset);

@@ -1,3 +1,5 @@
+#include "base/base_strings.h"
+
 // stb_sprintf - v1.10 - public domain snprintf() implementation
 // originally by Jeff Roberts / RAD Game Tools, 2015/10/20
 // http://github.com/nothings/stb
@@ -616,6 +618,31 @@ cl = lg;                                 \
             cs = 0;
             // copy the string in
             goto scopy;
+            
+            //~ NOTE(luca): Addition for own str8 type, ripped from md_stb_sprintf
+            
+            case 'S':
+            {
+                //- rjf: pull out string
+                str8 str = va_arg(va, str8);
+                
+                //- rjf: get string length
+                s = (char *)str.Data;
+                sn = (const char *)(str.Data + str.Size);
+                l = (int)str.Size;
+                
+                //- rjf: clamp to precision
+                lead[0] = 0;
+                tail[0] = 0;
+                pr = 0;
+                dp = 0;
+                cs = 0;
+                
+                goto scopy;
+            }break;
+            
+            
+            //~ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
             
             case 'c': // char
             // get the character

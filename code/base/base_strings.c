@@ -1,6 +1,5 @@
 //~ Strings
 
-#include <stdarg.h>
 #include <stdio.h>
 
 #if RL_LIBS_IMPLEMENTATION
@@ -209,7 +208,7 @@ Str8Fmt(char *Format, ...)
  return Result;
 }
 
-//- 
+//~ Hashing 
 
 #if !defined(BASE_EXTERNAL_LIBS)
 # if !defined(XXH_IMPLEMENTATION)

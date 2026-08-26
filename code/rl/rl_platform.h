@@ -41,62 +41,62 @@ typedef SAMPLE_FORMAT sample_format;
 typedef struct app_offscreen_buffer app_offscreen_buffer;
 struct app_offscreen_buffer
 {
-    s32 Width;
-    s32 Height;
-    u8 *Pixels;
-    s32 Pitch;
-    s32 BytesPerPixel;
+ s32 Width;
+ s32 Height;
+ u8 *Pixels;
+ s32 Pitch;
+ s32 BytesPerPixel;
 };
 
 // TODO(luca): Metaprogram
 enum platform_key
 {
-    PlatformKey_None = 0,
-    PlatformKey_Tab,
-    PlatformKey_Return,
-    PlatformKey_Escape,
-    
-    PlatformKey_Delete,
-    PlatformKey_BackSpace,
-    PlatformKey_Insert,
-    
-    PlatformKey_F1,
-    PlatformKey_F2,
-    PlatformKey_F3,
-    PlatformKey_F4,
-    PlatformKey_F5,
-    PlatformKey_F6,
-    PlatformKey_F7,
-    PlatformKey_F8,
-    PlatformKey_F9,
-    PlatformKey_F10,
-    PlatformKey_F11,
-    PlatformKey_F12,
-    
-    PlatformKey_Home,
-    PlatformKey_End,
-    PlatformKey_PageUp,
-    PlatformKey_PageDown,
-    
-    PlatformKey_Up,
-    PlatformKey_Down,
-    PlatformKey_Left,
-    PlatformKey_Right,
-    
-    PlatformKey_Shift,
-    PlatformKey_Control,
-    PlatformKey_Alt,
-    
-    PlatformKey_Count,
+ PlatformKey_None = 0,
+ PlatformKey_Tab,
+ PlatformKey_Return,
+ PlatformKey_Escape,
+ 
+ PlatformKey_Delete,
+ PlatformKey_BackSpace,
+ PlatformKey_Insert,
+ 
+ PlatformKey_F1,
+ PlatformKey_F2,
+ PlatformKey_F3,
+ PlatformKey_F4,
+ PlatformKey_F5,
+ PlatformKey_F6,
+ PlatformKey_F7,
+ PlatformKey_F8,
+ PlatformKey_F9,
+ PlatformKey_F10,
+ PlatformKey_F11,
+ PlatformKey_F12,
+ 
+ PlatformKey_Home,
+ PlatformKey_End,
+ PlatformKey_PageUp,
+ PlatformKey_PageDown,
+ 
+ PlatformKey_Up,
+ PlatformKey_Down,
+ PlatformKey_Left,
+ PlatformKey_Right,
+ 
+ PlatformKey_Shift,
+ PlatformKey_Control,
+ PlatformKey_Alt,
+ 
+ PlatformKey_Count,
 };
 typedef enum platform_key platform_key;
 
 enum platform_key_modifier
 {
-    PlatformKeyModifier_None    = 0,
-    PlatformKeyModifier_Shift   = (1 << 0),
-    PlatformKeyModifier_Control = (1 << 1),
-    PlatformKeyModifier_Alt     = (1 << 2),
+ PlatformKeyModifier_None    = 0,
+ PlatformKeyModifier_Shift   = (1 << 0),
+ PlatformKeyModifier_Control = (1 << 1),
+ PlatformKeyModifier_Alt     = (1 << 2),
 };
 typedef enum platform_key_modifier platform_key_modifier;
 
@@ -106,51 +106,51 @@ typedef u64 app_key_id;
 typedef struct app_key app_key;
 struct app_key
 {
-    app_key_id Next;
-    app_key_id Prev;
-    
-    union
-    {
-        rune Codepoint;
-        platform_key Symbol;
-    };
-    s32 Modifiers;
-    b32 IsSymbol;
+ app_key_id Next;
+ app_key_id Prev;
+ 
+ union
+ {
+  rune Codepoint;
+  platform_key Symbol;
+ };
+ s32 Modifiers;
+ b32 IsSymbol;
 };
 
 typedef struct app_button_state app_button_state;
 struct app_button_state
 {
-    s32 Modifiers;
-    s32 HalfTransitionCount;
-    b32 EndedDown;
+ s32 Modifiers;
+ s32 HalfTransitionCount;
+ b32 EndedDown;
 };
 
 typedef struct app_midi_event app_midi_event;
 struct app_midi_event
 {
-    u32 Message;
-    f32 Timestamp;
+ u32 Message;
+ f32 Timestamp;
 };
 
 enum platform_cursor_shape
 {
-    PlatformCursorShape_Arrow = 0,
-    PlatformCursorShape_None,
-    PlatformCursorShape_Grab,
-    PlatformCursorShape_ResizeHorizontal,
-    PlatformCursorShape_ResizeVertical,
+ PlatformCursorShape_Arrow = 0,
+ PlatformCursorShape_None,
+ PlatformCursorShape_Grab,
+ PlatformCursorShape_ResizeHorizontal,
+ PlatformCursorShape_ResizeVertical,
 };
 typedef enum platform_cursor_shape platform_cursor_shape;
 
 enum platform_mouse_button_type
 {
-    PlatformMouseButton_Left = 0,
-    PlatformMouseButton_Right,
-    PlatformMouseButton_Middle,
-    PlatformMouseButton_ScrollUp,
-    PlatformMouseButton_ScrollDown,
-    PlatformMouseButton_Count
+ PlatformMouseButton_Left = 0,
+ PlatformMouseButton_Right,
+ PlatformMouseButton_Middle,
+ PlatformMouseButton_ScrollUp,
+ PlatformMouseButton_ScrollDown,
+ PlatformMouseButton_Count
 };
 typedef enum platform_mouse_button_type platform_mouse_button_type;
 
@@ -160,103 +160,88 @@ typedef enum platform_mouse_button_type platform_mouse_button_type;
 typedef struct app_input app_input;
 struct app_input
 {
-    struct
-    {
-        app_button_state Buttons[PlatformMouseButton_Count];
-        v2s32 Pos;
-        v2s32 Start;
-        s32 Z;
-    } Mouse;
-    
-    union
-    {
-        app_button_state GameButtons[8];
-        struct 
-        {
-            app_button_state ActionLeft;
-            app_button_state ActionRight;
-            app_button_state ActionUp;
-            app_button_state ActionDown;
-            app_button_state MoveLeft;
-            app_button_state MoveRight;
-            app_button_state MoveUp;
-            app_button_state MoveDown;
-        };
-    };
-    
-    struct
-    {
-        // NOTE(luca): This makes it easily serializable.
-        app_key Buffer[64];
-        u64 Count;
-        
-        app_key_id First;
-        app_key_id Last;
-    } Text;
-    
-    struct
-    {
-        app_midi_event *Events;
-        u64 EventCount;
-        
-        union
-        {
-            struct 
-            {
-                // NOTE(luca): Keys are chosen to be like in Ableton
-                // TODO(luca): Metaprogram
-                app_button_state KeyA;
-                app_button_state KeyW;
-                app_button_state KeyS;
-                app_button_state KeyE;
-                app_button_state KeyD;
-                app_button_state KeyF;
-                app_button_state KeyT;
-                app_button_state KeyG;
-                app_button_state KeyY;
-                app_button_state KeyH;
-                app_button_state KeyU;
-                app_button_state KeyJ;
-                app_button_state KeyK;
-                app_button_state KeyI;
-                app_button_state KeyL;
-            };
-            app_button_state Buttons[15];
-        };
-    } MIDI;
-    
-    // NOTE(luca): We can invalidate the input with this.
-    b32 Consumed;
-    
-    f32 dtForFrame;
-    
-    b32 SkipRendering;
-    
-    b32 PlatformWindowIsFocused;
-    b32 PlatformIsRecording;
-    b32 PlatformIsStepping;
-    
-    // Communication with the platform layer
-    s32 PlatformCursor;
-    str8 PlatformClipboard;
-    b32 PlatformSetClipboard;
+ struct
+ {
+  app_button_state Buttons[PlatformMouseButton_Count];
+  v2s32 Pos;
+  v2s32 Start;
+  s32 Z;
+ } Mouse;
+ 
+ union
+ {
+  app_button_state GameButtons[8];
+  struct 
+  {
+   app_button_state ActionLeft;
+   app_button_state ActionRight;
+   app_button_state ActionUp;
+   app_button_state ActionDown;
+   app_button_state MoveLeft;
+   app_button_state MoveRight;
+   app_button_state MoveUp;
+   app_button_state MoveDown;
+  };
+ };
+ 
+ struct
+ {
+  // NOTE(luca): This makes it easily serializable.
+  app_key Buffer[64];
+  u64 Count;
+  
+  app_key_id First;
+  app_key_id Last;
+ } Text;
+ 
+ struct
+ {
+  app_midi_event *Events;
+  u64 EventCount;
+  
+  union
+  {
+   struct 
+   {
+    // NOTE(luca): Keys are chosen to be like in Ableton
+    APP_MIDIInputKeys
+   };
+   app_button_state Buttons[15];
+  };
+ } MIDI;
+ 
+ // NOTE(luca): We can invalidate the input with this.
+ b32 Consumed;
+ 
+ f32 dtForFrame;
+ 
+ b32 SkipRendering;
+ 
+ b32 PlatformWindowIsFocused;
+ b32 PlatformIsRecording;
+ b32 PlatformIsStepping;
+ 
+ // Communication with the platform layer
+ s32 PlatformCursor;
+ str8 PlatformClipboard;
+ b32 PlatformSetClipboard;
 };
 
 typedef struct platform_midi_device platform_midi_device;
 struct platform_midi_device
 {
-    str8 Name;
-    b32 IsOutput;
-    b32 IsInput;
-    
-    u64 Id;
+ str8 Name;
+ b32 IsOutput;
+ b32 IsInput;
+ 
+ u64 Id;
 };
 
 typedef struct platform_midi_get_devices_result platform_midi_get_devices_result;
 struct platform_midi_get_devices_result
 {
-    u64 Count;
-    platform_midi_device *Devices;
+ u64 Count;
+ platform_midi_device *Devices;
 };
 
 #define PLATFORM_MIDI_GET_DEVICES(Name) platform_midi_get_devices_result Name(void)
@@ -269,37 +254,37 @@ typedef PLATFORM_MIDI_LISTEN(platform_midi_listen);
 typedef struct app_memory app_memory;
 struct app_memory
 {
-    void *Memory;
-    umm MemorySize;
-    
-    // NOTE(luca): Globals shared between platform and app.
-    str8 ExeDirPath;
-    b32 IsDebuggerAttached;
-    b32 IsProfiling;
-    // NOTE(luca): So that time from GetWallTime() is correct even when replaying.
-    
-    b32 Reloaded;
-    
-    thread_context *ThreadCtx;
-    
+ void *Memory;
+ umm MemorySize;
+ 
+ // NOTE(luca): Globals shared between platform and app.
+ str8 ExeDirPath;
+ b32 IsDebuggerAttached;
+ b32 IsProfiling;
+ // NOTE(luca): So that time from GetWallTime() is correct even when replaying.
+ 
+ b32 Reloaded;
+ 
+ thread_context *ThreadCtx;
+ 
 #if OS_WINDOWS
-    f64 PerfCountFrequency;
+ f64 PerfCountFrequency;
 #endif
-    
-    platform_midi_get_devices *PlatformMIDIGetDevices;
-    platform_midi_send *PlatformMIDISend;
-    platform_midi_listen *PlatformMIDIListen;
-    
-    b32 Initialized;
+ 
+ platform_midi_get_devices *PlatformMIDIGetDevices;
+ platform_midi_send *PlatformMIDISend;
+ platform_midi_listen *PlatformMIDIListen;
+ 
+ b32 Initialized;
 };
 
 typedef struct app_sound_buffer app_sound_buffer;
 struct app_sound_buffer
 {
-    u64 SampleRate;
-    u64 ChannelCount;
-    u64 BytesPerSample;
-    sample_format *Samples;
+ u64 SampleRate;
+ u64 ChannelCount;
+ u64 BytesPerSample;
+ sample_format *Samples;
 };
 
 #define UPDATE_AND_RENDER(Name) b32 Name(app_memory *Memory, app_offscreen_buffer *Buffer, app_input *Input)
@@ -313,13 +298,13 @@ GET_AUDIO_SAMPLES(GetAudioSamplesStub) {}
 typedef struct app_code app_code;
 struct app_code
 {
-    update_and_render *UpdateAndRender;
-    get_audio_samples *GetAudioSamples;
-    
-    char *LibraryPath;
-    u64 LibraryHandle;
-    b32 Loaded;
-    s64 LastWriteTime;
+ update_and_render *UpdateAndRender;
+ get_audio_samples *GetAudioSamples;
+ 
+ char *LibraryPath;
+ u64 LibraryHandle;
+ b32 Loaded;
+ s64 LastWriteTime;
 };
 
 //~ Platform API
@@ -353,63 +338,63 @@ PLATFORM_MIDI_LISTEN(P_MIDIListen);
 internal inline b32 
 WasPressed(app_button_state State)
 {
-    b32 Result = ((State.HalfTransitionCount > 1) || 
-                  (State.HalfTransitionCount == 1 && State.EndedDown));
-    return Result;
+ b32 Result = ((State.HalfTransitionCount > 1) || 
+               (State.HalfTransitionCount == 1 && State.EndedDown));
+ return Result;
 }
 
 internal char *
 PathFromExe(arena *Arena, str8 Path)
 {
-    char *Result = 0;
-    
-    u64 Size = ExeDirPath.Size + Path.Size + 1;
-    
-    Result = PushArray(Arena, char, Size);
-    
-    u64 At = 0;
-    for EachIndex(Idx, ExeDirPath.Size)
-    {
-        Result[At] = (char)ExeDirPath.Data[Idx];
-        At += 1;
-    }
-    for EachIndex(Idx, Path.Size)
-    {
-        Result[At] = (char)Path.Data[Idx];
-        At += 1;
-    }
-    
-    Result[Size - 1] = 0;
-    
-    return Result;
+ char *Result = 0;
+ 
+ u64 Size = ExeDirPath.Size + Path.Size + 1;
+ 
+ Result = PushArray(Arena, char, Size);
+ 
+ u64 At = 0;
+ for EachIndex(Idx, ExeDirPath.Size)
+ {
+  Result[At] = (char)ExeDirPath.Data[Idx];
+  At += 1;
+ }
+ for EachIndex(Idx, Path.Size)
+ {
+  Result[At] = (char)Path.Data[Idx];
+  At += 1;
+ }
+ 
+ Result[Size - 1] = 0;
+ 
+ return Result;
 }
 
 internal void 
 ProcessKeyPress(app_button_state *ButtonState, b32 IsDown)
 {
-    if(ButtonState->EndedDown != IsDown)
-    {
-        ButtonState->EndedDown = IsDown;
-        ButtonState->HalfTransitionCount += 1;
-    }
+ if(ButtonState->EndedDown != IsDown)
+ {
+  ButtonState->EndedDown = IsDown;
+  ButtonState->HalfTransitionCount += 1;
+ }
 }
 
 internal v2
 MousePosFromInput(app_input *Input)
 {
-    v2 Result = V2S32(V2Arg(Input->Mouse.Pos));
-    return Result;
+ v2 Result = V2S32(V2Arg(Input->Mouse.Pos));
+ return Result;
 }
 
 internal void
 RemoveTextButton(app_input *Input, app_key_id Id)
 {
-    app_key *Key = Input->Text.Buffer + Id;
-    
-    if(Id == Input->Text.First) Input->Text.First = Key->Next;
-    if(Id == Input->Text.Last)  Input->Text.Last  = Key->Prev;
-    if(Key->Prev) Input->Text.Buffer[Key->Prev].Next = Key->Next;
-    if(Key->Next) Input->Text.Buffer[Key->Next].Prev = Key->Prev;
+ app_key *Key = Input->Text.Buffer + Id;
+ 
+ if(Id == Input->Text.First) Input->Text.First = Key->Next;
+ if(Id == Input->Text.Last)  Input->Text.Last  = Key->Prev;
+ if(Key->Prev) Input->Text.Buffer[Key->Prev].Next = Key->Next;
+ if(Key->Next) Input->Text.Buffer[Key->Next].Prev = Key->Prev;
 }
 
 #define EachTextButton(Key, Id, Input) \

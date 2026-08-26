@@ -10,6 +10,7 @@
   - computerenhance
   - Add profile toggle for app that doesn't necessarily inherit from platform (collapsing leaves from tree would be better)
 
+- add %S to stb_sprintf
 - Cmdline hash parsing 
 
 - tick() function?

@@ -1,3 +1,5 @@
+#include "base_os_windows.h"
+
 global_variable f64 GlobalPerfCountFrequency;
 global_variable thread_context *DEBUGThreadContext; 
 
@@ -212,6 +214,7 @@ OS_Sleep(u32 MicroSeconds)
     CloseHandle(Timer);
 }
 
+//~ Filesystem operations
 internal void
 OS_ChangeDirectory(char *Path)
 {
@@ -221,6 +224,88 @@ OS_ChangeDirectory(char *Path)
     }
 }
 
+
+internal void
+OS_MakeDirectory(char *Path)
+{
+    CreateDirectoryA(Path, 0);
+}
+
+internal os_dir *
+OS_WalkDirPush(str8 Path, os_dir *Current)
+{
+    arena *Arena = GetScratch();
+    os_dir *Result = 0;
+    
+    if(Current)
+    {
+        Path = Str8Fmt("%S/%S", Current->Path, Path);
+    }
+    
+    str8 SearchPath = Str8Fmt("%S\\*", Path);
+    
+    WIN32_FIND_DATAA FindData = {0};
+    HANDLE Handle = FindFirstFileExA((char *)SearchPath.Data, 
+                                     FindExInfoBasic, 
+                                     &FindData, 
+                                     FindExSearchNameMatch, 
+                                     0, 
+                                     FIND_FIRST_EX_LARGE_FETCH);
+    if(Handle == INVALID_HANDLE_VALUE) Win32LogIfError();
+    
+    b32 IsDirectory = (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+    Assert(IsDirectory);
+    
+    if(IsDirectory)
+    {
+        Result = PushArrayZero(Arena, os_dir, 1);
+        Result->Opaque = PushArrayZero(Arena, os_dir_opaque, 1);
+        Result->Opaque->Handle = Handle;
+        
+        Result->Path = Path;
+        Result->Parent = Current;
+    }
+    
+    return Result;
+}
+
+internal os_dir_entry *
+OS_WalkDirGetNext(os_dir *Dir)
+{
+    os_dir_entry *Result = 0;
+    
+    WIN32_FIND_DATAA FindData = {0};
+    b32 Found = FindNextFileA(Dir->Opaque->Handle, &FindData);
+    
+    if(Found)
+    {
+        arena *Arena = GetScratch();
+        Result = PushArrayZero(Arena, os_dir_entry, 1);
+        
+        Result->Name = Str8DupCString(Arena, FindData.cFileName);
+        
+        Result->Kind = OS_DirEntryKind_File;
+        if(FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) Result->Kind = OS_DirEntryKind_Directory;
+    }
+    else if(GetLastError() != ERROR_NO_MORE_FILES)
+    {
+        Win32LogIfError();
+    }
+    
+    return Result;
+}
+
+internal os_dir *
+OS_WalkDirPop(os_dir *Dir)
+{
+    FindClose(Dir->Opaque->Handle);
+    Dir = Dir->Parent;
+    
+    return Dir;
+}
+
+
+//~ Entrypoint
 DWORD WINAPI 
 ThreadInitEntryPoint(LPVOID FuncParams)
 {
@@ -236,7 +321,6 @@ ThreadInitEntryPoint(LPVOID FuncParams)
     return 0;
 }
 
-//~ Entrypoint
 #if !BASE_NO_ENTRYPOINT
 
 #if BASE_CONSOLE_APPLICATION

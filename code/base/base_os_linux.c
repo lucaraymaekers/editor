@@ -1,3 +1,5 @@
+#include "base_os_linux.h"
+
 // Standard
 #include <stdarg.h>
 #include <stdio.h>
@@ -23,8 +25,8 @@
 #include "base_arenas.h"
 #include "base_os_linux_errno_to_str8.c"
 
-#define ERRNO_FMT "Errno(%d): " S8Fmt
-#define ERRNO_ARG errno, S8Arg(ErrnoToStr8(errno))
+#define ERRNO_FMT "Errno(%d): %S"
+#define ERRNO_ARG errno, ErrnoToStr8(errno)
 
 //~ Types
 typedef void *pthread_entry_point_func(void *);
@@ -178,6 +180,8 @@ OS_Sleep(u32 MicroSeconds)
     usleep(MicroSeconds);
 }
 
+//~ Filesystem operations 
+
 internal void
 OS_ChangeDirectory(char *Path)
 {
@@ -185,6 +189,79 @@ OS_ChangeDirectory(char *Path)
     {
         perror("chdir");
     }
+}
+
+internal void
+OS_MakeDirectory(char *Path)
+{
+    int Ret = mkdir(Path, 0755);
+    AssertErrno(Ret == 0 || errno == EEXIST);
+}
+
+internal os_dir *
+OS_WalkDirPush(str8 Path, os_dir *Current)
+{
+    arena *Arena = GetScratch();
+    os_dir *Result = PushArrayZero(Arena, os_dir, 1);
+    
+    if(Current)
+    {
+        Path = Str8Fmt("%S/%S", Current->Path, Path);
+    }
+    
+    Result->Opaque = PushArrayZero(Arena, os_dir_opaque, 1);
+    
+    Result->Opaque->Dir = opendir((char *)Path.Data);
+    AssertErrno(Result->Opaque->Dir != 0);
+    Result->Path = Path;
+    
+    Result->Parent = Current;
+    
+    return Result;
+}
+
+internal os_dir_entry *
+OS_WalkDirGetNext(os_dir *Dir)
+{
+    arena *Arena = GetScratch();
+    os_dir_entry *Result = 0;
+    
+    Dir->Opaque->Entry = readdir(Dir->Opaque->Dir);
+    
+    if(Dir->Opaque->Entry)
+    {
+        Result = PushArrayZero(Arena, os_dir_entry, 1);
+        
+        // Get name
+        {
+            Result->Name = S8FromCString(Dir->Opaque->Entry->d_name);
+        }
+        
+        // Get kind
+        {    
+            unsigned char Type = Dir->Opaque->Entry->d_type;
+            if(0) {}
+            else if(Type == DT_DIR)
+            {
+                Result->Kind = OS_DirEntryKind_Directory;
+            }
+            else if((Type == DT_LNK || Type == DT_REG))
+            {
+                Result->Kind = OS_DirEntryKind_File;
+            }
+        }
+    }
+    
+    return Result;
+}
+
+internal os_dir *
+OS_WalkDirPop(os_dir *Dir)
+{
+    closedir(Dir->Opaque->Dir);
+    Dir = Dir->Parent;
+    
+    return Dir;
 }
 
 //~ Entrypoint
@@ -228,8 +305,8 @@ LinuxSigHandler(int Signal, siginfo_t *SigInfo, void *Arg)
                 str8 Module = S8SkipLastSlash(S8FromCString(Info.dli_fname));
                 str8 File = S8SkipLastSlash(S8FromCString(FileName));
                 if(File.Size > 0) File.Size -= 1;
-                Log("%d. " S8Fmt ", " S8Fmt " " S8Fmt "\n",
-                    Idx, S8Arg(Module), S8Arg(Func), S8Arg(File));
+                Log("%d. %S, %S %S\n",
+                    Idx, Module, Func, File);
             }
         }
     }
