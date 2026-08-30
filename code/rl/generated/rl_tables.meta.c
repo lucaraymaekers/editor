@@ -42,7 +42,19 @@ v4 Color_Frost0 = {U32ToV4Arg(0xff8fbcbb)};
 typedef enum note_pitch note_pitch;
 enum note_pitch
 {
-Note_C,Note_Cs,Note_D,Note_Ds,Note_E,Note_F,Note_Fs,Note_G,Note_Gs,Note_A,Note_As,Note_B,Note_Count
+Note_C,
+ Note_Cs,
+ Note_D,
+ Note_Ds,
+ Note_E,
+ Note_F,
+ Note_Fs,
+ Note_G,
+ Note_Gs,
+ Note_A,
+ Note_As,
+ Note_B,
+ Note_Count
 };
 
 str8 NotePitchStrings[] =
@@ -61,13 +73,7 @@ str8 NotePitchStrings[] =
 {(u8 *)"B", 1},
 };
 
-uint Win32ColemakMIDIKeySymbols[] = {
-'A','W','R','F','S','T','G','D','J','H','L','N',
-};
-
-uint Win32QwertyMIDIKeySymbols[] = {
-'A','W','S','E','D','F','T','G','Y','H','U','J',
-};
-
+#define Win32ColemakMIDIKeySymbolsDef 'A', 'W', 'R', 'F', 'S', 'T', 'G', 'D', 'J', 'H', 'L', 'N', 
+#define Win32QwertyMIDIKeySymbolsDef 'A', 'W', 'S', 'E', 'D', 'F', 'T', 'G', 'Y', 'H', 'U', 'J', 
 #define LinuxColemakMIDIKeySymbolsDef XK_a,XK_w,XK_r,XK_f,XK_s,XK_t,XK_g,XK_d,XK_j,XK_h,XK_l,XK_n,
 #define LinuxQwertyMIDIKeySymbolsDef XK_a,XK_w,XK_s,XK_e,XK_d,XK_f,XK_t,XK_g,XK_y,XK_h,XK_u,XK_j,

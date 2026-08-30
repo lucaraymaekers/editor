@@ -9,6 +9,7 @@
 #include "rl/rl_midi.h"
 
 #include "rl/generated/rl_tables.meta.c"
+#include "rl/generated/rl_render.meta.c"
 #include "rl/rl_platform.h"
 #if OS_LINUX
 # include "rl/rl_platform_linux.c"

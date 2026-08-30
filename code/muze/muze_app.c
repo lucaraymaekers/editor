@@ -10,6 +10,7 @@ NO_WARNINGS_END
 
 #include "rl/generated/rl_tables.meta.c"
 #include "rl/generated/rl_ui.meta.c"
+#include "rl/generated/rl_render.meta.c"
 #include "rl/rl_platform.h"
 #include "rl/rl_libs.h"
 #include "rl/rl_font.h"
@@ -2870,7 +2871,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
            
            ui_box *Contents;
            UI_FillAll()
-            Contents = UI_AddBox(S8("Contents"), UI_BoxFlag_MouseClickable);
+            Contents = UI_AddBox(S8("Contents"), 0);
            
            //- Panel contents 
            {     
@@ -2889,7 +2890,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
               {
                UI_FillAll()
                 UI_LayoutAxis(Axis2_Y)
-                ConfigList = UI_AddBox(S8("Column"), UI_BoxFlag_Clip);
+                ConfigList = UI_AddBox(S8("Settings"), UI_BoxFlag_Clip|UI_BoxFlag_Scroll);
                UI_FillAll()
                 UI_Push()
                 UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
@@ -2899,7 +2900,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                  UI_BackgroundColor(Color_ButtonBackground)
                   UI_AddBox(S8("BPM"), 
-                            UI_BoxFlag_Clip|
                             UI_BoxFlag_DrawBorders|
                             UI_BoxFlag_DrawBackground);
                  UI_PaddingAround(ItemPadding)
@@ -2918,13 +2918,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  
                  UI_BackgroundColor(Color_ButtonBackground)
                   UI_AddBox(S8("TimeSig"), 
-                            UI_BoxFlag_Clip|
                             UI_BoxFlag_DrawBorders|
                             UI_BoxFlag_DrawBackground);
                  UI_PaddingAround(ItemPadding)
                  {
                   UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-                   UI_AddBox(S8("Set time signature"), UI_BoxFlag_Clip|
+                   UI_AddBox(S8("Set time signature"), 
+                             UI_BoxFlag_Clip|
                              UI_BoxFlag_DrawDisplayString|
                              UI_BoxFlag_CenterTextVertically);
                   

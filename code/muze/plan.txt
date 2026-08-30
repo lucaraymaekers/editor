@@ -8,6 +8,9 @@ x Scrolling in sheet music view
  x Auto scrolling when recording/playing
 x Top control for changing panel kind
 - Use showkey
+- Scissor region for scrollables
+- Proper SDF rendering
+- Fast font rendering
 
 Panels:
 - Picker/Button that can change the panel type

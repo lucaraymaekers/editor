@@ -70,7 +70,8 @@ MIDIInputKeys:
 NotePitches:
 {
  @expand(Notes)
-  `Note_$(Name),`;
+  ```Note_$(Name),
+ ```;
  `Note_Count`;
 }
 
@@ -78,16 +79,18 @@ NotePitches:
 @data_strings(Notes String) 
 NotePitchStrings: ()
 
-@data_table(`uint`)
+@data
 Win32ColemakMIDIKeySymbols:
 {
- @expand(Notes) `'$(Colemak)',`
+ `#define Win32ColemakMIDIKeySymbolsDef `
+ @expand(Notes) `'$(Colemak)', `
 }
 
-@data_table(`uint`)
+@data
 Win32QwertyMIDIKeySymbols:
 {
- @expand(Notes) `'$(Qwerty)',`
+ `#define Win32QwertyMIDIKeySymbolsDef `
+ @expand(Notes) `'$(Qwerty)', `
 }
 
 @to_lower

@@ -2,55 +2,42 @@
 
 #pragma once
 //~ Types
-
 typedef struct font_atlas font_atlas;
 struct font_atlas
 {
-    s32 Width;
-    s32 Height;
-    u8 *Data;
-    
-    f32 HeightPx;
-    f32 FontScale;
-    font *Font;
-    
-    rune FirstCodepoint;
-    s32 CodepointsCount;
-    
-    rune IconsFirstCodepoint;
-    s32 IconsCodepointsCount;
-    
-    f32 PixelScaleWidth;
-    f32 PixelScaleHeight;
-    
-    stbtt_packedchar *PackedChars;
-    stbtt_aligned_quad *AlignedQuads;
+ s32 Width;
+ s32 Height;
+ u8 *Data;
+ 
+ f32 HeightPx;
+ f32 FontScale;
+ font *Font;
+ 
+ rune FirstCodepoint;
+ s32 CodepointsCount;
+ 
+ rune IconsFirstCodepoint;
+ s32 IconsCodepointsCount;
+ 
+ f32 PixelScaleWidth;
+ f32 PixelScaleHeight;
+ 
+ stbtt_packedchar *PackedChars;
+ stbtt_aligned_quad *AlignedQuads;
 };
 
-NO_STRUCT_PADDING_BEGIN
-typedef struct rect_instance rect_instance;
-struct rect_instance
+
+typedef struct clip_stack clip_stack;
+struct clip_stack
 {
-    v4 Dest;
-    v4 TexSrc;
-    
-    // TODO(luca): Metaprogram
-    v4 Color0;
-    v4 Color1;
-    v4 Color2;
-    v4 Color3;
-    v4 CornerRadii;
-    
-    f32 Border;
-    f32 Softness;
-    
-    f32 HasTexture;
+ v4 V;
+ clip_stack *Prev;
 };
-NO_STRUCT_PADDING_END
 
 //~ Globals
-global_variable rect_instance *GlobalRectsInstances = 0;
-global_variable u64 GlobalRectsCount = 0;
+global_variable rect_instance *GlobalRectsInstances;
+global_variable u64 GlobalRectsCount;
+global_variable clip_stack *GlobalClipStackTop;
 
 #define MaxRectsCount KB(64)
 
@@ -64,17 +51,6 @@ internal void RenderCleanup(gl_render_state *Render);
 internal void RenderBeginFrame(arena *Arena, s32 X, s32 Y, s32 Width, s32 Height);
 internal void RenderClear(void);
 internal void RenderDrawAllRectangles(gl_render_state *Render, v2 BufferDim, font_atlas *Atlas);
-
-s32 RectVSAttribOffsets[] =
-{
-    4,
-    4,
-    4,
-    4,
-    4,
-    4,
-    4,
-    1,
-    1,
-    1,
-};
+internal void RenderPushClip(v4 Value);
+internal void RenderPopClip(void);
+#define RenderClip(Value) DeferLoop(RenderPushClip(Value), RenderPopClip())

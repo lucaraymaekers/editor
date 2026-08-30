@@ -1,3 +1,6 @@
+.*
+!.gitignore
+
 build
 data
 
@@ -6,8 +9,16 @@ tags
 *.raddbg_project
 *.cap
 
-.*
+# Vim
 *.swp
 *~
 
-!.gitignore
+# Compiler artifacts
+*.obj
+*.map
+*.exp
+*.pdb
+*.rdi
+*.lib
+*.exe
+*.dll

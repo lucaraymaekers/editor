@@ -518,10 +518,7 @@ P_PROCESS_MESSAGES()
  if(!Input->PlatformSetClipboard)
  {    
   Input->PlatformClipboard.Data = Win32->ClipboardBuffer;
-  if(OpenClipboard(0) == 0)
-  {
-   Win32LogIfError();
-  }
+  Win32LogIf(OpenClipboard(0) == 0);
   
   if(GetClipboardOwner() != Win32->Window)
   {
@@ -575,11 +572,7 @@ P_PROCESS_MESSAGES()
     Mem[Len] = 0;
     GlobalUnlock(W32GlobalMemory);
     
-    if(SetClipboardData(CF_TEXT, W32GlobalMemory) == 0)
-    {
-     Win32LogIfError();
-    }
-    
+    Win32LogIf(SetClipboardData(CF_TEXT, W32GlobalMemory) == 0);
    }
    else
    {
@@ -663,9 +656,9 @@ P_PROCESS_MESSAGES()
        }
        
 #if defined(RL_PLATFORM_COLEMAK)
-       uint Symbols[] = Win32ColemakMIDIKeySymbols;
+       uint Symbols[] = {Win32ColemakMIDIKeySymbolsDef};
 #else
-       uint Symbols[] = Win32QwertyMIDIKeySymbols;
+       uint Symbols[] = {Win32QwertyMIDIKeySymbolsDef};
 #endif
        for EachElement(Idx, Symbols)
        {
@@ -868,11 +861,7 @@ P_LOAD_APP_CODE()
     }
    }
    
-   b32 Result = CopyFile(Code->LibraryPath, TempDLLPath, FALSE);
-   if(!Result)
-   {
-    Win32LogIfError();
-   }
+   Win32LogIf(!CopyFile(Code->LibraryPath, TempDLLPath, false));
    
    Library = LoadLibraryA(TempDLLPath);
    if(Library)

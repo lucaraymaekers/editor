@@ -165,7 +165,7 @@ MD_WIN32_FileIterBegin(MD_FileIter *it, MD_String8 path)
  MD_String16 cpath16 = MD_S16FromS8(scratch.arena, cpath);
  
  WIN32_FIND_DATAW find_data = MD_ZERO_STRUCT;
- HANDLE state = FindFirstFileW((WCHAR*)cpath16.Data, &find_data);
+ HANDLE state = FindFirstFileW((WCHAR*)cpath16.str, &find_data);
  
  MD_ReleaseScratch(scratch);
  
@@ -211,8 +211,8 @@ MD_WIN32_FileIterNext(MD_Arena *arena, MD_FileIter *it)
   MD_u16 *ptr = filename_base;
   for (;*ptr != 0; ptr += 1);
   MD_String16 filename16 = {0};
-  filename16.Data = filename_base;
-  filename16.Size = (MD_u64)(ptr - filename_base);
+  filename16.str = filename_base;
+  filename16.size = (MD_u64)(ptr - filename_base);
   result.filename = MD_S8FromS16(arena, filename16);
   result.file_size = ((((MD_u64)find_data->nFileSizeHigh) << 32) |
                       ((MD_u64)find_data->nFileSizeLow));

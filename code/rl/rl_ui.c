@@ -873,7 +873,12 @@ UI_DrawBoxes(ui_box *Box)
  }
  
  if(RectValid(Dest))
- {    
+ {
+  if(Box->Flags & UI_BoxFlag_Scroll)
+  {
+   RenderPushClip(Dest);
+  }
+  
   if(Box->Flags & UI_BoxFlag_DrawShadow)
   {
    f32 ShadowSize = 4.f;
@@ -982,10 +987,18 @@ UI_DrawBoxes(ui_box *Box)
  {
   UI_DrawBoxes(Box->First);
  }
+ 
+ if(Box->Flags & UI_BoxFlag_Scroll)
+ {
+  RenderPopClip();
+ }
+ 
  if(!UI_IsNilBox(Box->Next))
  {
   UI_DrawBoxes(Box->Next);
  }
+ 
+ 
 }
 
 global_variable s32 UI_DebugIndentation = 0;

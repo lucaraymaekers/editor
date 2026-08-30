@@ -1,0 +1,88 @@
+//~ Build options
+Asan: 0
+Debug: 1
+Clean: 0
+Clang: 1
+GCC: 0
+Slow: 0
+Wine: 0
+
+HaversineProcessor: 0
+HaversineGenerator: 0
+Sim86: 0
+Editor: 0
+Muze: 1
+
+//~ Hash functions
+@table(Type, Name)
+HashTypes:
+{
+ { field_hash_node, Field }
+ { table_hash_node, Table }
+}
+
+@data
+HashGetters:
+{
+ @expand(HashTypes)
+  ```
+  internal $(Type) *
+  Get$(Name)HashNode(str8 String, u64 Seed, u64 ArraySize, $(Type) *Array)
+ {
+  $(Type) *Result = 0;
+  
+  u64 Key = U64HashFromSeedStr8(Seed, String);
+  u64 Slot = Key%ArraySize;
+  Result = Array + Slot;
+  
+  for(;Result && Result->Key != Key;)
+  {
+   Result = Result->Next;
+  }
+  
+  return Result;
+ }
+ 
+ ```;
+ @expand(HashTypes)
+  ```
+  internal $(Type) *
+  Add$(Name)HashNode(arena *Arena, str8 String, u64 Seed, 
+                     u64 ArraySize, $(Type) *Array)
+ {
+  $(Type) *Hash = 0;
+  
+  u64 Key = U64HashFromSeedStr8(Seed, String);
+  u64 Slot = (Key%ArraySize);
+  
+  Hash = Array + Slot;
+  
+  for(;Hash != 0;)
+  {
+   if(Hash->Key == 0)
+   {
+    break;
+   }
+   else if(Hash->Key == Key)
+   {
+    // NOTE(luca): Collision.
+    InvalidPath();
+   }
+   else
+   {
+    if(Hash == 0)
+    {
+     Hash = PushArrayZero(Arena, $(Type), 1);
+    }
+    Hash = Hash->Next;
+   }
+  }
+  
+  Hash->Key = Key;
+  
+  return Hash;
+ }
+ ```;
+ 
+ 
+}

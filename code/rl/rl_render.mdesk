@@ -2,16 +2,25 @@
 @table(Name, Offset, Type)
 RectVSAttributes:
 {
- { I_Dest,            4, v4  }
- { I_TexSrc,          4, v4  }
- { I_Color0,          4, v4  }
- { I_Color1,          4, v4  }
- { I_Color2,          4, v4  }
- { I_Color3,          4, v4  }
- { I_CornerRadii,     4, v4  }
- { I_BorderThickness, 1, f32 }
- { I_Softness,        1, f32 }
- { I_HasTexture,      1, f32 }
+ { Dest,            4, v4  }
+ { TexSrc,          4, v4  }
+ { Clip,            4, v4  }
+ { Color0,          4, v4  }
+ { Color1,          4, v4  }
+ { Color2,          4, v4  }
+ { Color3,          4, v4  }
+ { CornerRadii,     4, v4  }
+ { BorderThickness, 1, f32 }
+ { Softness,        1, f32 }
+ { HasTexture,      1, f32 }
+}
+
+@data_struct("rect_instance") @no_padding
+RectInstance:
+{
+ @expand(RectVSAttributes)
+  ```$(Type) $(Name);
+ ```;
 }
 
 @data_table(`s32`)
@@ -21,7 +30,7 @@ RectVSAttributeOffsets:
   `$(Offset),`;
 }
 
-@file("rect_vert.glsl") 
+@file("rect_vert.glsl") @data
 VSCode:
 {
  ```
@@ -41,6 +50,7 @@ VSCode:
  out v2 VS_Center;
  out v2 VS_HalfSize;
  out v4 VS_Color;
+ flat out v4 VS_Clip;
  flat out f32 VS_CornerRadius;
  flat out f32 VS_BorderThickness;
  flat out f32 VS_Softness;
@@ -48,7 +58,8 @@ VSCode:
  ```,
  
  @expand(RectVSAttributes)
-  `layout (location = $(Offset)) in $(Type) $(Name);`,
+  ```layout (location = $(_Idx)) in $(Type) I_$(Name);
+ ```,
  
  ```
   void main()
@@ -87,6 +98,7 @@ VSCode:
   VS_Pos = PixelPos - Center;
   VS_Dest = I_Dest;
   VS_TexCoord = TexCoord;
+  VS_Clip = I_Clip;
   VS_Color = Colors[gl_VertexID];
   VS_CornerRadius = I_CornerRadii[gl_VertexID];
   VS_BorderThickness = I_BorderThickness;
@@ -98,7 +110,7 @@ VSCode:
  ```
 }
 
-@file("rect_frag.glsl") 
+@file("rect_frag.glsl") @data
 FSCode:
 {
  ```
@@ -117,7 +129,7 @@ FSCode:
  in v2 VS_Center;
  in v2 VS_HalfSize;
  in v4 VS_Color;
- 
+ flat in v4 VS_Clip;
  flat in f32 VS_CornerRadius;
  flat in f32 VS_BorderThickness;
  flat in f32 VS_Softness;
@@ -127,8 +139,8 @@ FSCode:
  
  out v4 FragColor;
  
- v3
-  HSV2RGB(v3 Color)
+ v3 
+  RGBFromHSV(v3 Color)
  {
   v4 K = v4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
   v3 p = abs(fract(Color.xxx + K.xyz) * 6.0 - K.www);
@@ -148,6 +160,23 @@ FSCode:
  void main()
  {
   v4 Color = VS_Color;
+  
+  // Exclude pixels outside of the clip region.
+  if(true)
+  {  
+   v2 Min = VS_Clip.xy;
+   v2 Max = VS_Clip.zw;
+   v2 Pos = gl_FragCoord.xy;
+   
+   Pos.y = 900 - Pos.y;
+   
+   if(!(Pos.x >= Min.x && Pos.x <= Max.x &&
+        Pos.y >= Min.y && Pos.y <= Max.y))
+   {
+    discard;
+   }
+   
+  }
   
   f32 tBorder = 1.0;
   if(VS_BorderThickness > 0.0)
