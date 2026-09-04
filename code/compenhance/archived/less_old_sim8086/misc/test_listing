@@ -1,0 +1,50 @@
+#!/bin/sh
+
+NoColor=
+if [ "$1" = "--no-color" ]
+then
+	NoColor=1
+	shift
+fi
+
+ThisDir="$(dirname "$(readlink -f "$0")")"
+
+for File in $@
+do
+	File="$(readlink -f "$File")"
+	[ "$File" ] || exit 1
+
+	(
+		cd "$ThisDir"
+
+		SourceFile="$File"
+		SourceFile="${File%.asm}.asm"
+		[ -r "$SourceFile" ] || exit 1
+
+		ErrorFile="../build/error"
+		TestSource="../build/first"
+		OutFile="../build/$(basename "${SourceFile%.asm}")"
+		nasm -o "$OutFile" "$SourceFile" 2> "$ErrorFile"
+		../build/sim8086 "$OutFile" > "$TestSource".asm 2>> "$ErrorFile"
+		nasm -o "${TestSource}" "$TestSource".asm 2>> "$ErrorFile"
+
+		RelPath="$(realpath --relative-to=. "$SourceFile")"
+		if diff -q "$TestSource" "$OutFile" > /dev/null 2>> "$ErrorFile"
+		then
+			if [ "$NoColor" ]
+			then
+				printf ' PASSED: '\''%s'\''\n' "$RelPath"
+			else
+				printf '\033[32m PASSED: '\''%s'\''\033[0m\n' "$RelPath"
+			fi
+		else
+			if [ "$NoColor" ]
+			then
+				printf ' FAILED: '\''%s'\''\n' "$RelPath"
+			else
+				printf '\033[31m FAILED: '\''%s'\''\033[0m\n' "$RelPath"
+			fi
+			cat "$ErrorFile" | sed 's/.*/    &/'
+		fi
+	)
+done

@@ -1,0 +1,80 @@
+#!/bin/sh
+
+PauseOnFail=
+if [ "$1" = "--pause-on-fail" ]
+then
+	PauseOnFail=1
+	shift
+fi
+
+NoColor=
+if [ "$1" = "--no-color" ]
+then
+	NoColor=1
+	shift
+fi
+
+if [ -z "$1" ]
+then
+	>&2 printf 'Usage: single_tester.sh <source>\n'
+	return 1
+fi
+
+ThisDir="$(dirname "$(readlink -f "$0")")"
+
+for File in $@
+do
+	SourceFile="$(readlink -f "$File")"
+	[ "$SourceFile" ] || exit 1
+	SourceFile="${SourceFile%.asm}.asm"
+	[ -r "$SourceFile" ] || exit 1
+	>&2 printf 'File: %s\n' "$File"
+
+	(
+		cd "$ThisDir"
+
+		Stripped="${SourceFile%.asm}"
+		OutName="../build/$(basename "$Stripped")"
+
+		grep -v '^$\|^;\|^bits' "$SourceFile" |
+		while read -r line
+		do
+			first="${OutName}_first"
+			second="${OutName}_second"
+			error="${OutName}_error"
+
+			printf 'bits 16\n%s\n' "$line" > "$first".asm
+
+			nasm -o "$first" "$first".asm 2> "$error"
+			../build/sim8086 "$first" > "$second".asm  2> "$error"
+			nasm -o "$second" "$second".asm 2>> "$error"
+
+			if diff -q "$first" "$second" > /dev/null 2>> "$error"
+			then
+				if [ "$NoColor" ]
+				then
+					printf ' PASSED: '\''%s'\''\n' "$line"
+				else
+					printf '\033[32m PASSED: '\''%s'\''\033[0m\n' "$line"
+				fi
+			else
+				if [ "$NoColor" ]
+				then
+					printf ' FAILED: '\''%s'\''\n' "$SourceFile"
+				else
+					printf '\033[31m FAILED: '\''%s'\''\033[0m\n' "$SourceFile"
+				fi
+				cat "$error" | sed 's/.*/    &/'
+				printf '    listing>    %s\n' "$line"
+			        printf '    sim8086>    %s\n' "$(grep -v '^$\|^;\|bits' "$second".asm)"
+
+			        if [ "$PauseOnFail" ]
+			        then
+			        	exit
+			        fi
+
+			fi
+			rm -f "$error" "$second" "$second".asm "$first" "$first".asm
+		done
+	)
+done

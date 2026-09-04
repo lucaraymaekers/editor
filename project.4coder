@@ -20,7 +20,8 @@ patterns =
 blacklist_patterns = 
 {
  ".*",
- "gl_core_3_3_debug.h"
+ "gl_core_3_3_debug.h",
+ "archived",
 };
 
 paths = 
@@ -32,9 +33,9 @@ paths =
  { .path = "code/shaders", .recursive = true,  .relative = true, },
  { .path = "code/cling/",  .recursive = true, .relative = true, },
  { .path = "code/rl/",     .recursive = true,  .relative = true, },
- { .path = "code/muze/",   .recursive = true,  .relative = true, },
+ //{ .path = "code/muze/",   .recursive = true,  .relative = true, },
  //{ .path = "code/editor/", .recursive = true,  .relative = true, },
- //{ .path = "code/computerenhance/", .recursive = true,  .relative = true, },
+ { .path = "code/compenhance/", .recursive = true,  .relative = true, },
 };
 
 load_paths =

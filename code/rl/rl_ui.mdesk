@@ -1,24 +1,23 @@
 @table(Name)
-UI_BoxFlags:
+UI_Flags:
 {
- None,
- DrawBackground,
- DrawBorders,
- DrawDebugBorder,
- DrawShadow,
- DrawDisplayString,
- DrawHotEffects,
- DrawActiveEffects,
- CenterTextHorizontally,
- CenterTextVertically,
- MouseClickable,
- FloatingX,
- FloatingY,
- Clip,
- Scroll,
- AnimatePosX,
- AnimatePosY,
- MirrorEffects,
+ { DrawBackground }
+ { DrawBorders }
+ { DrawDebugBorder }
+ { DrawShadow }
+ { DrawDisplayString }
+ { DrawHotEffects }
+ { DrawActiveEffects }
+ { CenterTextHorizontally }
+ { CenterTextVertically }
+ { MouseClickable }
+ { FloatingX }
+ { FloatingY }
+ { Clip }
+ { Scroll }
+ { AnimatePosX }
+ { AnimatePosY }
+ { MirrorEffects }
 }
 
 @table(Type, Name)
@@ -47,8 +46,15 @@ LayoutTypes:
  { font_kind }
 }
 
-@data_flag_enum(UI_BoxFlags.Name)
-ui_box_flag
+@data_enum("ui_box_flag")
+UI_FlagEnum:
+{
+ ```UI_BoxFlag_None = (0 << 0),
+ ```
+  @expand(UI_Flags)
+  ```UI_BoxFlag_$(Name) = (1 << $(_Idx)),
+ ```;
+}
 
 @data
 LayoutStacks:

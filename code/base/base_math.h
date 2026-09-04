@@ -323,6 +323,13 @@ RectValid(v4 A)
 
 //- 
 
+internal inline f64
+SquareF64(f64 X)
+{
+ f64 Result = X*X;
+ return Result;
+}
+
 internal inline f32
 Square(f32 X)
 {

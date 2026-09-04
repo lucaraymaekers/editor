@@ -1,0 +1,21 @@
+@table(Name) Methods:
+{
+ { None    }
+ { Uniform }
+ { Cluster }
+}
+
+@data_enum("generation_method")
+MethodEnum:
+{
+ @expand(Methods)
+  `Method_$(Name),`;
+ `Method_Count`;
+}
+
+@data_table("char *")
+GenerationMethodStrings:
+{
+ @expand(Methods)
+  `"$(Name)",`;
+}

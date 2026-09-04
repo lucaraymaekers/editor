@@ -1,0 +1,43 @@
+version(2);
+project_name = "sim8086";
+patterns = {
+"*.c",
+"*.cpp",
+"*.h",
+"*.m",
+"*.bat",
+"*.sh",
+"*.4coder",
+};
+blacklist_patterns = {
+"_old.*",
+};
+load_paths_base = {
+ { ".", .relative = true, .recursive = true, },
+};
+load_paths = {
+ .win = load_paths_base,
+ .linux = load_paths_base,
+ .mac = load_paths_base,
+};
+
+commands = {
+ .build = { .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
+   .linux = "./code/build.sh",
+   .mac = "./code/build.sh", },
+ .build_release = { .out = "*compilation*", .footer_panel = false, .save_dirty_files = false,
+   .win = ".\code\build.bat release",
+   .linux = "./code/build.sh --release",
+   .mac = "./code/build.sh --release", },
+ .test_current = { .out = "*tests*", .footer_panel = false, .save_dirty_files = false,
+   .linux = "./misc/test_source_line_by_line --pause-on-fail --no-color ./listings/listing_0042_completionist_decode.asm" },
+ .test_all = { .out = "*tests*", .footer_panel = false, .save_dirty_files = false,
+   .linux = "./misc/test_listing --no-color ./listings/listing_0037_single_register_mov.asm ./listings/listing_0038_many_register_mov.asm ./listings/listing_0039_more_movs.asm ./listings/listing_0040_challenge_movs.asm ./listings/listing_0041_add_sub_cmp_jnz.asm ./listings/listing_0042*" },
+ .debug = { .linux = "gf2 ./build/sim8086", },
+};
+fkey_command = {
+.F1 = "build",
+.F2 = "build_release",
+.F3 = "test_current",
+.F4 = "test_all",
+};

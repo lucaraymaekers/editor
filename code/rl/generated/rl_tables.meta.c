@@ -39,7 +39,6 @@ v4 Color_Frost0 = {U32ToV4Arg(0xff8fbcbb)};
  v4 Color_Black = {U32ToV4Arg(0xff000000)};
  
 #define APP_MIDIInputKeys app_button_state KeyA; app_button_state KeyW; app_button_state KeyS; app_button_state KeyE; app_button_state KeyD; app_button_state KeyF; app_button_state KeyT; app_button_state KeyG; app_button_state KeyY; app_button_state KeyH; app_button_state KeyU; app_button_state KeyJ; 
-typedef enum note_pitch note_pitch;
 enum note_pitch
 {
 Note_C,
@@ -56,6 +55,7 @@ Note_C,
  Note_B,
  Note_Count
 };
+typedef enum note_pitch note_pitch;
 
 str8 NotePitchStrings[] =
 {

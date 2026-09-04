@@ -1,4 +1,3 @@
-typedef enum panel_kind panel_kind;
 enum panel_kind
 {
 PanelKind_Empty,
@@ -8,6 +7,7 @@ PanelKind_Empty,
  PanelKind_Debug,
  PanelKind_Count
 };
+typedef enum panel_kind panel_kind;
 
 str8 PanelTypeStrings[] =
 {

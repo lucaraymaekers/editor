@@ -1,0 +1,45 @@
+@table(name, str) sim86_flags_mapping:
+{
+ { Carry,          "C", }
+ { Parity,         "P", }
+ { AuxiliaryCarry, "A", }
+ { Zero,           "Z", }
+ { Sign,           "S", }
+ { Overflow,       "O", }
+ { Interrupt,      "I", }
+ { Direction,      "D", }
+ { Trap,           "T", }
+}
+
+@data_enum("flags_8086")
+Flags8086Enum:
+{
+ @expand(sim86_flags_mapping)
+  ```Flag_$(name) = (1 << $(_Idx)),
+ ```
+}
+
+@data_enum("sim86_enum")
+Sim86Enum:
+{
+ @expand(sim86_flags_mapping)
+  ```Sim86_$(name),
+ ```;
+ `Sim86_Count`
+}
+
+@data_table("char *")
+flags_8086_strings:
+{
+ @expand(sim86_flags_mapping)
+  `"$(str)",`;
+}
+
+@table(mnemonic, encoding, clocks, name) instructions_table:
+{
+ { mov, [ B:100010,  D, W, MOD, REG,   RM                          ], 4, "Register/memory to/from register" }
+ { mov, [ B:1100011, W,    MOD, B:000, RM, ImpD:0, DATA, DATA_IF_W ], 5, "Immediate to register/memory" }
+ { mov, [ B:1011,    W,    REG, ImpD:1                             ], 3, "Immediate to register" }
+}
+
+

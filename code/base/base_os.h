@@ -7,56 +7,56 @@
 typedef struct entry_point_params entry_point_params;
 struct entry_point_params
 {
-    thread_context Context;
-    int ArgsCount;
-    char **Args;
-    char **Env;
+ thread_context Context;
+ int ArgsCount;
+ char **Args;
+ char **Env;
 };
 
 typedef struct os_profiler os_profiler;
 struct os_profiler
 {
-    f64 Start;
-    f64 End;
+ f64 Start;
+ f64 End;
 };
 
 typedef struct os_file_handle os_file_handle;
 struct os_file_handle
 {
-    u64 Handle;
+ u64 Handle;
 };
 
 typedef struct os_thread os_thread;
 struct os_thread
 {
-    void *Result;
-    
-    entry_point_params Params;
+ void *Result;
+ 
+ entry_point_params Params;
 };
 
-typedef enum os_dir_entry_kind os_dir_entry_kind;
 enum os_dir_entry_kind
 {
-    OS_DirEntryKind_None,
-    OS_DirEntryKind_File,
-    OS_DirEntryKind_Directory,
-    OS_DirEntryKind_Count,
+ OS_DirEntryKind_None,
+ OS_DirEntryKind_File,
+ OS_DirEntryKind_Directory,
+ OS_DirEntryKind_Count,
 };
+typedef enum os_dir_entry_kind os_dir_entry_kind;
 
 typedef struct os_dir_entry os_dir_entry;
 struct os_dir_entry
 {
-    str8 Name;
-    os_dir_entry_kind Kind;
+ str8 Name;
+ os_dir_entry_kind Kind;
 };
 
 typedef struct os_dir_opaque os_dir_opaque;
 typedef struct os_dir os_dir;
 struct os_dir
 {
-    str8 Path;
-    os_dir *Parent;
-    os_dir_opaque *Opaque;
+ str8 Path;
+ os_dir *Parent;
+ os_dir_opaque *Opaque;
 };
 
 //~ Globals
