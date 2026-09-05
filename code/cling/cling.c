@@ -36,7 +36,10 @@ internal void
 WriteStreamToFile(MD_String8List Stream, char *FileName)
 {
  MD_String8 Str = MD_S8ListJoin(GlobalMDArena, Stream, 0);
- OS_WriteEntireFile(FileName, S8Cast{.Data = Str.Data, .Size = Str.Size});
+ if(Str.Size)
+ {
+  OS_WriteEntireFile(FileName, Str);
+ }
 }
 
 internal u8
@@ -242,6 +245,7 @@ internal void
 PopStream(str8 NewDirPath)
 {
  str8 OutPath = Str8Fmt("%S/%S", NewDirPath, S8ListTop->FileName);
+ 
  WriteStreamToFile(S8ListTop->V, (char *)OutPath.Data);
  
  S8ListTop = S8ListTop->Prev;
