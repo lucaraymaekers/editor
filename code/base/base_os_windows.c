@@ -363,6 +363,8 @@ WinMain(HINSTANCE Instance,
 #endif
  
  arena *Arena = ArenaAlloc();
+ SetStringsScratch(Arena);
+ 
  os_thread *Threads = PushArray(Arena, os_thread, ThreadsCount);
  
  u64 SharedStorage = 0;
@@ -370,7 +372,7 @@ WinMain(HINSTANCE Instance,
  SYNCHRONIZATION_BARRIER Barrier = {0};
  
  BOOL BarrierInitialized = InitializeSynchronizationBarrier(&Barrier, (long)ThreadsCount, -1);
- Win32Log();
+ Win32LogIf(!BarrierInitialized);
  
 #if !BASE_CONSOLE_APPLICATION    
  // TODO(luca): Real command line parsing

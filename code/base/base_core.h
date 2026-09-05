@@ -343,7 +343,7 @@ _Pragma("clang diagnostic ignored \"-Weverything\"")
 #elif COMPILER_MSVC
 # define NO_WARNINGS_BEGIN \
 __pragma(warning(push)) \
-__pragma(warning(disable: 4267 4996)) // NOTE: Add specific warning numbers to disable as needed
+__pragma(warning(disable: 4267 4996 4146)) // NOTE: Add specific warning numbers to disable as needed
 # define NO_WARNINGS_END __pragma(warning(pop))
 #else
 # error "No compatible compiler found"

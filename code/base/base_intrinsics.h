@@ -13,6 +13,13 @@
 InterlockedAdd64((__int64 *)(Pointer), (Value))
 #endif
 
+
+#if COMPILER_GNU || COMPILER_CLANG
+# define CountLeadingZeroes64(Value)	__builtin_clzll(Value)
+#elif COMPILER_MSVC
+# define CountLeadingZeroes64(Value) __lzcnt64(Value)
+#endif
+
 internal inline f64
 SinF64(f64 X)
 {

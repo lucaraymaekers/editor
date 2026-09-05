@@ -1,2 +1,0 @@
-separate meta program from sim86
-metadesk sim86 should be according to style for naming

@@ -16,6 +16,7 @@ NO_WARNINGS_END
 #include "json.c"
 
 //- Main 
+raddbg_entry_point(EntryPoint);
 ENTRY_POINT(EntryPoint)
 {
  if(LaneIndex() == 0)
@@ -41,6 +42,13 @@ ENTRY_POINT(EntryPoint)
     AnswersFileName = Args[2];
    }
   }
+  
+  str8 AnswersFile = {0};
+  if(AnswersFileName)
+  {
+   AnswersFile = OS_ReadEntireFileIntoMemory(AnswersFileName);
+  }
+  
   
   if(JSONFileName)
   {
@@ -99,24 +107,33 @@ ENTRY_POINT(EntryPoint)
      f64 AverageSum = 0;
      f64 AverageCoefficient = (1.0/(f64)PairCount);
      
-     for(u64 PairIndex = 0;
-         PairIndex < PairCount;
-         PairIndex += 1)
+     for EachIndex(Idx, PairCount)
      {
-      haversine_pair *HaversinePair = HaversinePairs + PairIndex;
+      haversine_pair *HaversinePair = HaversinePairs + Idx;
       
       f64 EarthRadius = 6372.8;
       f64 Sum = ReferenceHaversine(HaversinePair->X0, HaversinePair->Y0, 
                                    HaversinePair->X1, HaversinePair->Y1,
                                    EarthRadius);
+      
       AverageSum += AverageCoefficient*Sum;
      }
      
      Prof_TimeScope("MiscOutput")
      {                    
-      // TODO(luca): print average and difference between answer file 
-      
       Log("Average: %.16f\n", AverageSum);
+     }
+     
+     if(AnswersFile.Size)
+     {
+      Prof_TimeScope("Answer")
+      {
+       f64 AnswerSum = 0.f;
+       u64 AnswersPairCount = AnswersFile.Size/sizeof(f64) - 1;
+       AnswerSum = ((f64 *)AnswersFile.Data)[AnswersPairCount];
+       
+       Log("Answer Diff: %.16f\n", AnswerSum - AverageSum); 
+      }
      }
      
     }

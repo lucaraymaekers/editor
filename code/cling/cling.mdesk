@@ -8,7 +8,7 @@ Slow: 0
 Wine: 0
 
 HaversineProcessor: 1
-HaversineGenerator: 0
+HaversineGenerator: 1
 Sim86: 0
 Editor: 0
 Muze: 0

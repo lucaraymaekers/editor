@@ -184,21 +184,36 @@ Cng_Str8ArrayJoin(u8 Char)
 
 //~ Helpers
 internal void 
-Cng_CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug)
+Cng_CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug, b32 Asan)
 {
- str8_array *Command = GlobalSelectedArray;
- 
  // Exclusive arguments
  if(GCC) Clang = false;
  b32 Release = !Debug;
  
 #if OS_LINUX
- str8 CommonCompilerFlags = S8("-fsanitize-trap -nostdinc++ -D_GNU_SOURCE=1");
- str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wdouble-promotion -Wno-sign-conversion -Wno-sign-compare -Wno-double-promotion -Wno-unused-but-set-variable -Wno-unused-variable -Wno-write-strings -Wno-missing-field-initializers -Wno-pointer-arith -Wno-unused-parameter -Wno-unused-function");
+ str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
+ // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
+ str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wswitch -Wshadow " 
+                              "-Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-pointer-arith "
+                              "-Wno-missing-field-initializers "
+                              "-Wno-initializer-overrides "
+                              "-Wno-unused-parameter "
+                              "-Wno-unused-variable "
+                              "-Wno-unused-function "
+                              "-Wno-unused-command-line-argument ");
  
- str8 LinuxLinkerFlags = S8("-lpthread -lm");
+ str8 LinkerFlags = S8("-lm");
  
  str8 Compiler = {0};
+ if(0) {}
+ else if(Clang) Compiler = S8("clang");
+ else if(GCC) Compiler = S8("gcc");
+ 
+ str8 ModeFlags = (Debug ? 
+                   S8("-g -ggdb -g3 -fno-omit-frame-pointer") :
+                   S8("-O3"));
+ 
+ 
  str8 Mode = {0};
  
  if(0) {}
@@ -209,6 +224,11 @@ Cng_CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug)
  else if(Debug)
  {
   Mode = S8("debug");
+ }
+ 
+ if(Asan)
+ {
+  Cng_Str8ArrayAppend(S8("-fsanitize=undefined,address"));
  }
  
  if(0) {}
@@ -233,6 +253,8 @@ Cng_CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug)
  {
   Compiler = S8("g++");
   Cng_Str8ArrayAppend(Compiler);
+  
+  Cng_Str8ArrayAppend(S8("-Wno-cast-function-type -Wno-missing-field-initializers -Wno-int-to-pointer-cast"));
   
   if(Debug)
   {
@@ -462,7 +484,7 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
     OS_ChangeDirectory((char *)BuildDirPath.Data);
     
     Cng_SetSelectedArray(Cng_PushStr8Array(256));
-    Cng_CommonBuildCommand(false, true, true);
+    Cng_CommonBuildCommand(false, true, true, false);
     
     Cng_Str8ArrayAppendMultiple(S8("-I"), ClingCodePath);
     
@@ -761,7 +783,7 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
   Log("[self build]\n");
   
   Cng_SetSelectedArray(Cng_PushStr8Array(256));
-  Cng_CommonBuildCommand(false, true, true);
+  Cng_CommonBuildCommand(false, true, true, false);
   
   str8 ClingSourcePath = Cng_PathFromExe(CommandName, S8(CLING_SOURCE_PATH));
   str8 ClingCodePath = Cng_PathFromExe(CommandName, S8(CLING_CODE_PATH));

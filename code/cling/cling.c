@@ -743,20 +743,18 @@ ENTRY_POINT(EntryPoint)
   {
    LogBuildMode(S8("Haversine generator"), Debug);
    
-   // Haversine generator build
+   Cng_SetSelectedArray(Cng_PushStr8Array(256));
+   
+   Cng_CommonBuildCommand(GCC, Clang, Debug, Asan);
+   if(Cng_IsOs(CngOS_Linux))
    {
-    str8_array *ExtraFlags = Cng_PushStr8Array(256);
-    Cng_Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
-    
-    LinuxBuildCommand(S8("../code/compenhance/haversine_generator/haversine_generator.c"), 
-                      S8("haversine_generator"),
-                      GCC, Clang, Asan, Debug,
-                      ExtraFlags,
-                      false);
-    
-    RunCommand();
-    
+    Cng_Str8ArrayAppend(S8("-I" CLING_CODE_PATH));
    }
+   
+   Cng_Str8ArrayAppend(S8("../code/compenhance/haversine_generator/haversine_generator.c"));
+   
+   RunCommand();
+   
   }
   
   //~ Haversine Processor
@@ -764,19 +762,17 @@ ENTRY_POINT(EntryPoint)
   {
    LogBuildMode(S8("Haversine processor"), Debug);
    
+   Cng_SetSelectedArray(Cng_PushStr8Array(256));
+   
+   Cng_CommonBuildCommand(GCC, Clang, Debug, Asan);
    if(Cng_IsOs(CngOS_Linux))
-   {            
-    str8_array *ExtraFlags = Cng_PushStr8Array(256);
-    Cng_Str8ArrayAppendTo(ExtraFlags, S8("-I" CLING_CODE_PATH));
-    
-    LinuxBuildCommand(S8("../code/compenhance/haversine_processor/haversine_processor.c"), 
-                      S8("haversine_processor"),
-                      GCC, Clang, Asan, Debug,
-                      ExtraFlags,
-                      false);
-    
-    RunCommand();
+   {
+    Cng_Str8ArrayAppend(S8("-I" CLING_CODE_PATH));
    }
+   
+   Cng_Str8ArrayAppend(S8("../code/compenhance/haversine_processor/haversine_processor.c"));
+   
+   RunCommand();
   }
   
   //~ Sim86

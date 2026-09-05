@@ -6,7 +6,7 @@ Prof_PrintTimeElapsed(char const *Label, u64 TotalTSCElapsed, u64 Begin, u64 End
 {
  u64 Elapsed = End - Begin;
  f64 Percent = 100.0 * ((f64)Elapsed / (f64)TotalTSCElapsed);
- printf("  %s: %lu (%.2f%%)\n", Label, Elapsed, Percent);
+ Log("  %s: %lu (%.2f%%)\n", Label, Elapsed, Percent);
 }
 
 internal u64 

@@ -1,22 +1,90 @@
 #include <math.h>
 
-NO_WARNINGS_BEGIN
-#include "lib/pcg/pcg.c"
-NO_WARNINGS_END
+/*
+ * PCG Random Number Generation for C.
+ *
+ * Copyright 2014 Melissa O'Neill <oneill@pcg-random.org>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * For additional information about the PCG random number generation scheme,
+ * including its license and other licensing options, visit
+ *
+ *     http://www.pcg-random.org
+ */
 
-#define CountLeadingZeroes64(Value)	__builtin_clzll(Value)
+/*
+ * This file was mechanically generated from tests/check-pcg32.c
+ */
 
-typedef pcg64_random_t random_series;
+/*
+ * This code shows how you can cope if you're on a 32-bit platform (or a
+ * 64-bit platform with a mediocre compiler) that doesn't support 128-bit math,
+ * or if you're using the basic version of the library which only provides
+ * 32-bit generation.
+ *
+ * Here we build a 64-bit generator by tying together two 32-bit generators.
+ * Note that we can do this because we set up the generators so that each
+ * 32-bit generator has a *totally different* different output sequence
+ * -- if you tied together two identical generators, that wouldn't be nearly
+ * as good.
+ *
+ * For simplicity, we keep the period fixed at 2^64.  The state space is
+ * approximately 2^254 (actually  2^64 * 2^64 * 2^63 * (2^63 - 1)), which
+ * is huge.
+ */
 
-void Seed(random_series *Series, u64 RandomSeed)
+#include "rl/rl_random.h"
+
+typedef struct pcg32x2_random_t pcg32x2_random_t; 
+struct pcg32x2_random_t 
 {
- pcg64_srandom_r(Series, RandomSeed, RandomSeed);
+ random_series gen[2];
+};
+
+typedef struct pcg32x2_random_t haversine_random;
+
+internal void pcg32x2_srandom_r(haversine_random* rng, 
+                                u64 seed1, u64 seed2,
+                                u64 seq1,  u64 seq2)
+{
+ u64 mask = ~0ull >> 1;
+ // The stream for each of the two generators *must* be distinct
+ if ((seq1 & mask) == (seq2 & mask)) 
+  seq2 = ~seq2;
+ 
+ // TODO(luca): Use seq
+ RandomSeed(rng->gen+0, seed1);
+ RandomSeed(rng->gen+1, seed2);
 }
 
-u64 
-RandomU64(random_series *Series)
+internal u64 
+pcg32x2_random_r(haversine_random* rng)
 {
- u64 Result = pcg64_random_r(Series);
+ u64 Result = ((u64)(RandomNext(rng->gen)) << 32)| RandomNext(rng->gen+1);
+ return Result; 
+}
+
+internal void 
+Random64Seed(haversine_random *Series, u64 Seed1, u64 Seed2, u64 Seq1, u64 Seq2)
+{
+ pcg32x2_srandom_r(Series, Seed1, Seed2, Seq1, Seq2);
+}
+
+internal u64 
+RandomU64(haversine_random *Series)
+{
+ u64 Result = pcg32x2_random_r(Series);
  return Result;
 }
 
@@ -37,8 +105,8 @@ RandomU64(random_series *Series)
  * interpret it as the fractional part of the binary expansion of a
  * number in [0, 1], 0.00001010011111010100...; then round it.
  */
-f64
-RandomF64(random_series *Series)
+internal f64
+RandomF64(haversine_random *Series)
 {
 	s32 Exponent = -64;
 	u64 Significand;
@@ -93,29 +161,29 @@ RandomF64(random_series *Series)
 	return ldexp((f64)Significand, Exponent);
 }
 
-f64
-RandomUnilateral(random_series *Series)
+internal f64
+Random64Unilateral(haversine_random *Series)
 {
  return RandomF64(Series);
 }
 
-f64
-RandomBilateral(random_series *Series)
+internal f64
+Random64Bilateral(haversine_random *Series)
 {
- f64 Result = 2.0*RandomUnilateral(Series) - 1.0;
+ f64 Result = 2.0*Random64Unilateral(Series) - 1.0;
  return Result;
 }
 
-f64
-RandomBetween(random_series *Series, f64 Min, f64 Max)
+internal f64
+Random64Between(haversine_random *Series, f64 Min, f64 Max)
 {
  f64 Range = Max - Min;
- f64 Result = Min + RandomUnilateral(Series)*Range;
+ f64 Result = Min + Random64Unilateral(Series)*Range;
  return Result;
 }
 
-
-static f64 RandomDegree(random_series *Series, f64 Center, f64 Radius, f64 MaxAllowed)
+internal f64 
+Random64Degree(haversine_random *Series, f64 Center, f64 Radius, f64 MaxAllowed)
 {
  f64 MinVal = Center - Radius;
  if(MinVal < -MaxAllowed)
@@ -129,6 +197,6 @@ static f64 RandomDegree(random_series *Series, f64 Center, f64 Radius, f64 MaxAl
   MaxVal = MaxAllowed;
  }
  
- f64 Result = RandomBetween(Series, MinVal, MaxVal);
+ f64 Result = Random64Between(Series, MinVal, MaxVal);
  return Result;
 }

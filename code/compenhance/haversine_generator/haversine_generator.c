@@ -84,7 +84,7 @@ ENTRY_POINT(EntryPoint)
   if(Params->ArgsCount >= 4)
   {
    u32 Method = 0;
-   u64 RandomSeed = 0;;
+   u64 Seed = 0;;
    u64 PairCount = 0;
    
    char *MethodName = Args[1];
@@ -109,7 +109,7 @@ ENTRY_POINT(EntryPoint)
     Log("Warning: Unknown method '%s', uniform used.\n", MethodName);
    }
    
-   RandomSeed = (u64)atoll(Args[2]);
+   Seed = (u64)atoll(Args[2]);
    PairCount = (u64)atoll(Args[3]);
    
    u64 MaxPairCount = (1LL << 34);
@@ -128,8 +128,8 @@ ENTRY_POINT(EntryPoint)
                              " \"pairs\":\n"
                              "  [\n");
     
-    random_series Series = {};
-    Seed(&Series, RandomSeed);
+    haversine_random Series = {};
+    Random64Seed(&Series, (u64)&printf + Seed, (u64)&sin + Seed, (u64)&cos, (u64)&tan);
     
     u64 ClusterCountMax = 1 + (PairCount / 64);
     
@@ -144,16 +144,16 @@ ENTRY_POINT(EntryPoint)
      {
       ClusterCountLeft = ClusterCountMax;
       
-      XCenter = RandomBetween(&Series, -MaxAllowedX, MaxAllowedX);
-      YCenter = RandomBetween(&Series, -MaxAllowedY, MaxAllowedY);
-      XRadius = RandomBetween(&Series, 0, MaxAllowedX);
-      YRadius = RandomBetween(&Series, 0, MaxAllowedY);
+      XCenter = Random64Between(&Series, -MaxAllowedX, MaxAllowedX);
+      YCenter = Random64Between(&Series, -MaxAllowedY, MaxAllowedY);
+      XRadius = Random64Between(&Series, 0, MaxAllowedX);
+      YRadius = Random64Between(&Series, 0, MaxAllowedY);
      }
      
-     f64 X0 = RandomDegree(&Series, XCenter, XRadius, MaxAllowedX);
-     f64 Y0 = RandomDegree(&Series, YCenter, YRadius, MaxAllowedY);
-     f64 X1 = RandomDegree(&Series, XCenter, XRadius, MaxAllowedX);
-     f64 Y1 = RandomDegree(&Series, YCenter, YRadius, MaxAllowedY);
+     f64 X0 = Random64Degree(&Series, XCenter, XRadius, MaxAllowedX);
+     f64 Y0 = Random64Degree(&Series, YCenter, YRadius, MaxAllowedY);
+     f64 X1 = Random64Degree(&Series, XCenter, XRadius, MaxAllowedX);
+     f64 Y1 = Random64Degree(&Series, YCenter, YRadius, MaxAllowedY);
      
      f64 EarthRadius = 6372.8;
      f64 Distance = ReferenceHaversine(X0, Y0, X1, Y1, EarthRadius);
@@ -174,7 +174,7 @@ ENTRY_POINT(EntryPoint)
     Log("Method: %s\n"
         "Random seed: %lu\n"
         "Pairs count: %lu\n"
-        , MethodName, RandomSeed, PairCount);
+        , MethodName, Seed, PairCount);
     Log("Average sum: %.16f\n", Sum);
     
     JsonOut += stbsp_sprintf((char *)JsonOut, 
