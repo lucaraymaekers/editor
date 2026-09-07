@@ -2783,8 +2783,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                   UI_BoxFlag_CenterTextVertically|
                                                   UI_BoxFlag_CenterTextHorizontally));
               
-              UI_DebugAddBox(Type);
-              
               str8 TypeName = PanelTypeStrings[Panel->Kind];
               Type->DisplayString = TypeName;
               

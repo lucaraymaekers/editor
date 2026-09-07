@@ -248,21 +248,9 @@ UI_AddBox(str8 String, s32 Flags)
  Box->String = String;
  Box->DisplayString = DisplayString;
  Box->Flags = Flags;
+ Box->LastTouchedFrameIdx = UI_State->FrameIdx;
  
- // TODO(luca): Metaprogram
- //BoxLayoutProperties;
- Box->BackgroundColor = UI_State->BackgroundColorTop->Value; 
- Box->TextColor = UI_State->TextColorTop->Value; 
- Box->BorderColor = UI_State->BorderColorTop->Value; 
- Box->BorderThickness = UI_State->BorderThicknessTop->Value; 
- Box->Softness = UI_State->SoftnessTop->Value; 
- Box->CornerRadii = UI_State->CornerRadiiTop->Value; 
- Box->LayoutAxis = UI_State->LayoutAxisTop->Value; 
- Box->SemanticSize[Axis2_X] = UI_State->SemanticWidthTop->Value; 
- Box->SemanticSize[Axis2_Y] = UI_State->SemanticHeightTop->Value; 
- Box->HeightPx = UI_State->HeightPxTop->Value; 
- Box->FontKind = UI_State->FontKindTop->Value; 
- //Box->Clip = UI_State->ClipTop->Value;
+ UI_BoxLayoutProperties;
  
  Box->CustomDraw = 0;
  Box->CustomDrawData = 0;
@@ -435,7 +423,11 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
  
  // Defaults
  // NOTE(luca): This is slightly since what we should be doing here is *setting* and not *pushing*.  But since we don't modify the top item this shouldn't be a problem in practice.t
+ 
+#if 0 
  // TODO(luca): Metaprogram
+ UI_BoxLayoutDefaults;
+#else
  UI_PushBackgroundColor(Color_Background);
  UI_PushTextColor(Color_ButtonText);
  UI_PushBorderColor(Color_ButtonBorder);
@@ -447,7 +439,9 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
  UI_PushSemanticHeight(UI_SizeParent(1.f, 1.f));
  UI_PushHeightPx(HeightPx);
  UI_PushFontKind(FontKind_Text);
- //UI_PushClip(Root->Rec);
+ UI_PushClip(Root->Rec);
+#endif
+ 
  UI_PushBox();
  
  // Input 

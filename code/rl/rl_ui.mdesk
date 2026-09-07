@@ -30,11 +30,11 @@ LayoutStacks:
  { f32       Softness        `1.f`                } 
  { v4        CornerRadii     `V4F32(0.f)`         }
  { axis2     LayoutAxis      `Axis2_X`            }
- { ui_size   SemanticWidth   `UI_SizeFull()`      }
- { ui_size   SemanticHeight  `UI_SizeFull()`      }
+ { ui_size   SemanticWidth   `UI_SizeFullStrict()`      }
+ { ui_size   SemanticHeight  `UI_SizeFullStrict()`      }
  { f32       HeightPx        `HeightPx`           }
  { font_kind FontKind        `FontKind_Text`      }
- //{ v4        Clip            `Root->Rec`          }
+ { v4        Clip            `Root->Rec`          }
 }
 
 @table(Type)
@@ -115,7 +115,7 @@ LayoutStacksDecls:
 @data
 BoxLayoutProps:
 {
- `#define BoxLayoutProperties `;
+ `#define UI_BoxLayoutProperties `;
  @expand(LayoutStacks)
   ``` \
   Box->$(Name) = UI_State->$(Name)Top->Value;```;
@@ -125,7 +125,7 @@ BoxLayoutProps:
 @data
 LayoutStacksDefaults:
 {
- `#define BoxLayoutDefaults `;
+ `#define UI_BoxLayoutDefaults `;
  @expand(LayoutStacks)
   ``` \
   UI_Push$(Name)($(Default));```;

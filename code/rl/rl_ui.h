@@ -88,7 +88,7 @@ struct ui_box
  font_kind FontKind;
  v4 Clip;
  
-#if 0
+#if 1
  union
  {
   ui_size SemanticSize[Axis2_Count];
