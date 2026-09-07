@@ -107,6 +107,7 @@ struct ui_button_params
  v4 ToggleToggledColor;
  
  ui_size Padding;
+ b32 ClipSize;
 };
 
 #define Button(...) \
@@ -131,11 +132,12 @@ Button_(ui_button_params Params)
 {
  ui_button_result Result = {0};
  
- s32 ButtonFlags = (//UI_BoxFlag_Clip|
-                    UI_BoxFlag_MouseClickable|
+ s32 ButtonFlags = (UI_BoxFlag_MouseClickable|
                     UI_BoxFlag_DrawBackground|
                     UI_BoxFlag_DrawHotEffects|
                     UI_BoxFlag_DrawActiveEffects);
+ 
+ if(Params.ClipSize) ButtonFlags |= UI_BoxFlag_Clip;
  
  if(!Params.DisableBorder)
  {
@@ -174,19 +176,8 @@ Button_(ui_button_params Params)
  return Result;
 }
 
-internal ui_button_result
-UI_ButtonWithToggle(str8 Text, b32 Enabled,
-                    ui_size Padding, 
-                    v4 EnabledColor)
-{
- ui_button_result Result = Button(.Text = Text, 
-                                  .HasToggle = true, 
-                                  .Padding = Padding, 
-                                  .ToggleToggled = Enabled,
-                                  .ToggleToggledColor = EnabledColor);
- 
- return Result;
-}
+#define UI_ButtonWithToggle(ButtonText, ButtonEnabled, ButtonPadding, ButtonEnabledColor, ...) \
+Button(.Text = ButtonText, .HasToggle = true, .Padding = ButtonPadding, .ToggleToggled = ButtonEnabled, .ToggleToggledColor = ButtonEnabledColor, ##__VA_ARGS__) 
 
 internal f32
 UI_Slider(f32 Value, f32 Min, f32 Max, f32 StepSize, char *Format, b32 Interactive)
@@ -300,7 +291,9 @@ UI_Scrollbar(axis2 Axis, f32 TotalSize, f32 Scroll)
   UI_LayoutAxis(Axis)
   UI_SemanticSizeOnAxis(Axis, UI_SizeParent(1.f, 0.f))
   UI_SemanticSizeOnAxis(1 - Axis, UI_SizePx(ScrollbarSize, 1.f))
-  UI_AddBox(S8("ScrollbarParent"), UI_BoxFlag_Clip|UI_BoxFlag_DrawBackground);
+  UI_AddBox(S8("ScrollbarParent"), 
+            UI_BoxFlag_Clip|
+            UI_BoxFlag_DrawBackground);
  UI_PaddingAround(UI_SizePx(Padding, 1.f))
  {
   UI_LayoutAxis(Axis)

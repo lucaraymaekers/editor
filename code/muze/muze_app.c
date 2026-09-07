@@ -952,19 +952,19 @@ struct muze_box_data
 };
 
 internal ui_box *
-UI_Label(str8 String)
+Label(str8 String)
 {
- ui_box *Result = UI_AddBox(String, (UI_BoxFlag_Clip|
-                                     UI_BoxFlag_DrawDisplayString|
-                                     UI_BoxFlag_DrawBackground|
-                                     UI_BoxFlag_DrawBorders|
-                                     UI_BoxFlag_CenterTextHorizontally|
-                                     UI_BoxFlag_CenterTextVertically));
+ ui_box *Result = UI_AddBox(String, 
+                            UI_BoxFlag_DrawDisplayString|
+                            UI_BoxFlag_DrawBackground|
+                            UI_BoxFlag_DrawBorders|
+                            UI_BoxFlag_CenterTextHorizontally|
+                            UI_BoxFlag_CenterTextVertically);
  return Result;
 }
 
 internal ui_box *
-UI_Labelf(char *Format, ...)
+Labelf(char *Format, ...)
 {
  ui_box *Result = UI_NilBox;
  str8 String = {0};
@@ -973,7 +973,7 @@ UI_Labelf(char *Format, ...)
  va_start(Args, Format);
  String = Str8VFmt(Format, Args);
  
- Result = UI_Label(String);
+ Result = Label(String);
  
  return Result;
 }
@@ -1420,6 +1420,11 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
  
  f32 Zoom = (BPS/(f32)App->TimeSig*100.f);
  
+ v4 BackgroundColor = Box->BackgroundColor;
+ v4 ForegroundColor = Color_Black;
+ 
+ DrawRect(Box->Rec, BackgroundColor, 0.f, 0.f, 0.f);
+ 
  // Get Input
  {    
   if(UI_State->InputConsumerBox == Box)
@@ -1658,7 +1663,7 @@ UI_CUSTOM_DRAW(CustomDrawSingleLineTextInput)
 //~ UI 
 
 internal void
-UI_ListBegin(str8 Name, f32 ItemHeight)
+ListBegin(str8 Name, f32 ItemHeight)
 {
  UI_SemanticHeight(UI_SizeChildren(1.f))
   UI_LayoutAxis(Axis2_Y)
@@ -1667,12 +1672,12 @@ UI_ListBegin(str8 Name, f32 ItemHeight)
  
  UI_PushSemanticHeight(UI_SizePx(ItemHeight, 1.f));
  
- UI_Label(Name);
+ Label(Name);
  UI_Spacer(UI_SizeEm(.2f, 1.f));
 }
 
 internal void
-UI_ListEnd(void)
+ListEnd(void)
 {
  UI_PopSemanticHeight();
  UI_PopBox();
@@ -1692,6 +1697,8 @@ DebugStringAdd(app_state *App, char *Format, ...)
  }
 }
 
+
+#if 0
 internal b32
 SimpleButton(str8 Name)
 {
@@ -1701,6 +1708,10 @@ SimpleButton(str8 Name)
  
  return Clicked;
 }
+#endif
+
+#define SimpleButton(ButtonText, ...) \
+Button(.Text = ButtonText, .CenterText = true, .Padding = GlobalItemPadding, ##__VA_ARGS__).Pressed
 
 typedef struct simple_slider_result simple_slider_result;
 struct simple_slider_result
@@ -1710,7 +1721,7 @@ struct simple_slider_result
 };
 
 internal simple_slider_result
-SimpleSlider(str8 Label, str8 DisplayString, 
+SimpleSlider(str8 String, str8 DisplayString, 
              f32 Value, f32 Min, f32 Max, f32 StepSize,
              b32 Clickable)
 {
@@ -1730,13 +1741,13 @@ SimpleSlider(str8 Label, str8 DisplayString,
  {
   ui_box *Box;
   UI_BackgroundColor(Color_ButtonBackground)
-   Box = UI_AddBox(Label, Flags);
+   Box = UI_AddBox(String, Flags);
   
   UI_PaddingAround(GlobalItemPadding)
   {
    ui_box *Slider;
    UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-    Slider = UI_AddBox(Label, UI_BoxFlag_DrawDisplayString|
+    Slider = UI_AddBox(String, UI_BoxFlag_DrawDisplayString|
                        UI_BoxFlag_CenterTextVertically);
    Slider->DisplayString = DisplayString;
    
@@ -1753,9 +1764,10 @@ SimpleSlider(str8 Label, str8 DisplayString,
  return Result;
 }
 
+
 //~ UI macro's
 #define UI_List(Name, ItemHeight) \
-DeferLoop(UI_ListBegin(Name, ItemHeight), UI_ListEnd())
+DeferLoop(ListBegin(Name, ItemHeight), ListEnd())
 
 //~ EntryPoint
 C_LINKAGE
@@ -2369,8 +2381,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     }
    }
    
-   f32 PctOnYAxis = App->ListerScrollPct;
-   f32 SpaceBeforeThumb = (1.f - 1.f/(f32)ShowItemCount)*PctOnYAxis;
+   f32 PctOnYAxis_ = App->ListerScroll;
    
    v2 ListerDim = V2(600.f, (f32)ShowItemCount*ItemHeight);
    V2Math ListerDim.E += 2.f*ListerBorderSize;
@@ -2383,11 +2394,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
     Root->FixedSize = BufferDim;
     Root->Rec = RectFromSize(Root->FixedPos, Root->FixedSize);
     Root->LastTouchedFrameIdx = UI_State->FrameIdx;
-   }
-   
-   if(Root->First->First->First == (ui_box *)0x21000424d30)
-   {
-    DebugBreak();
    }
    
    UI_BeginLayout(Root, App->HeightPx);
@@ -2403,6 +2409,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
        UI_SemanticHeight(UI_SizePx(ListerDim.Y, 1.f))
        UI_BorderThickness(ListerBorderSize)
        UI_BorderColor(Color_Snow2)
+       UI_BackgroundColor(Color_Night1)
        UI_AddBox(S8("Lister"), 
                  UI_BoxFlag_Clip|
                  UI_BoxFlag_DrawBorders|
@@ -2443,23 +2450,23 @@ UPDATE_AND_RENDER(UpdateAndRender)
         UI_Row()
         {
          s32 MinIdx;
+         s32 MaxIdx;
          
-         // Instruments
+         // Items
          {                            
           UI_BackgroundColor(Color_Red)
            UI_FillAll()
            UI_LayoutAxis(Axis2_Y)
           {
            ui_box *Box = UI_AddBox(S8("Items"), UI_BoxFlag_Clip);
-           f32 FullHeight = (f32)FilteredItemCount*ItemHeight;
-           Box->Scroll.Y = PctOnYAxis*FullHeight;
+           Box->Scroll.Y = App->ListerScroll;
            MinIdx = (s32)(Box->Scroll.Y/ItemHeight);
           }
           
           UI_FillAll()
            UI_Push()
           {
-           s32 MaxIdx = Min(FilteredItemCount, MinIdx + ShowItemCount + 1);
+           MaxIdx = Min(FilteredItemCount, MinIdx + ShowItemCount + 1);
            UI_Spacer(UI_SizePx(ItemHeight*(f32)MinIdx, 1.f));
            for(s32 Idx = MinIdx; Idx < MaxIdx; Idx += 1)
            {
@@ -2468,7 +2475,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             b32 Selected = (SelectedIdx == Item->Idx);
             
             UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
-            {   
+            {
              if(Button(.Text = ItemString, 
                        .Disabled = Selected, 
                        .DisabledBackgroundColor = Color_Yellow, 
@@ -2511,69 +2518,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
           }
          }
          
-         // Scrollbar
-         {
-          ui_box *Scrollbar;
-          UI_BorderColor(Color_Black)
-           UI_SemanticWidth(UI_SizePx(16.f, 1.f))
-           UI_FillHeight()
-           Scrollbar = UI_AddBox(S8("Scrollbar"), 
-                                 UI_BoxFlag_Clip|
-                                 UI_BoxFlag_MouseClickable|
-                                 UI_BoxFlag_DrawBackground|
-                                 UI_BoxFlag_DrawBorders);
-          
-          ui_size Padding = UI_SizePx(UI_BorderThicknessTop(), 1.f);
-          
-          UI_PaddingAround(Padding)
-          { 
-           UI_Spacer(UI_SizeParent(SpaceBeforeThumb, 0.f));
-           
-           ui_box *Thumb;
-           UI_SemanticHeight(UI_SizePx(ItemHeight, 0.f))
-            UI_FillWidth()
-            UI_AddBox(S8("Scrollbar"), UI_BoxFlag_Clip);
-           UI_PaddingAround(UI_SizePx(1.f, 0.f))
-            UI_BorderThickness(1.f)
-            UI_BorderColor(Color_Black)
-            UI_BackgroundColor(Color_Orange)
-            Thumb = UI_AddBox(S8("Thumb"), 
-                              UI_BoxFlag_Clip|
-                              UI_BoxFlag_MouseClickable|
-                              UI_BoxFlag_DrawHotEffects|
-                              UI_BoxFlag_DrawActiveEffects|
-                              UI_BoxFlag_DrawBackground|
-                              UI_BoxFlag_DrawBorders);
-           
-           // Compute PctOnYAxis
-           {
-            if(UI_IsActive(Thumb))
-            {
-             local_persist f32 BoxStart = 0.f;
-             
-             if(Thumb->WasClicked)
-             {
-              BoxStart = PctOnYAxis;
-             }
-             
-             f32 Start = Scrollbar->FixedPos.Y + ItemHeight/2.f;
-             f32 End = Scrollbar->FixedPos.Y + Scrollbar->FixedSize.Y - ItemHeight/2.f;
-             
-             f32 Delta = (f32)(Input->Mouse.Pos.Y - Input->Mouse.Start.Y);
-             
-             PctOnYAxis = Clamp(0.f, BoxStart + Delta/(End - Start), 1.f);
-             
-#if 0
-             Log("%.0f (%.0f-%.0f) %.2f%%\n", 
-                 Delta, Start, End, PctOnYAxis);
-#endif
-             
-             App->ListerScrollPct = PctOnYAxis;
-            }
-           }
-           
-          }
-         }
+         f32 TotalElementSize = (f32)FilteredItemCount*ItemHeight;
+         TotalElementSize -= ItemHeight;
+         
+         App->ListerScroll = UI_Scrollbar(Axis2_Y, TotalElementSize, App->ListerScroll);  
+         
         }
        }
       }
@@ -2834,6 +2783,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                   UI_BoxFlag_CenterTextVertically|
                                                   UI_BoxFlag_CenterTextHorizontally));
               
+              UI_DebugAddBox(Type);
+              
               str8 TypeName = PanelTypeStrings[Panel->Kind];
               Type->DisplayString = TypeName;
               
@@ -2870,13 +2821,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
            }
            
            ui_box *Contents;
-           UI_FillAll()
-            Contents = UI_AddBox(S8("Contents"), 0);
+           UI_BackgroundColor(Color_Night2)
+            UI_FillAll()
+            Contents = UI_AddBox(S8("Contents"), UI_BoxFlag_MouseClickable);
            
            //- Panel contents 
            {     
             if(0) {}
-            else if(Panel->Kind == PanelKind_Settings)
+            else if(Panel->Kind == PanelKind_Controls)
             {
              Contents->Flags |= UI_BoxFlag_DrawBackground;
              Contents->BackgroundColor = Color_Night2;
@@ -2935,6 +2887,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
                    App->TimeSig = (s32)UI_Slider((f32)App->TimeSig, 1.f, 4.f, 1.f, "%1.0f/4", true);
                  }
                 }
+                
+                UI_BackgroundColor(Color_Night0)
+                 Label(S8("Devices"));
                 
                 //- Input
                 {
@@ -2999,11 +2954,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
                   }
                  }
                 }
+                
+                
+                UI_BackgroundColor(Color_Night0)
+                 Label(S8("Song"));
                }
                
                // Scrollbar
-               {                                                            
-                f32 TotalElementSize = 6.f*ItemHeight;
+               {
+                f32 ItemCount = (f32)8;
+                f32 TotalElementSize = ItemCount*ItemHeight;
                 TotalElementSize -= ItemHeight;
                 
                 f32 Scroll = UI_Scrollbar(Axis2_Y, TotalElementSize, Panel->Scroll.Y);
@@ -3030,7 +2990,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
               {
                UI_FillAll()
                 UI_LayoutAxis(Axis2_Y)
-                ConfigList = UI_AddBox(S8("Column"), UI_BoxFlag_Clip);
+                ConfigList = UI_AddBox(S8("Debug"), UI_BoxFlag_Clip|UI_BoxFlag_Scroll);
                UI_FillAll()
                 UI_Push()
                 UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
@@ -3786,8 +3746,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
     {
      App->ListerOpened = true;
      App->ListerKind = Command->ListerKind;
+     App->ListerScroll = 0.f;
      App->Text.Size = 0;
-     App->ListerScrollPct = 0.f;
     } break;
    }
    

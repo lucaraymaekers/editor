@@ -20,20 +20,21 @@ UI_Flags:
  { MirrorEffects }
 }
 
-@table(Type, Name)
+@table(Type, Name, Default)
 LayoutStacks:
 {
- { v4        BackgroundColor }
- { v4        TextColor }
- { v4        BorderColor }
- { f32       BorderThickness }
- { f32       Softness }
- { v4        CornerRadii }
- { axis2     LayoutAxis }
- { ui_size   SemanticWidth }
- { ui_size   SemanticHeight }
- { f32       HeightPx }
- { font_kind FontKind }
+ { v4        BackgroundColor `Color_Background`   }
+ { v4        TextColor       `Color_ButtonText`   }
+ { v4        BorderColor     `Color_ButtonBorder` }
+ { f32       BorderThickness `0.f`                }
+ { f32       Softness        `1.f`                } 
+ { v4        CornerRadii     `V4F32(0.f)`         }
+ { axis2     LayoutAxis      `Axis2_X`            }
+ { ui_size   SemanticWidth   `UI_SizeFull()`      }
+ { ui_size   SemanticHeight  `UI_SizeFull()`      }
+ { f32       HeightPx        `HeightPx`           }
+ { font_kind FontKind        `FontKind_Text`      }
+ //{ v4        Clip            `Root->Rec`          }
 }
 
 @table(Type)
@@ -57,13 +58,11 @@ UI_FlagEnum:
 }
 
 @data
-LayoutStacks:
+LayoutStacksTypes:
 {
  `#define UI_LayoutStacks `;
  @expand(LayoutTypes)
   `typedef struct $(Type)_stack_node $(Type)_stack_node; struct $(Type)_stack_node { $(Type)_stack_node *Prev; $(Type) Value; }; `;
- ```
-  ```;
 }
 
 @data
@@ -72,8 +71,6 @@ LayoutProperties:
  `#define UI_StateStacks `;
  @expand(LayoutStacks)
   `$(Type)_stack_node *$(Name)Top; `;
- ```
-  ```;
 }
 
 @data
@@ -81,7 +78,55 @@ LayoutFunctions:
 {
  `#define UI_StackFunctions `;
  @expand(LayoutStacks)
-  `internal void UI_Push$(Name)($(Type) $(Name))  { UI_StackPush($(Type), $(Name)); } internal void UI_Pop$(Name)(void)                       { UI_StackPop($(Name)); } `;
- ```
+  `internal void UI_Push$(Name)($(Type) $(Name)) { UI_StackPush($(Type), $(Name)); } internal void UI_Pop$(Name)(void) { UI_StackPop($(Name)); } `;
+}
+
+
+@data
+LayoutFunctionsDecls:
+{
+ `#if 0`;
+ @expand(LayoutStacks)
   ```
+  internal void UI_Push$(Name)($(Type) $(Name));
+ internal void UI_Pop$(Name)(void); 
+ ```;
+ `#endif`;
+}
+
+
+@data
+LayoutStacksDecls:
+{
+ `#if 0`;
+ @expand(LayoutTypes)
+  ```
+  typedef struct $(Type)_stack_node $(Type)_stack_node;
+ struct $(Type)_stack_node 
+ { 
+  $(Type)_stack_node *Prev; 
+  $(Type) Value; 
+ };
+ ```;
+ `#endif`;
+}
+
+
+@data
+BoxLayoutProps:
+{
+ `#define BoxLayoutProperties `;
+ @expand(LayoutStacks)
+  ``` \
+  Box->$(Name) = UI_State->$(Name)Top->Value;```;
+ 
+}
+
+@data
+LayoutStacksDefaults:
+{
+ `#define BoxLayoutDefaults `;
+ @expand(LayoutStacks)
+  ``` \
+  UI_Push$(Name)($(Default));```;
 }

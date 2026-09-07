@@ -4,7 +4,7 @@ PanelTypes:
  { Empty,}
  { Sheet, }
  { Roll, }
- { Settings, }
+ { Controls, }
  { Debug, }
 }
 

@@ -86,11 +86,25 @@ struct ui_box
  axis2 LayoutAxis;
  f32 HeightPx;
  font_kind FontKind;
+ v4 Clip;
+ 
+#if 0
+ union
+ {
+  ui_size SemanticSize[Axis2_Count];
+  struct 
+  {
+   ui_size SemanticWidth;
+   ui_size SemanticHeight;
+  };
+ };
+#else
+ ui_size SemanticSize[Axis2_Count];
+#endif
  
  str8 DisplayString;
  ui_custom_draw *CustomDraw; 
  void *CustomDrawData;
- ui_size SemanticSize[Axis2_Count];
  
  // Produced from layout resolving
  v2 FixedPos;

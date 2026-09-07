@@ -249,18 +249,21 @@ UI_AddBox(str8 String, s32 Flags)
  Box->DisplayString = DisplayString;
  Box->Flags = Flags;
  
- Box->LastTouchedFrameIdx = UI_State->FrameIdx;
- Box->BackgroundColor = UI_State->BackgroundColorTop->Value;
- Box->BorderColor = UI_State->BorderColorTop->Value;
- Box->TextColor = UI_State->TextColorTop->Value;
- Box->BorderThickness = UI_State->BorderThicknessTop->Value;
- Box->Softness = UI_State->SoftnessTop->Value;
- Box->CornerRadii = UI_State->CornerRadiiTop->Value;
- Box->LayoutAxis = UI_State->LayoutAxisTop->Value;
- Box->SemanticSize[Axis2_X] = UI_State->SemanticWidthTop->Value;
- Box->SemanticSize[Axis2_Y] = UI_State->SemanticHeightTop->Value;
- Box->HeightPx = UI_State->HeightPxTop->Value;
- Box->FontKind = UI_State->FontKindTop->Value;
+ // TODO(luca): Metaprogram
+ //BoxLayoutProperties;
+ Box->BackgroundColor = UI_State->BackgroundColorTop->Value; 
+ Box->TextColor = UI_State->TextColorTop->Value; 
+ Box->BorderColor = UI_State->BorderColorTop->Value; 
+ Box->BorderThickness = UI_State->BorderThicknessTop->Value; 
+ Box->Softness = UI_State->SoftnessTop->Value; 
+ Box->CornerRadii = UI_State->CornerRadiiTop->Value; 
+ Box->LayoutAxis = UI_State->LayoutAxisTop->Value; 
+ Box->SemanticSize[Axis2_X] = UI_State->SemanticWidthTop->Value; 
+ Box->SemanticSize[Axis2_Y] = UI_State->SemanticHeightTop->Value; 
+ Box->HeightPx = UI_State->HeightPxTop->Value; 
+ Box->FontKind = UI_State->FontKindTop->Value; 
+ //Box->Clip = UI_State->ClipTop->Value;
+ 
  Box->CustomDraw = 0;
  Box->CustomDrawData = 0;
  Box->Scroll = (v2){0};
@@ -421,23 +424,6 @@ UI_BoxDepthFirstPostOrder(ui_box *Box)
 }
 
 internal void
-UI_DebugCheckWrongBox(ui_box *Root)
-{
- for (ui_box *Box = Root;
-      !UI_IsNilBox(Box);
-      Box = UI_BoxDepthFirstPreOrder(Box).Next)
- {                            
-  if(Box == Box->First ||
-     Box == Box->Next || 
-     Box == Box->Prev || 
-     Box == Box->Last)
-  {
-   InvalidPath();
-  }
- }
-}
-
-internal void
 UI_BeginLayout(ui_box *Root, f32 HeightPx)
 {
  Assert(!UI_IsNilBox(Root));
@@ -449,6 +435,7 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
  
  // Defaults
  // NOTE(luca): This is slightly since what we should be doing here is *setting* and not *pushing*.  But since we don't modify the top item this shouldn't be a problem in practice.t
+ // TODO(luca): Metaprogram
  UI_PushBackgroundColor(Color_Background);
  UI_PushTextColor(Color_ButtonText);
  UI_PushBorderColor(Color_ButtonBorder);
@@ -460,6 +447,7 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
  UI_PushSemanticHeight(UI_SizeParent(1.f, 1.f));
  UI_PushHeightPx(HeightPx);
  UI_PushFontKind(FontKind_Text);
+ //UI_PushClip(Root->Rec);
  UI_PushBox();
  
  // Input 
@@ -473,12 +461,27 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
       !UI_IsNilBox(Box);
       Box = UI_BoxDepthFirstPostOrder(Box).Next)
   {
+   if(UI_IsDebugBox(Box))
+   {
+    NoOp();
+    DebugBreak();
+   }
+   
    Box->Clicked = false;
    Box->Hovered = false;
    Box->Pressed = false;
    Box->WasClicked = false;
    
    Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
+#if 0
+   {
+    v4 ClippedRec = RectIntersect(Box->Rec, Box->Clip);
+    if(!RectValid(ClippedRec))
+    {
+     Box->Hovered = false;
+    }
+   }
+#endif
    
    b32 ReceiveInput = !Input->Consumed;
    if(ReceiveInput)

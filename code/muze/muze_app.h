@@ -233,7 +233,7 @@ struct app_state
  // UI 
  ui_box *TopBox;
  ui_box *ListerBox;
- f32 ListerScrollPct;
+ f32 ListerScroll;
  b32 ListerOpened;
  lister_kind ListerKind;
  
