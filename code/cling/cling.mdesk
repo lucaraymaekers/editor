@@ -1,4 +1,5 @@
 //~ Build options
+// TODO(luca): Overridable defaults
 Asan: 0
 Debug: 1
 Clean: 0
@@ -83,6 +84,4 @@ HashGetters:
   return Hash;
  }
  ```;
- 
- 
 }
