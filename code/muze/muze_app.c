@@ -3936,7 +3936,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
  Memory->Initialized = true;
  Memory->Reloaded = false;
  
-#if 0 || MUZE_STARTUP_PROFILE
+#if  MUZE_STARTUP_PROFILE
  ShouldQuit = true;
 #endif
  

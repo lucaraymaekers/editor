@@ -1,10 +1,10 @@
 #if !defined(BASE_H)
 #define BASE_H
 
-#include "base_build.h"
 #if __has_include(".base_build.h")
 # include ".base_build.h"
 #endif
+#include "base_build.h"
 
 #include "base_core.h"
 #include "base_math.h"
