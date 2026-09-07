@@ -3,7 +3,6 @@ UI_Flags:
 {
  { DrawBackground }
  { DrawBorders }
- { DrawDebugBorder }
  { DrawShadow }
  { DrawDisplayString }
  { DrawHotEffects }
@@ -26,22 +25,24 @@ LayoutStacks:
  { v4        BackgroundColor `Color_Background`   }
  { v4        TextColor       `Color_ButtonText`   }
  { v4        BorderColor     `Color_ButtonBorder` }
- { f32       BorderThickness `0.f`                }
- { f32       Softness        `1.f`                } 
+ { f32       BorderThickness `1.f`                }
+ { f32       Softness        `0.f`                } 
  { v4        CornerRadii     `V4F32(0.f)`         }
  { axis2     LayoutAxis      `Axis2_X`            }
- { ui_size   SemanticWidth   `UI_SizeFullStrict()`      }
- { ui_size   SemanticHeight  `UI_SizeFullStrict()`      }
+ { ui_size   SemanticWidth   `UI_SizeFull()`      }
+ { ui_size   SemanticHeight  `UI_SizeFull()`      }
  { f32       HeightPx        `HeightPx`           }
  { font_kind FontKind        `FontKind_Text`      }
  { v4        Clip            `Root->Rec`          }
+ { b32       Debug            `false`             }
 }
 
 @table(Type)
 LayoutTypes:
 {
- { v4        }
+ { b32       }
  { f32       }
+ { v4        }
  { axis2     }
  { ui_size   }
  { font_kind }
@@ -78,17 +79,22 @@ LayoutFunctions:
 {
  `#define UI_StackFunctions `;
  @expand(LayoutStacks)
-  `internal void UI_Push$(Name)($(Type) $(Name)) { UI_StackPush($(Type), $(Name)); } internal void UI_Pop$(Name)(void) { UI_StackPop($(Name)); } `;
+  ```\
+  internal void UI_Push$(Name)($(Type) $(Name)) { UI_StackPush($(Type), $(Name)); } \
+ internal void UI_Pop$(Name)(void) { UI_StackPop($(Name)); } ```;
+ @expand(LayoutStacks)
+  ```
+#define UI_$(Name)(Value) DeferLoop(UI_Push$(Name)(Value), UI_Pop$(Name)())```
 }
 
 
 @data
 LayoutFunctionsDecls:
 {
- `#if 0`;
+ ```#if 0
+ ```;
  @expand(LayoutStacks)
-  ```
-  internal void UI_Push$(Name)($(Type) $(Name));
+  ```internal void UI_Push$(Name)($(Type) $(Name));
  internal void UI_Pop$(Name)(void); 
  ```;
  `#endif`;

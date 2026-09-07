@@ -25,21 +25,7 @@ UI_IsNilBox(ui_box *Box)
 internal b32
 UI_IsDebugBox(ui_box *Box)
 {
- b32 Result = false;
- 
-#if MUZE_INTERNAL    
- if(!UI_IsNilBox(Box))
- {
-  for EachNode(Node, ui_box_node, UI_State->FirstDebugBox)
-  {
-   if(Node->Box == Box)
-   {
-    Result = true;
-    break;
-   }
-  }
- }
-#endif
+ b32 Result = Box->Debug;
  
  return Result;
 }
@@ -422,26 +408,7 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
  ArenaSetPos(UI_State->StyleArena, 0);
  
  // Defaults
- // NOTE(luca): This is slightly since what we should be doing here is *setting* and not *pushing*.  But since we don't modify the top item this shouldn't be a problem in practice.t
- 
-#if 0 
- // TODO(luca): Metaprogram
  UI_BoxLayoutDefaults;
-#else
- UI_PushBackgroundColor(Color_Background);
- UI_PushTextColor(Color_ButtonText);
- UI_PushBorderColor(Color_ButtonBorder);
- UI_PushSoftness(0.f);
- UI_PushBorderThickness(1.f);
- UI_PushCornerRadii(V4F32(0.f));
- UI_PushLayoutAxis(Axis2_X);
- UI_PushSemanticWidth(UI_SizeParent(1.f, 1.f));
- UI_PushSemanticHeight(UI_SizeParent(1.f, 1.f));
- UI_PushHeightPx(HeightPx);
- UI_PushFontKind(FontKind_Text);
- UI_PushClip(Root->Rec);
-#endif
- 
  UI_PushBox();
  
  // Input 
@@ -457,8 +424,10 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
   {
    if(UI_IsDebugBox(Box))
    {
-    NoOp();
-    DebugBreak();
+    if(Box->Flags & UI_BoxFlag_MouseClickable)
+    {
+     NoOp();
+    }
    }
    
    Box->Clicked = false;
@@ -466,16 +435,13 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
    Box->Pressed = false;
    Box->WasClicked = false;
    
-   Box->Hovered = IsInsideRectV2(MouseP, Box->Rec);
-#if 0
    {
     v4 ClippedRec = RectIntersect(Box->Rec, Box->Clip);
-    if(!RectValid(ClippedRec))
+    if(RectValid(ClippedRec))
     {
-     Box->Hovered = false;
+     Box->Hovered = IsInsideRectV2(MouseP, ClippedRec);;
     }
    }
-#endif
    
    b32 ReceiveInput = !Input->Consumed;
    if(ReceiveInput)
@@ -544,17 +510,6 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
 }
 
 internal void
-UI_DebugAddBox(ui_box *Box)
-{
- ui_box_node *Node = PushArrayZero(UI_State->FrameArenaFront, ui_box_node, 1);
- 
- Node->Box = Box;
- Node->Next = UI_State->FirstDebugBox;
- UI_State->FirstDebugBox = Node;
-}
-
-
-internal void
 UI_InitState(arena *Arena)
 {
  UI_State->Arena = Arena;
@@ -595,7 +550,6 @@ This keeps the pointers stable.
  Swap(UI_State->FrameArenaFront, UI_State->FrameArenaBack);
  ArenaSetPos(UI_State->FrameArenaFront, 0);
  
- UI_State->FirstDebugBox = 0;
  UI_State->AnimSpeed = (1.f - PowF32(2.f, -60.f*UI_State->Input->dtForFrame));
 }
 
@@ -1067,14 +1021,7 @@ UI_EndLayout(ui_box *Root)
       !UI_IsNilBox(Box);
       Box = UI_BoxDepthFirstPreOrder(Box).Next)
   {
-   if(0 && UI_IsDebugBox(Box->Parent))
-   {
-    UI_DebugAddBox(Box);
-   }
-   
-   b32 DrawDebugBorder = (UI_State->RectDebugMode ||
-                          Box->Flags & UI_BoxFlag_DrawDebugBorder ||
-                          UI_IsDebugBox(Box));
+   b32 DrawDebugBorder = (UI_State->RectDebugMode || UI_IsDebugBox(Box));
    if(DrawDebugBorder)
    {
     DrawRect(Box->Rec, V4(1.f, 0.f, 1.f, 1.f), 0.f, 1.f, 0.f);

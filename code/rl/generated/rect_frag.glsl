@@ -47,7 +47,7 @@
   v4 Color = VS_Color;
   
   // Exclude pixels outside of the clip region.
-  if(false)
+  if(true)
   {  
    v2 Min = VS_Clip.xy;
    v2 Max = VS_Clip.zw;

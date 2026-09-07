@@ -87,6 +87,7 @@ struct ui_box
  f32 HeightPx;
  font_kind FontKind;
  v4 Clip;
+ b32 Debug;
  
 #if 1
  union
@@ -183,7 +184,6 @@ struct ui_state
  b32 AppendToParent;
  ui_box *Current;
  ui_box *Root;
- ui_box_node *FirstDebugBox;
  struct
  {
   UI_StateStacks
@@ -265,21 +265,8 @@ UI_PopSemanticSizeOnAxis(axis2 Axis)
  }
 }
 
-#define UI_BackgroundColor(Value) DeferLoop(UI_PushBackgroundColor(Value), UI_PopBackgroundColor())
-#define UI_TextColor(Value) DeferLoop(UI_PushTextColor(Value), UI_PopTextColor())
-#define UI_BorderColor(Value) DeferLoop(UI_PushBorderColor(Value), UI_PopBorderColor())
-#define UI_BorderThickness(Value) DeferLoop(UI_PushBorderThickness(Value), UI_PopBorderThickness())
-#define UI_Softness(Value) DeferLoop(UI_PushSoftness(Value), UI_PopSoftness())
-#define UI_CornerRadii(Value) DeferLoop(UI_PushCornerRadii(Value), UI_PopCornerRadii())
-#define UI_LayoutAxis(Value) DeferLoop(UI_PushLayoutAxis(Value), UI_PopLayoutAxis())
-#define UI_SemanticWidth(Value) DeferLoop(UI_PushSemanticWidth(Value), UI_PopSemanticWidth())
-#define UI_SemanticHeight(Value) DeferLoop(UI_PushSemanticHeight(Value), UI_PopSemanticHeight())
-#define UI_HeightPx(Value) DeferLoop(UI_PushHeightPx(Value), UI_PopHeightPx())
-
 #define UI_SemanticSizeOnAxis(Axis, Size) \
 DeferLoop(UI_PushSemanticSizeOnAxis(Axis, Size), UI_PopSemanticSizeOnAxis(Axis))
-
-#define UI_FontKind(Value) DeferLoop(UI_PushFontKind(Value), UI_PopFontKind())
 
 #define UI_SemanticFull() \
 UI_SemanticHeight(UI_SizeParent(1.f, 1.f)) \

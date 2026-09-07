@@ -1052,18 +1052,65 @@ FindSelForNote(note_node *Selection, note *Note)
 }
 
 
+typedef struct custom_draw_note_input_result custom_draw_note_input_result;
+struct custom_draw_note_input_result
+{
+ b32 LeftDown;
+ b32 RightDown;
+ v2 MouseP;
+ v2 MouseStartP;
+ b32 Adding;
+ v4 SelDest;
+};
+
+internal custom_draw_note_input_result
+CustomDrawNoteInput(ui_box *Box)
+{
+ custom_draw_note_input_result Result = {0};
+ 
+ app_input *Input = UI_State->Input;
+ 
+ if(UI_State->InputConsumerBox == Box)
+ {
+  Result.LeftDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
+  Result.RightDown = Input->Mouse.Buttons[PlatformMouseButton_Right].EndedDown;
+  UI_ConsumeInput(Input, Box);
+ }
+ 
+ Result.Adding = (Result.LeftDown && !Result.RightDown);
+ Result.MouseP = MousePosFromInput(Input);
+ Result.MouseStartP = V2V2S32(Input->Mouse.Start);
+ 
+ v4 SelDest;
+ // Get selection rectangle
+ {        
+  SelDest = (v4){.Min = Result.MouseP, .Max = Result.MouseStartP};
+  if(SelDest.Min.X > SelDest.Max.X) Swap(SelDest.Min.X, SelDest.Max.X);
+  if(SelDest.Min.Y > SelDest.Max.Y) Swap(SelDest.Min.Y, SelDest.Max.Y);
+  SelDest = RectIntersect(Box->Rec, SelDest);
+ }
+ Result.SelDest = SelDest;
+ 
+ if(Result.LeftDown || Result.RightDown)
+ {
+  DrawRect(SelDest, V4(V3Arg(Result.Adding ? Color_Blue : Color_Snow2), .3f), 1.f, 0.f, 0.f);
+  DrawRect(SelDest, V4(V3Arg(Result.Adding ? Color_Orange : Color_Black), 1.f), 1.f, 1.f, 0.f);
+ }
+ 
+ return Result;
+}
+
 internal void
-AddNoteToSelection(b32 MouseLeftDown, b32 MouseRightDown, b32 Adding,
-                   v4 Dest, v4 SelDest,
+AddNoteToSelection(custom_draw_note_input_result *NoteInput, v4 Dest,
                    app_state *App, voice *Voice, note_node *Sel, note *Note)
 {
  // Draw selection rectangle
- if(MouseLeftDown || MouseRightDown)
+ if(NoteInput->LeftDown || NoteInput->RightDown)
  {
   // NOTE(luca): @Command
-  if(RectOverlap(Dest, SelDest))
+  if(RectOverlap(Dest, NoteInput->SelDest))
   {
-   if(Adding && !Sel)
+   if(NoteInput->Adding && !Sel)
    {
     note_node *Node;
     
@@ -1094,7 +1141,7 @@ AddNoteToSelection(b32 MouseLeftDown, b32 MouseRightDown, b32 Adding,
      Voice->NoteSel = Node;
     }
    }
-   else if(!Adding && Sel)
+   else if(!NoteInput->Adding && Sel)
    {
     // Remove from selection
     {
@@ -1166,42 +1213,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
  v2 BarDim = V2(2.f, StaffHeight);
  
  // Input
- b32 MouseLeftDown = false;
- b32 MouseRightDown = false;
- b32 Adding = false;
- v2 MouseP = {0};
- v2 MouseStartP = {0};
- v4 SelDest = {0};
- 
- // Get Input
- {
-  if(UI_IsActive(Box))
-  {
-   MouseLeftDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
-   MouseRightDown = Input->Mouse.Buttons[PlatformMouseButton_Right].EndedDown;
-   
-   UI_ConsumeInput(Input, Box);
-  }
-  
-  Adding = (MouseLeftDown && !MouseRightDown);
-  MouseP = MousePosFromInput(Input);
-  MouseStartP = V2V2S32(Input->Mouse.Start);
-  
-  // Get selection rectangle
-  if(IsInsideRectV2(MouseStartP, Box->Rec))
-  {        
-   SelDest = (v4){.Min = MouseP, .Max = MouseStartP};
-   if(SelDest.Min.X > SelDest.Max.X) Swap(SelDest.Min.X, SelDest.Max.X);
-   if(SelDest.Min.Y > SelDest.Max.Y) Swap(SelDest.Min.Y, SelDest.Max.Y);
-   SelDest = RectIntersect(Box->Rec, SelDest);
-  }
-  
-  if(MouseLeftDown || MouseRightDown)
-  {
-   DrawRect(SelDest, V4(V3Arg(Adding ? Color_Blue : Color_Snow2), .3f), 1.f, 0.f, 0.f);
-   DrawRect(SelDest, V4(V3Arg(Adding ? Color_Orange : Color_Black), 1.f), 1.f, 1.f, 0.f);
-  }
- }
+ custom_draw_note_input_result NoteInput = CustomDrawNoteInput(Box);
  
  // Draw staff
  {    
@@ -1316,8 +1328,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
     Dest = RectIntersect(Dest, Box->Rec);
     DrawRect(Dest, NoteColor, .5f*NoteSize, NoteBorderSize, .5);
     
-    AddNoteToSelection(MouseLeftDown, MouseRightDown, Adding, 
-                       Dest, SelDest, App, Voice, Sel, Note);
+    AddNoteToSelection(&NoteInput, Dest, App, Voice, Sel, Note);
    }
    
    {
@@ -1409,13 +1420,6 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
  
  app_input *Input = UI_State->Input;
  
- b32 MouseLeftDown = false;
- b32 MouseRightDown = false;
- b32 Adding = false;
- v2 MouseP = {0};
- v2 MouseStartP = {0};
- v4 SelDest = {0};
- 
  f32 BPS = App->BPM/60.f;
  
  f32 Zoom = (BPS/(f32)App->TimeSig*100.f);
@@ -1425,41 +1429,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
  
  DrawRect(Box->Rec, BackgroundColor, 0.f, 0.f, 0.f);
  
- // Get Input
- {    
-  if(UI_State->InputConsumerBox == Box)
-  {
-   MouseLeftDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
-   MouseRightDown = Input->Mouse.Buttons[PlatformMouseButton_Right].EndedDown;
-   UI_ConsumeInput(Input, Box);
-  }
-  
-  Adding = (MouseLeftDown && !MouseRightDown);
-  MouseP = MousePosFromInput(Input);
-  MouseStartP = V2V2S32(Input->Mouse.Start);
-  
-  // Get selection rectangle
-  {        
-   SelDest = (v4){.Min = MouseP, .Max = MouseStartP};
-   
-   if(SelDest.Min.X > SelDest.Max.X)
-   {
-    Swap(SelDest.Min.X, SelDest.Max.X);
-   }
-   if(SelDest.Min.Y > SelDest.Max.Y)
-   {
-    Swap(SelDest.Min.Y, SelDest.Max.Y);
-   }
-   
-   SelDest = RectIntersect(Box->Rec, SelDest);
-  }
-  
-  if(MouseLeftDown || MouseRightDown)
-  {
-   DrawRect(SelDest, V4(V3Arg(Adding ? Color_Blue : Color_Snow2), .3f), 1.f, 0.f, 0.f);
-   DrawRect(SelDest, V4(V3Arg(Adding ? Color_Orange : Color_Black), 1.f), 1.f, 1.f, 0.f);
-  }
- }
+ custom_draw_note_input_result NoteInput = CustomDrawNoteInput(Box);
  
  u8 MaxPitch = Max(Voice->MaxPitch, 75);
  u8 MinPitch = Min(Voice->MinPitch, 40);
@@ -1573,7 +1543,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
     v4 NoteDest = RectFromSize(NotePos, V2(Width, NoteHeight)); 
     v4 Dest = RectIntersect(NoteDest, Box->Rec);
     
-    AddNoteToSelection(MouseLeftDown, MouseRightDown, Adding, Dest, SelDest, App, Voice, Sel, Note);
+    AddNoteToSelection(&NoteInput, Dest, App, Voice, Sel, Note);
     
     // Draw Note
     {                
@@ -1581,7 +1551,7 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
      Instance->Color0.A = .2f;
      Instance->Color2.A = .2f;
      
-     if(IsInsideRectV2(MouseP, Dest))
+     if(IsInsideRectV2(NoteInput.MouseP, Dest))
      {
       // Draw border around when hovered
       if(Sel) White = !White;
@@ -1698,20 +1668,11 @@ DebugStringAdd(app_state *App, char *Format, ...)
 }
 
 
-#if 0
-internal b32
-SimpleButton(str8 Name)
-{
- b32 Clicked = Button(.Text = Name, 
-                      .CenterText = true,
-                      .Padding = GlobalItemPadding).Pressed;
- 
- return Clicked;
-}
-#endif
-
 #define SimpleButton(ButtonText, ...) \
 Button(.Text = ButtonText, .CenterText = true, .Padding = GlobalItemPadding, ##__VA_ARGS__).Pressed
+
+#define ControlButton(ButtonText, ...) \
+Button(.Text = ButtonText, .Padding = GlobalItemPadding, ##__VA_ARGS__).Pressed
 
 typedef struct simple_slider_result simple_slider_result;
 struct simple_slider_result
@@ -2479,7 +2440,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
              if(Button(.Text = ItemString, 
                        .Disabled = Selected, 
                        .DisabledBackgroundColor = Color_Yellow, 
-                       .Padding = ItemPadding).Released)
+                       .Padding = ItemPadding,
+                       .ClipSize = true).Released)
              {
               switch(App->ListerKind)
               {
@@ -2553,172 +2515,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
     UI_Push()
      //- All
     {
-     //- Top 
-     {
-      UI_SemanticHeight(UI_SizeChildren(1.f))
-       UI_FillWidth()
-       UI_LayoutAxis(Axis2_X)
-       UI_AddBox(S8("TopControls"), UI_BoxFlag_Clip);
-      UI_Push()
-      { 
-       UI_Center()
-        UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
-        UI_SemanticWidth(UI_SizePx(ListWidth, 1.f))
-       {
-        
-        UI_List(S8("Song"), ItemHeight)
-        {
-         if(UI_ButtonWithToggle(S8("Record"), SelectedVoice->IsRecording, ItemPadding, Color_Red).OneClicked)
-         {
-          PushCommand(App, Command_ToggleRecording);
-         }
-         
-         if(UI_ButtonWithToggle(S8("Play"), SelectedVoice->IsPlaying, ItemPadding, Color_Green).OneClicked)
-         {
-          PushCommand(App, Command_TogglePlaying);
-         }
-         
-         if(UI_ButtonWithToggle(S8("Auto Scroll"), SelectedVoice->AutoScroll, ItemPadding, Color_Green).OneClicked)
-         {
-          PushCommand(App, Command_ToggleAutoScroll);
-         }
-         
-         
-         UI_Row() UI_SemanticWidth(UI_SizeParent(1.f/3.f, 1.f))
-         {         
-          if(SimpleButton(S8("Stop"))) PushCommand(App, Command_Stop);
-          if(SimpleButton(S8("Trim"))) PushCommand(App, Command_Trim);
-          if(SimpleButton(S8("Reset"))) PushCommand(App, Command_Reset);
-         }
-         UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
-         {         
-          if(SimpleButton(S8("Start"))) PushCommand(App, Command_PlayFromStart);
-          if(SimpleButton(S8("From note"))) PushCommand(App, Command_PlayFromNote);
-         }
-        }
-        
-        UI_List(S8("Notes"), ItemHeight)
-        {
-         
-         UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
-         {
-          if(SimpleButton(S8("Round"))) PushCommand(App, Command_Round);
-          if(SimpleButton(S8("Sync"))) PushCommand(App, Command_Sync);
-         }
-         
-         UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
-         {
-          if(SimpleButton(S8("Guess"))) PushCommand(App, Command_GuessBPM);
-          if(SimpleButton(S8("Delete"))) PushCommand(App, Command_DeleteSelection);
-         }
-         
-         {
-          ui_box *ButtonBox;
-          UI_BackgroundColor(Color_ButtonBackground)
-           ButtonBox = UI_AddBox(S8("Length"), 
-                                 UI_BoxFlag_Clip|
-                                 UI_BoxFlag_MouseClickable|
-                                 UI_BoxFlag_DrawHotEffects|
-                                 UI_BoxFlag_DrawActiveEffects|
-                                 UI_BoxFlag_DrawBorders|
-                                 UI_BoxFlag_DrawBackground);
-          UI_PaddingAround(ItemPadding)
-          {
-           ui_box *Box;
-           UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-            Box = UI_AddBox(S8("SetLength"), UI_BoxFlag_DrawDisplayString|
-                            UI_BoxFlag_CenterTextVertically);
-           
-           f32 Length = SelectedVoice->NoteSetLength;
-           char *Format = (Length >= 0.f ? 
-                           "Length %3.0f" :
-                           "Length 1/%1.0f");
-           f32 Value = PowF32(2.f, AbsF32(Length));
-           Box->DisplayString = Str8Fmt(Format, Value);
-           
-           UI_Spacer(UI_SizePx(5.f, 1.f));
-           
-           UI_BackgroundColor(Color_Orange)
-            UI_BorderColor(Color_Black)
-            SelectedVoice->NoteSetLength = UI_Slider(Length, -3, 2, 1.f, 0, true);
-          }
-          
-          if(ButtonBox->Clicked)
-          {
-           PushCommand(App, Command_SetLength)->Length = SelectedVoice->NoteSetLength;;
-          }
-         }
-         
-         UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
-         {
-          if(SimpleButton(S8("Clear"))) PushCommand(App, Command_ClearSelection);
-         }
-        }
-        
-        UI_List(S8("Voice"), ItemHeight)
-        {
-         UI_BackgroundColor(Color_ButtonBackground)
-          UI_AddBox(S8("VoiceSelect"), 
-                    UI_BoxFlag_Clip|
-                    UI_BoxFlag_DrawBorders|
-                    UI_BoxFlag_DrawBackground);
-         UI_PaddingAround(ItemPadding)
-         {
-          u64 Idx = (u64)(SelectedVoice - App->Voices);
-          f32 NewIdx = 0.f;
-          
-          UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-           UI_AddBox(Str8Fmt("Voice %2llu/%-2llu###VoiceText", Idx + 1, App->VoiceCount),
-                     UI_BoxFlag_DrawDisplayString|
-                     UI_BoxFlag_CenterTextVertically);
-          
-          UI_BorderColor(Color_Black)
-           NewIdx = UI_Slider((f32)Idx + 1, 1.f, (f32)App->VoiceCount, 1.f, 0, true); 
-          NewIdx -= 1.f;
-          
-          // Set panel voice
-          if((u64)NewIdx != Idx)
-          {
-           voice *NewVoice = App->Voices + (u64)NewIdx;
-           PushCommand(App, Command_SetPanelVoice)->Voice = NewVoice;
-          }
-         }
-         
-         UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
-         {         
-          if(SimpleButton(S8("Delete"))) PushCommand(App, Command_DeleteVoice);
-          if(SimpleButton(S8("New"))) PushCommand(App, Command_AddVoice);
-         }
-         UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
-         {
-          if(SimpleButton(S8("Enqueue"))) PushCommand(App, Command_Enqueue);
-          if(SimpleButton(S8("Dequeue"))) PushCommand(App, Command_Dequeue);
-         }
-         UI_Row() UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
-         {
-          if(SimpleButton(S8("Play all"))) PushCommand(App, Command_PlayAllVoices);
-          if(SimpleButton(S8("Stop all"))) PushCommand(App, Command_StopAllVoices);
-         }
-         
-         // Volume control
-         {                                    
-          f32 Volume = SelectedVoice->Volume;
-          Volume = SimpleSlider(S8("Volume"), 
-                                Str8Fmt("%3.0f%%", Volume*100.f),
-                                Volume, 0.f, 1.f, .01f,
-                                false).Value;
-          tsf_channel_set_volume(GlobalTSF, SelectedVoice->Channel, Volume);
-          SelectedVoice->Volume = Volume;
-         }
-         
-        }
-        
-       }
-      }
-     }
-     
-     UI_Spacer(UI_SizePx(3.f, 1.f));
-     
      ui_box *PanelsBox;
      UI_FillAll()
       PanelsBox = UI_AddBox(S8("Panels"), UI_BoxFlag_Clip);
@@ -2841,50 +2637,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
                UI_FillAll()
                 UI_LayoutAxis(Axis2_Y)
                 ConfigList = UI_AddBox(S8("Settings"), UI_BoxFlag_Clip|UI_BoxFlag_Scroll);
-               UI_FillAll()
+               UI_Clip(ConfigList->Rec)
+                UI_FillAll()
                 UI_Push()
                 UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
                {             
-                
-                //- Music 
-                {
-                 UI_BackgroundColor(Color_ButtonBackground)
-                  UI_AddBox(S8("BPM"), 
-                            UI_BoxFlag_DrawBorders|
-                            UI_BoxFlag_DrawBackground);
-                 UI_PaddingAround(ItemPadding)
-                 {
-                  UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-                   UI_AddBox(S8("Set BPM           "), (UI_BoxFlag_Clip|
-                                                        UI_BoxFlag_DrawDisplayString|
-                                                        UI_BoxFlag_CenterTextVertically));
-                  
-                  UI_Spacer(UI_SizeParent(1.f, 0.f));
-                  
-                  UI_BackgroundColor(Color_Orange)
-                   UI_BorderColor(Color_Black)
-                   App->BPM = UI_Slider(App->BPM, 30.f, 300.f, 1.0f, "%3.0f", true);
-                 }
-                 
-                 UI_BackgroundColor(Color_ButtonBackground)
-                  UI_AddBox(S8("TimeSig"), 
-                            UI_BoxFlag_DrawBorders|
-                            UI_BoxFlag_DrawBackground);
-                 UI_PaddingAround(ItemPadding)
-                 {
-                  UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-                   UI_AddBox(S8("Set time signature"), 
-                             UI_BoxFlag_Clip|
-                             UI_BoxFlag_DrawDisplayString|
-                             UI_BoxFlag_CenterTextVertically);
-                  
-                  UI_Spacer(UI_SizeParent(1.f, 0.f));
-                  
-                  UI_BackgroundColor(Color_Orange)
-                   UI_BorderColor(Color_Black)
-                   App->TimeSig = (s32)UI_Slider((f32)App->TimeSig, 1.f, 4.f, 1.f, "%1.0f/4", true);
-                 }
-                }
                 
                 UI_BackgroundColor(Color_Night0)
                  Label(S8("Devices"));
@@ -2893,7 +2650,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                  // Select MIDI Input device
                  {
-                  
                   if(UI_ButtonWithToggle(S8("Toggle keyboard input"), App->InputVirtualKeyboardEnabled,
                                          ItemPadding, Color_Yellow).OneClicked)
                   {
@@ -2953,14 +2709,180 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  }
                 }
                 
+                //- Song 
+                {                
+                 UI_BackgroundColor(Color_ButtonBackground)
+                  UI_AddBox(S8("BPM"), 
+                            UI_BoxFlag_DrawBorders|
+                            UI_BoxFlag_DrawBackground);
+                 UI_PaddingAround(ItemPadding)
+                 {
+                  UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                   UI_AddBox(S8("Set BPM           "), (UI_BoxFlag_Clip|
+                                                        UI_BoxFlag_DrawDisplayString|
+                                                        UI_BoxFlag_CenterTextVertically));
+                  
+                  UI_Spacer(UI_SizeParent(1.f, 0.f));
+                  
+                  UI_BackgroundColor(Color_Orange)
+                   UI_BorderColor(Color_Black)
+                   App->BPM = UI_Slider(App->BPM, 30.f, 300.f, 1.0f, "%3.0f", true);
+                 }
+                 
+                 UI_BackgroundColor(Color_ButtonBackground)
+                  UI_AddBox(S8("TimeSig"), 
+                            UI_BoxFlag_DrawBorders|
+                            UI_BoxFlag_DrawBackground);
+                 UI_PaddingAround(ItemPadding)
+                 {
+                  UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                   UI_AddBox(S8("Set time signature"), 
+                             UI_BoxFlag_Clip|
+                             UI_BoxFlag_DrawDisplayString|
+                             UI_BoxFlag_CenterTextVertically);
+                  
+                  UI_Spacer(UI_SizeParent(1.f, 0.f));
+                  
+                  UI_BackgroundColor(Color_Orange)
+                   UI_BorderColor(Color_Black)
+                   App->TimeSig = (s32)UI_Slider((f32)App->TimeSig, 1.f, 4.f, 1.f, "%1.0f/4", true);
+                 }
+                 
+                 //- Song 
+                 {
+                  UI_BackgroundColor(Color_Night0) Label(S8("Song"));
+                  
+                  if(UI_ButtonWithToggle(S8("Record"), SelectedVoice->IsRecording, ItemPadding, Color_Red).OneClicked)
+                  {
+                   PushCommand(App, Command_ToggleRecording);
+                  }
+                  
+                  if(UI_ButtonWithToggle(S8("Play"), SelectedVoice->IsPlaying, ItemPadding, Color_Green).OneClicked)
+                  {
+                   PushCommand(App, Command_TogglePlaying);
+                  }
+                  
+                  if(UI_ButtonWithToggle(S8("Auto Scroll"), SelectedVoice->AutoScroll, ItemPadding, Color_Green).OneClicked)
+                  {
+                   PushCommand(App, Command_ToggleAutoScroll);
+                  }
+                  
+                  if(ControlButton(S8("Stop recording/playing"))) PushCommand(App, Command_Stop);
+                  if(ControlButton(S8("Trim recording"))) PushCommand(App, Command_Trim);
+                  if(ControlButton(S8("Reset recording"))) PushCommand(App, Command_Reset);
+                  if(ControlButton(S8("Start from beginning"))) PushCommand(App, Command_PlayFromStart);
+                  if(ControlButton(S8("Start from note"))) PushCommand(App, Command_PlayFromNote);
+                 }
+                }
                 
-                UI_BackgroundColor(Color_Night0)
-                 Label(S8("Song"));
+                //- Notes 
+                {
+                 UI_BackgroundColor(Color_Night0) Label(S8("Notes"));
+                 
+                 if(ControlButton(S8("Round notes' length"))) PushCommand(App, Command_Round);
+                 if(ControlButton(S8("Sync notes to the beat"))) PushCommand(App, Command_Sync);
+                 
+                 if(ControlButton(S8("Guess BPM from notes"))) PushCommand(App, Command_GuessBPM);
+                 if(ControlButton(S8("Delete note"))) PushCommand(App, Command_DeleteSelection);
+                 
+                 {
+                  ui_box *ButtonBox;
+                  UI_BackgroundColor(Color_ButtonBackground)
+                   ButtonBox = UI_AddBox(S8("Length"), 
+                                         UI_BoxFlag_Clip|
+                                         UI_BoxFlag_MouseClickable|
+                                         UI_BoxFlag_DrawHotEffects|
+                                         UI_BoxFlag_DrawActiveEffects|
+                                         UI_BoxFlag_DrawBorders|
+                                         UI_BoxFlag_DrawBackground);
+                  UI_PaddingAround(ItemPadding)
+                  {
+                   ui_box *Box;
+                   UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                    Box = UI_AddBox(S8("SetLength"), UI_BoxFlag_DrawDisplayString|
+                                    UI_BoxFlag_CenterTextVertically);
+                   
+                   f32 Length = SelectedVoice->NoteSetLength;
+                   char *Format = (Length >= 0.f ? 
+                                   "Length %3.0f" :
+                                   "Length 1/%1.0f");
+                   f32 Value = PowF32(2.f, AbsF32(Length));
+                   Box->DisplayString = Str8Fmt(Format, Value);
+                   
+                   UI_Spacer(UI_SizePx(5.f, 1.f));
+                   
+                   UI_BackgroundColor(Color_Orange)
+                    UI_BorderColor(Color_Black)
+                    SelectedVoice->NoteSetLength = UI_Slider(Length, -3, 2, 1.f, 0, true);
+                  }
+                  
+                  if(ButtonBox->Clicked)
+                  {
+                   PushCommand(App, Command_SetLength)->Length = SelectedVoice->NoteSetLength;;
+                  }
+                 }
+                 
+                 if(ControlButton(S8("Clear selection"))) PushCommand(App, Command_ClearSelection);
+                }
+                
+                //- Voice
+                {
+                 UI_BackgroundColor(Color_Night0) Label(S8("Voice"));
+                 
+                 UI_BackgroundColor(Color_ButtonBackground)
+                  UI_AddBox(S8("VoiceSelect"), 
+                            UI_BoxFlag_Clip|
+                            UI_BoxFlag_DrawBorders|
+                            UI_BoxFlag_DrawBackground);
+                 UI_PaddingAround(ItemPadding)
+                 {
+                  u64 Idx = (u64)(SelectedVoice - App->Voices);
+                  f32 NewIdx = 0.f;
+                  
+                  UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+                   UI_AddBox(Str8Fmt("Select voice %2llu/%-2llu###VoiceText", Idx + 1, App->VoiceCount),
+                             UI_BoxFlag_DrawDisplayString|
+                             UI_BoxFlag_CenterTextVertically);
+                  
+                  UI_BorderColor(Color_Black)
+                   NewIdx = UI_Slider((f32)Idx + 1, 1.f, (f32)App->VoiceCount, 1.f, 0, true); 
+                  NewIdx -= 1.f;
+                  
+                  // Set panel voice
+                  if((u64)NewIdx != Idx)
+                  {
+                   voice *NewVoice = App->Voices + (u64)NewIdx;
+                   PushCommand(App, Command_SetPanelVoice)->Voice = NewVoice;
+                  }
+                 }
+                 
+                 if(ControlButton(S8("Delete voice"))) PushCommand(App, Command_DeleteVoice);
+                 if(ControlButton(S8("New voice"))) PushCommand(App, Command_AddVoice);
+                 if(ControlButton(S8("Enqueue playing"))) PushCommand(App, Command_Enqueue);
+                 if(ControlButton(S8("Dequeue playing"))) PushCommand(App, Command_Dequeue);
+                 if(ControlButton(S8("Play all voices"))) PushCommand(App, Command_PlayAllVoices);
+                 if(ControlButton(S8("Stop all voices"))) PushCommand(App, Command_StopAllVoices);
+                 
+                 // Volume control
+                 {                                    
+                  f32 Volume = SelectedVoice->Volume;
+                  Volume = SimpleSlider(S8("Volume"), 
+                                        Str8Fmt("Set volume %3.0f%%", Volume*100.f),
+                                        Volume, 0.f, 1.f, .01f,
+                                        false).Value;
+                  tsf_channel_set_volume(GlobalTSF, SelectedVoice->Channel, Volume);
+                  SelectedVoice->Volume = Volume;
+                 }
+                 
+                }
+                
+                
+                
                }
                
                // Scrollbar
                {
-                f32 ItemCount = (f32)8;
+                f32 ItemCount = (f32)32;
                 f32 TotalElementSize = ItemCount*ItemHeight;
                 TotalElementSize -= ItemHeight;
                 
