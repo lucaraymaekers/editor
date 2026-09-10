@@ -1,5 +1,9 @@
 # Now
 
+Bugs:
+- First tab type button does not work
+- Selecting works even when another box is active/hot
+
 Demo:
 x Select notes in sheet music view 
 - "Enqueue" Command

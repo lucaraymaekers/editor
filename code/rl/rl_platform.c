@@ -211,25 +211,6 @@ GetDisabledColorCondition(b32 Condition)
 }
 
 
-internal b32
-DebugReplayToggleButton(str8 Name, b32 State, b32 DisabledCondition)
-{
- b32 Result = false;
- 
- str8 Label = (!State ? 
-               Str8Fmt(     "%S###%S", Name, Name) : 
-               Str8Fmt("Stop %S###%S", Name, Name));
- v4 BackgroundColor = (DisabledCondition ? 
-                       Color_Disabled :
-                       State ? Color_Red : Color_ButtonBackground);
- 
-#if 0
- Result = UI_ToggleButton(Label, true, BackgroundColor);
-#endif
- 
- return Result;
-}
-
 internal void
 ResetButtons(app_button_state *NewButtons, app_button_state *OldButtons, u64 Count)
 {
@@ -243,19 +224,24 @@ ResetButtons(app_button_state *NewButtons, app_button_state *OldButtons, u64 Cou
  }
 }
 
+global_variable ui_size GlobalPadding; 
+
 internal b32
-DisabledButton(str8 Text, ui_size Padding, b32 Disabled)
+DisabledButton(str8 Text, b32 Disabled)
 {
  b32 Result = Button(.Text = Text, 
                      .Disabled = Disabled, 
-                     .Padding = Padding,
-                     .CenterText = true).Pressed;
+                     .Padding = GlobalPadding,
+                     .CenterText = true,
+                     .ClipSize = true).Pressed;
  Result = (Result && !Disabled);
  return Result;
 }
 
-//~ Entrypoint
+#define ToggleButton(ButtonText, Toggled, ButtonColor, ...) \
+UI_ButtonWithToggle(ButtonText, Toggled, GlobalPadding, ButtonColor, .ClipSize = true, ##__VA_ARGS__).OneClicked
 
+//~ Entrypoint
 C_LINKAGE ENTRY_POINT(EntryPoint)
 {
  if(LaneIndex() == 0)
@@ -612,6 +598,8 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
      f32 ListWidth = 300.f;
      ui_size ItemPadding = UI_SizePx(5.f, 1.f);
      
+     GlobalPadding = ItemPadding;
+     
      b32 RecordingIsEmpty = (Replay.RecordingSize == 0);
      b32 RecordingHasNoSteps = (Replay.StepCount == 0);
      
@@ -632,17 +620,13 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
       UI_SemanticWidth(UI_SizePx(ListWidth, 1.f))
       UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
      {
-      if(UI_ButtonWithToggle(S8("Record"), Replay.IsRecording, ItemPadding, Color_Red).OneClicked)
+      if(ToggleButton(S8("Record"), Replay.IsRecording, Color_Red))
       {
        ReplayToggleRecording(&Replay, &AppMemory, true);
       }
       
-      if(Button(.Text = S8("Looping"),
-                .Disabled = RecordingHasNoSteps,
-                .Padding = ItemPadding, 
-                .HasToggle = true,
-                .ToggleToggled = Replay.IsLooping,
-                .ToggleToggledColor = Color_Yellow).OneClicked)
+      if(ToggleButton(S8("Looping"), Replay.IsLooping, Color_Yellow, 
+                      .Disabled = RecordingHasNoSteps))
       {
        if(!RecordingHasNoSteps)
        {
@@ -650,12 +634,8 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
        }
       }
       
-      if(Button(.Text = S8("Stepping"),
-                .Disabled = RecordingHasNoSteps,
-                .Padding = ItemPadding, 
-                .HasToggle = true,
-                .ToggleToggled = Replay.IsStepping, 
-                .ToggleToggledColor = Color_Yellow).OneClicked)
+      if(ToggleButton(S8("Stepping"), Replay.IsStepping, Color_Yellow,
+                      .Disabled = RecordingHasNoSteps))
       {
        if(!RecordingHasNoSteps && !RecordingIsEmpty)
        {
@@ -733,7 +713,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
       UI_Row()
        UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
       {                            
-       if(DisabledButton(S8("Step"), ItemPadding, RecordingHasNoSteps))
+       if(DisabledButton(S8("Step"), RecordingHasNoSteps))
        {
         ReplayStep(&Replay, &AppMemory);
         if(Replay.StepCount)
@@ -742,7 +722,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         }
        }
        
-       if(DisabledButton(S8("Skip"), ItemPadding, RecordingHasNoSteps))
+       if(DisabledButton(S8("Skip"), RecordingHasNoSteps))
        {
         if(Replay.RecordingSize)
         {
@@ -755,7 +735,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
       UI_Row()
        UI_SemanticWidth(UI_SizeParent(.5f, 1.f))
       {                            
-       if(DisabledButton(S8("Load record"), ItemPadding, RecordingIsEmpty))
+       if(DisabledButton(S8("Load record"), RecordingIsEmpty))
        {
         if(Replay.RecordingSize)
         {
@@ -763,7 +743,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
         }
        }
        
-       if(DisabledButton(S8("Save record"), ItemPadding, false))
+       if(DisabledButton(S8("Save record"), false))
        {
         ReplayToggleRecording(&Replay, &AppMemory, false);
        }
@@ -771,7 +751,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
       
       DebugSpacer();
       
-      if(DisabledButton(S8("Load from disk"), ItemPadding, false))
+      if(DisabledButton(S8("Load from disk"), false))
       {
        char *FileName = PathFromExe(FrameArena, Str8Fmt("replay_%lu.edr", ReplaySlot));
        
@@ -791,7 +771,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
        OS_FreeFileMemory(ReplayBuffer);
       }
       
-      if(DisabledButton(S8("Save to disk"), ItemPadding, RecordingIsEmpty))
+      if(DisabledButton(S8("Save to disk"), RecordingIsEmpty))
       {
        if(Replay.RecordingSize)
        {
@@ -807,7 +787,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
       
       if(GlobalDebuggerIsAttached)
       {
-       if(DisabledButton(S8("DebugBreak"), ItemPadding, false))
+       if(DisabledButton(S8("DebugBreak"), false))
        {
         DebugBreak();
        }
@@ -816,26 +796,12 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
       }
       
       
-      if(UI_ButtonWithToggle(S8("Logging"), Logging, ItemPadding, Color_Red).OneClicked)
-      {
-       Logging = !Logging;
-      }
-      
-      if(UI_ButtonWithToggle(S8("Pause"), Paused, ItemPadding, Color_Red).OneClicked)
-      {
-       Paused = !Paused;
-      }
-      
-      if(UI_ButtonWithToggle(S8("Profiling"), GlobalIsProfiling, ItemPadding, Color_Red).OneClicked)
-      {                                    
-       GlobalIsProfiling = !GlobalIsProfiling;
-      }
+      Logging ^= ToggleButton(S8("Logging"), Logging, Color_Red);
+      Paused  ^= ToggleButton(S8("Pause"),   Paused,  Color_Red);
+      GlobalIsProfiling ^= ToggleButton(S8("Profiling"), GlobalIsProfiling, Color_Red);
       
       DebugSpacer();
-      UI_State->RectDebugMode ^= UI_ButtonWithToggle(S8("UI Rects"), 
-                                                     UI_State->RectDebugMode, 
-                                                     ItemPadding, 
-                                                     Color_Red).OneClicked;
+      UI_State->RectDebugMode ^= ToggleButton(S8("UI Rects"), UI_State->RectDebugMode, Color_Red);
       DebugSpacer();
       
       UI_BackgroundColor(Color_Disabled)

@@ -528,6 +528,11 @@ UI_BeginFrame(font_atlas *Atlas, u64 FrameIdx, app_input *Input)
  UI_State->FrameIdx = FrameIdx;
  UI_State->Input = Input;
  
+ if(!Input->PlatformWindowIsFocused) 
+ {
+  Input->Consumed = true;
+ }
+ 
  /* NOTE(luca): 
 Two arena's are used to solve the following situation.
 
