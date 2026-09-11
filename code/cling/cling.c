@@ -532,13 +532,11 @@ ENTRY_POINT(EntryPoint)
            b32 GenData = MD_NodeHasTag(Node, S8("data"), 0);
            b32 NoPadding = MD_NodeHasTag(Node, S8("no_padding"), 0);
            MD_Node *GenDataTable = MD_TagFromString(Node, S8("data_table"), 0);
-           MD_Node *GenDataStrings = MD_TagFromString(Node, S8("data_strings"), 0);
            MD_Node *GenDataEnum = MD_TagFromString(Node, S8("data_enum"), 0);
            MD_Node *GenDataStruct = MD_TagFromString(Node, S8("data_struct"), 0);
            str8 TypeName = {0};
            
            GenData |= (!MD_NodeIsNil(GenDataTable));
-           GenData |= (!MD_NodeIsNil(GenDataStrings));
            GenData |= (!MD_NodeIsNil(GenDataEnum));
            GenData |= (!MD_NodeIsNil(GenDataStruct));
            
@@ -572,41 +570,12 @@ ENTRY_POINT(EntryPoint)
                                  "{\n", TypeName, TypeName, TypeName)); 
               
              }
-             
-             if(!MD_NodeIsNil(GenDataStrings))
-             {
-              str8 TableName = MD_NodeAtIndex(GenDataStrings->first_child, 0)->string;
-              str8 FieldName = MD_NodeAtIndex(GenDataStrings->first_child, 1)->string;
-              
-              table_hash_node *TableHash = GetTableHashNode(TableName, 0, HashArraySize, TableHashArray);
-              Assert(TableHash);
-              field_hash_node *FieldHash = GetFieldHashNode(FieldName, TableHash->Key, HashArraySize, FieldHashArray);
-              
-              if(FieldHash)
-              {                                                                
-               DeferLoop(S8ListPushFmt("str8 %S[] =\n"  "{\n", Node->string),  S8ListPushFmt("};\n"))
-                for(MD_EachNode(Row, TableHash->Table->first_child))
-               {                                                   
-                MD_Node *Child = MD_NodeAtIndex(Row->first_child, (int)FieldHash->Idx);
-                if(!MD_NodeIsNil(GenDataStrings))
-                {
-                 S8ListPushFmt("{(u8 *)\"%S\", %llu},\n", Child->string, Child->string.Size);
-                }
-               }
-              }
-              else
-              {
-               // TODO(luca): Report error
-               NotImplemented();
-              }
-             }
-             
             }
             
             for(MD_EachNode(Row, Node->first_child))
             {
-             
              MD_Node *ExpandTag = MD_TagFromString(Row, S8("expand"), 0);
+             b32 GenStrings = MD_NodeHasTag(Row, S8("strings"), 0);
              if(!MD_NodeIsNil(ExpandTag))
              {
               str8 TableName = ExpandTag->first_child->string;
@@ -648,7 +617,17 @@ ENTRY_POINT(EntryPoint)
                   {
                    field_hash_node *FieldHash = GetFieldHashNode(FieldName, TableHash->Key, HashArraySize, FieldHashArray);
                    MD_Node *Field = MD_NodeAtIndex(TableRow->first_child, (int)FieldHash->Idx);
-                   OutString = Field->string;
+                   
+                   if(GenStrings)
+                   {
+                    OutString = Str8Fmt("(u8 *)\"%S\", %llu", 
+                                        Field->string, Field->string.Size);
+                   }
+                   else
+                   {
+                    OutString = Field->string;
+                   }
+                   
                   }
                   
                   // Output that string

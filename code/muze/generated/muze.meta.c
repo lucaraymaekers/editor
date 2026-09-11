@@ -9,12 +9,7 @@ PanelKind_Empty,
 };
 typedef enum panel_kind panel_kind;
 
-str8 PanelTypeStrings[] =
-{
-{(u8 *)"Empty", 5},
-{(u8 *)"Sheet", 5},
-{(u8 *)"Roll", 4},
-{(u8 *)"Controls", 8},
-{(u8 *)"Debug", 5},
+str8 PanelTypeStrings[] = {
+{(u8 *)"Empty", 5},{(u8 *)"Sheet", 5},{(u8 *)"Roll", 4},{(u8 *)"Controls", 8},{(u8 *)"Debug", 5},
 };
 

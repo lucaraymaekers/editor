@@ -18,5 +18,10 @@ PanelKind:
 }
 
 
-@data_strings(PanelTypes Name)
-PanelTypeStrings: {}
+
+@data_table("str8")
+PanelTypeStrings: 
+{
+ @expand(PanelTypes) @strings
+  `{$(Name)},`;
+}

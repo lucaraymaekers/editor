@@ -408,6 +408,7 @@ UI_BoxDepthFirstPostOrderBegin(ui_box *Box)
  while(!UI_IsNilBox(Box->First))
  {
   Box = Box->First;
+  Result.PushCount += 1;
  }
  Result.Next = Box;
  

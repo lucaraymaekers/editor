@@ -76,8 +76,12 @@ NotePitches:
 }
 
 
-@data_strings(Notes String) 
-NotePitchStrings: ()
+@data_table("str8")
+NotePitchStrings: 
+{
+ @expand(Notes) @strings
+  `{$(String)},`;
+}
 
 @data
 Win32ColemakMIDIKeySymbols:

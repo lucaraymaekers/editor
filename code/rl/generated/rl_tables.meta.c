@@ -57,20 +57,8 @@ Note_C,
 };
 typedef enum note_pitch note_pitch;
 
-str8 NotePitchStrings[] =
-{
-{(u8 *)"C", 1},
-{(u8 *)"C#", 2},
-{(u8 *)"D", 1},
-{(u8 *)"D#", 2},
-{(u8 *)"E", 1},
-{(u8 *)"F", 1},
-{(u8 *)"F#", 2},
-{(u8 *)"G", 1},
-{(u8 *)"G#", 2},
-{(u8 *)"A", 1},
-{(u8 *)"A#", 2},
-{(u8 *)"B", 1},
+str8 NotePitchStrings[] = {
+{(u8 *)"C", 1},{(u8 *)"C#", 2},{(u8 *)"D", 1},{(u8 *)"D#", 2},{(u8 *)"E", 1},{(u8 *)"F", 1},{(u8 *)"F#", 2},{(u8 *)"G", 1},{(u8 *)"G#", 2},{(u8 *)"A", 1},{(u8 *)"A#", 2},{(u8 *)"B", 1},
 };
 
 #define Win32ColemakMIDIKeySymbolsDef 'A', 'W', 'R', 'F', 'S', 'T', 'G', 'D', 'J', 'H', 'L', 'N', 
