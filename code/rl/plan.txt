@@ -17,6 +17,7 @@
 
 # UI
 - DisplayString should be only string, and UI_Label should be what I need for displaying text fields.
+- Hot && Active set on right click as well
 
 - Assert for adding the exact same box twice (?)
 - Implement properties from https://www.dgtlgrove.com/p/ui-part-3-the-widget-building-language

@@ -28,14 +28,7 @@
 #include "rl/rl_widgets.c"
 
 //- Third party 
-#if OS_WINDOWS
-# define RADDBG_MARKUP_IMPLEMENTATION
-#else
-# define RADDBG_MARKUP_STUBS
-#endif
-#include "lib/raddbg_markup.h"
 
-raddbg_entry_point(EntryPoint);
 
 //~ Recording 
 typedef struct platform_replay platform_replay;
@@ -242,6 +235,7 @@ DisabledButton(str8 Text, b32 Disabled)
 UI_ButtonWithToggle(ButtonText, Toggled, GlobalPadding, ButtonColor, .ClipSize = true, ##__VA_ARGS__).OneClicked
 
 //~ Entrypoint
+raddbg_entry_point(EntryPoint);
 C_LINKAGE ENTRY_POINT(EntryPoint)
 {
  if(LaneIndex() == 0)
@@ -407,6 +401,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
   u64 FrameIdx = 0;
   f64 EndCounter = 0.f;
   f64 LastWorkMSPerFrame = 0.f;
+  b32 CodeLoaded = false;
   while(*Running)
   {
    Scratch(FrameArena)
@@ -416,7 +411,15 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
     OS_ProfileAndPrint("Render Setup");
 #endif
     
-    P_LoadAppCode(FrameArena, &Code, &AppMemory);
+    if(!CodeLoaded)
+    {
+     P_LoadAppCode(FrameArena, &Code, &AppMemory);
+     CodeLoaded = true;
+    }
+#if RL_PLATFORM_INTERNAL
+    CodeLoaded = false;
+#endif
+    
     OS_ProfileAndPrint("Code");
     
     NewInput->PlatformWindowIsFocused = OldInput->PlatformWindowIsFocused;

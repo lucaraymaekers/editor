@@ -1,3 +1,6 @@
+//~ Globals
+global_variable s32 UI_DebugIndentation = 0;
+
 //~ Misc
 internal inline b32
 EqualsWithEpsilon(f32 A, f32 B, f32 Epsilon)
@@ -7,7 +10,7 @@ EqualsWithEpsilon(f32 A, f32 B, f32 Epsilon)
  return Result;
 }
 
-//~ Functions
+//~ Helpers
 internal void
 UI_ConsumeInput(app_input *Input, ui_box *Box)
 {
@@ -26,7 +29,6 @@ internal b32
 UI_IsDebugBox(ui_box *Box)
 {
  b32 Result = Box->Debug;
- 
  return Result;
 }
 
@@ -135,6 +137,51 @@ UI_BoxFromKey(ui_key Key)
  return Result;
 }
 
+//~ Debug
+
+internal char *
+UI_DebugSizeKindString(ui_size_kind Kind)
+{
+ char *Result = (Kind == UI_SizeKind_Null ? "Null" : 
+                 Kind == UI_SizeKind_Pixels ? "Pixels" : 
+                 Kind == UI_SizeKind_TextContent ? "Text" : 
+                 Kind == UI_SizeKind_ParentPct ? "ParentPct" : 
+                 Kind == UI_SizeKind_ChildrenSum ? "Children" : 
+                 "???");
+ return Result;
+}
+
+internal void
+UI_DebugPrintBoxes(ui_box *Box)
+{
+ ui_size *SizeX = Box->SemanticSize + 0;
+ ui_size *SizeY = Box->SemanticSize + 1;
+ 
+ Log("%*s\"%S\":\n"
+     "%*s %s(%.0f,%0.f),%s(%.0f,%.0f)\n"
+     "%*s %.0f,%.0f %.0fx%.0f\n"
+     ,
+     UI_DebugIndentation, "", Box->DisplayString,
+     UI_DebugIndentation, "", 
+     UI_DebugSizeKindString(SizeX->Kind), SizeX->Value, SizeX->Strictness,
+     UI_DebugSizeKindString(SizeY->Kind), SizeY->Value, SizeY->Strictness,
+     UI_DebugIndentation, "", 
+     Box->FixedPos.X, Box->FixedPos.Y, Box->FixedSize.X, Box->FixedSize.Y);
+ 
+ if(!UI_IsNilBox(Box->First))
+ {
+  UI_DebugIndentation += 1;
+  UI_DebugPrintBoxes(Box->First);
+  UI_DebugIndentation -= 1;
+ }
+ 
+ if(!UI_IsNilBox(Box->Next))
+ {
+  UI_DebugPrintBoxes(Box->Next);
+ }
+}
+
+//~ API
 internal ui_box *
 UI_AddBox(str8 String, s32 Flags)
 {
@@ -231,7 +278,14 @@ UI_AddBox(str8 String, s32 Flags)
  Box->First = Box->Last = Box->Next = Box->Prev = Box->Parent = UI_NilBox;
  
  Box->Key = Key;
+ 
+#if RL_PLATFORM_INTERNAL
+ // NOTE(luca): If code is hot reloaded the strings might have been part of the dll, so we should add them to persistent storage.
+ Box->String = PushS8(UI_State->FrameArenaFront, String.Size);
+ MemoryCopy(Box->String.Data, String.Data, String.Size);
+#else
  Box->String = String;
+#endif
  Box->DisplayString = DisplayString;
  Box->Flags = Flags;
  Box->LastTouchedFrameIdx = UI_State->FrameIdx;
@@ -347,28 +401,15 @@ UI_BoxDepthFirstPreOrder(ui_box *Box)
 }
 
 internal ui_box_rec
-UI_BoxDepthFirstPostOrderBegin(ui_box *Root)
+UI_BoxDepthFirstPostOrderBegin(ui_box *Box)
 {
  ui_box_rec Result = {0};
  
- ui_box *Box = Root;
- while(true)
- {    
-  if(!UI_IsNilBox(Box->First))
-  {
-   Box = Box->First;
-   Result.PushCount += 1;
-  }
-  else if(!UI_IsNilBox(Box->Next))
-  {
-   Box = Box->Next;
-  }
-  else
-  {
-   Result.Next = Box;
-   break;
-  }
+ while(!UI_IsNilBox(Box->First))
+ {
+  Box = Box->First;
  }
+ Result.Next = Box;
  
  return Result;
 }
@@ -376,7 +417,7 @@ UI_BoxDepthFirstPostOrderBegin(ui_box *Root)
 internal ui_box_rec
 UI_BoxDepthFirstPostOrder(ui_box *Box)
 {
- ui_box_rec Result = {.Next = UI_NilBox};
+ ui_box_rec Result = {0};
  
  if(!UI_IsNilBox(Box->Next))
  {
@@ -418,16 +459,15 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
   app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
   b32 MouseUp = (!MouseLeft.EndedDown);
   
+  //UI_DebugPrintBoxes(Root);
+  
   for(ui_box *Box = UI_BoxDepthFirstPostOrderBegin(Root).Next;
       !UI_IsNilBox(Box);
       Box = UI_BoxDepthFirstPostOrder(Box).Next)
   {
    if(UI_IsDebugBox(Box))
    {
-    if(Box->Flags & UI_BoxFlag_MouseClickable)
-    {
-     NoOp();
-    }
+    NoOp();
    }
    
    Box->Clicked = false;
@@ -865,6 +905,7 @@ UI_DrawBoxes(ui_box *Box)
    
    if(Box->Flags & UI_BoxFlag_DrawHotEffects && UI_IsHot(Box))
    {
+    //if(UI_IsDebugBox(Box)) DebugBreak();
     
     V3Math Color0->E *= 1.f - .3f*(Box->tHot - Box->tActive);
     V3Math Color1->E *= 1.f - .3f*(Box->tHot - Box->tActive);
@@ -955,50 +996,6 @@ UI_DrawBoxes(ui_box *Box)
  }
  
  
-}
-
-global_variable s32 UI_DebugIndentation = 0;
-
-internal char *
-UI_DebugSizeKindString(ui_size_kind Kind)
-{
- char *Result = (Kind == UI_SizeKind_Null ? "Null" : 
-                 Kind == UI_SizeKind_Pixels ? "Pixels" : 
-                 Kind == UI_SizeKind_TextContent ? "Text" : 
-                 Kind == UI_SizeKind_ParentPct ? "ParentPct" : 
-                 Kind == UI_SizeKind_ChildrenSum ? "Children" : 
-                 "???");
- return Result;
-}
-
-internal void
-UI_DebugPrintBoxes(ui_box *Box)
-{
- ui_size *SizeX = Box->SemanticSize + 0;
- ui_size *SizeY = Box->SemanticSize + 1;
- 
- Log("%*s\"%S\":\n"
-     "%*s %s(%.0f,%0.f),%s(%.0f,%.0f)\n"
-     "%*s %.0f,%.0f %.0fx%.0f\n"
-     ,
-     UI_DebugIndentation, "", Box->DisplayString,
-     UI_DebugIndentation, "", 
-     UI_DebugSizeKindString(SizeX->Kind), SizeX->Value, SizeX->Strictness,
-     UI_DebugSizeKindString(SizeY->Kind), SizeY->Value, SizeY->Strictness,
-     UI_DebugIndentation, "", 
-     Box->FixedPos.X, Box->FixedPos.Y, Box->FixedSize.X, Box->FixedSize.Y);
- 
- if(!UI_IsNilBox(Box->First))
- {
-  UI_DebugIndentation += 1;
-  UI_DebugPrintBoxes(Box->First);
-  UI_DebugIndentation -= 1;
- }
- 
- if(!UI_IsNilBox(Box->Next))
- {
-  UI_DebugPrintBoxes(Box->Next);
- }
 }
 
 //~ Calculations End

@@ -825,15 +825,17 @@ P_PROCESS_MESSAGES()
 
 P_LOAD_APP_CODE()
 {
- // TODO(luca): Make a report about this tricking RAD debugger.
+ // NOTE(luca): If we don't do this, when reloading literals and constants can have wrong adresses, namely strings.  This causes crashes when creating persistent data with those boxes, namely ui_box'es. 
+ // TODO(luca): Make an issue on github on how this makes raddbg hang and you have to forcefully terminate the process, to get your app to close.
  b32 KeepOldDLLsAllocated = false;
  
  HMODULE Library = (HMODULE)Code->LibraryHandle;
  
+ // TODO(luca): Wait on this lock file to be created before loading the dll.
  char *LockFileName = PathFromExe(Arena, S8("lock.tmp"));
  SetStringsScratch(Arena);
  
- str8 TempDLLFileName = Str8Fmt(Stringify(RL_PLATFORM_APP_NAME) "_temp_%llu.dll", (u64)OS_GetWallClock());
+ str8 TempDLLFileName = Str8Fmt(Stringify(RL_PLATFORM_APP_NAME) "_temp%llu.dll", (u64)OS_GetWallClock());
  
  char *TempDLLPath = PathFromExe(Arena, TempDLLFileName);
  

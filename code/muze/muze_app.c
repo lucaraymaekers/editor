@@ -2567,7 +2567,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
              // Type button
              {                                                    
-              ui_box *Type ;
+              ui_box *Type;
               UI_BackgroundColor(Color_ButtonBackground)
                UI_SemanticWidth(UI_SizeText(2.f, 1.f))
                Type = UI_AddBox(S8("PanelType"), (UI_BoxFlag_DrawBackground|
