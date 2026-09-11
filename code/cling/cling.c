@@ -96,55 +96,9 @@ LinuxBuildCommand(str8 Source,
  
  str8_array *Command = Cng_PushStr8Array(256);
  Cng_SetSelectedArray(Command);
- 
- // NOTE(luca): These are almost all c++ flags.
- str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
- // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
- str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wswitch -Wshadow " 
-                              "-Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-pointer-arith "
-                              "-Wno-missing-field-initializers "
-                              "-Wno-initializer-overrides "
-                              "-Wno-unused-parameter "
-                              "-Wno-unused-variable "
-                              "-Wno-unused-function "
-                              "-Wno-unused-command-line-argument ");
- 
- str8 LinkerFlags = S8("-lm");
- str8 Compiler = {0};
- if(0) {}
- else if(Clang) Compiler = S8("clang");
- else if(GCC) Compiler = S8("gcc");
- 
- str8 ModeFlags = (Debug ? 
-                   S8("-g -ggdb -g3 -fno-omit-frame-pointer") :
-                   S8("-O3"));
- 
- str8 ClangCompilerFlags = S8("-fdiagnostics-absolute-paths -ftime-trace -ferror-limit=5000");
- str8 ClangWarningFlags = S8("-Wno-null-dereference -Wno-missing-braces -Wno-vla-cxx-extension -Wno-writable-strings -Wno-missing-designated-field-initializers -Wno-address-of-temporary -Wno-int-to-void-pointer-cast");
- str8 AsanFlags = S8("-fsanitize=undefined,address");
- 
- str8 GCCWarningFlags = S8("-Wno-cast-function-type -Wno-missing-field-initializers -Wno-int-to-pointer-cast");
- 
- Cng_Str8ArrayAppendMultiple(Compiler,
-                             ModeFlags,
-                             CommonCompilerFlags,
-                             CommonWarningFlags);
- if(Clang)
- {
-  Cng_Str8ArrayAppendMultiple(ClangCompilerFlags, ClangWarningFlags);
- }
- if(GCC)
- {
-  Cng_Str8ArrayAppend(GCCWarningFlags);
- }
- if(Asan)
- {
-  Cng_Str8ArrayAppend(AsanFlags);
- }
- 
+ Cng_CommonBuildCommand(GCC, Clang, Debug, Asan);
  Cng_Str8ArrayAppendMultiple(Cng_Str8ArrayJoinFrom(ExtraFlags, ' '),
                              S8("-o"), OutputName,
-                             LinkerFlags,
                              Source);
  
  if(Run)
@@ -474,19 +428,19 @@ ENTRY_POINT(EntryPoint)
         str8 OutFile = Str8Fmt("%S.meta.c", BaseName); 
         
         MD_String8 FilePath = Str8Fmt("%S/%S", Dir->Path, Name);
-        MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FilePath);
+        MD_ParseResult FileParse = MD_ParseWholeFile(GlobalMDArena, FilePath);
         
         // Print metadesk errors
-        for(MD_Message *Message = Parse.errors.first;
+        for(MD_Message *Message = FileParse.errors.first;
             Message != 0;
             Message = Message->next)
         {
          MD_CodeLoc code_loc = MD_CodeLocFromNode(Message->node);
          MD_PrintMessage(stderr, code_loc, Message->kind, Message->string);
         }
-        if(Parse.errors.max_message_kind < MD_MessageKind_Error)
+        if(FileParse.errors.max_message_kind < MD_MessageKind_Error)
         {
-         MD_Node *Root = Parse.node->first_child;
+         MD_Node *Root = FileParse.node->first_child;
          
          PushStream(OutFile);
          
@@ -494,13 +448,13 @@ ENTRY_POINT(EntryPoint)
          {
           //- NOTE(luca): Header "file" tag  
           b32 FilePushed = false;
-          str8 FileName = {0};
+          str8 FilePushedName = {0};
           {
            MD_Node *FileTag = MD_TagFromString(Node, S8("file"), 0);
            if(!MD_NodeIsNil(FileTag))
            {
-            FileName = FileTag->first_child->string;
-            PushStream(FileName);
+            FilePushedName = FileTag->first_child->string;
+            PushStream(FilePushedName);
             FilePushed = true;
            }
           }

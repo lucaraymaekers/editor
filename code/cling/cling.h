@@ -192,7 +192,6 @@ Cng_CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug, b32 Asan)
  
 #if OS_LINUX
  str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
- // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
  str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wswitch -Wshadow " 
                               "-Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-pointer-arith "
                               "-Wno-missing-field-initializers "
@@ -202,7 +201,7 @@ Cng_CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug, b32 Asan)
                               "-Wno-unused-function "
                               "-Wno-unused-command-line-argument ");
  
- str8 LinkerFlags = S8("-lm");
+ str8 LinuxLinkerFlags = S8("-lm");
  
  str8 Compiler = {0};
  if(0) {}
@@ -591,9 +590,9 @@ LinuxErrorWrapperRead(int File, void *Buffer, umm BytesToRead)
 }
 
 internal str8 
-LinuxFindCommandInPATH(umm BufferSize, u8 *Buffer, char *Command, char *Env[])
+LinuxFindCommandInPATH(umm BufferSize, u8 *Buffer, u8 *Command, char *Env[])
 {
- char **VarAt = Env;
+ u8 **VarAt = (u8 **)Env;
  char Search[] = "PATH=";
  int MatchedSearch = false;
  
@@ -620,19 +619,19 @@ LinuxFindCommandInPATH(umm BufferSize, u8 *Buffer, char *Command, char *Env[])
  
  if(MatchedSearch)
  {
-  VarAt--;
-  char *Scan = VarAt[0];
-  while(*Scan && *Scan != '=') Scan++;
-  Scan++;
+  VarAt -= 1;
+  u8 *Scan = (u8 *)VarAt[0];
+  while(*Scan && *Scan != '=') Scan += 1;
+  Scan += 1;
   
   while((*Scan) && (Scan != VarAt[1]))
   {
-   int Len = 0;
+   u64 Len = 0;
    while(Scan[Len] && Scan[Len] != ':' && 
          (Scan+Len != VarAt[1])) Len++;
    
    // Add the PATH entry
-   int At = 0;
+   u64 At = 0;
    for(; At < Len; At += 1)
    {
     Result.Data[At] = Scan[At];
@@ -640,7 +639,7 @@ LinuxFindCommandInPATH(umm BufferSize, u8 *Buffer, char *Command, char *Env[])
    Result.Data[At++] = '/';
    
    // Add the executable name
-   for(char *CharAt = Command;
+   for(u8 *CharAt = Command;
        *CharAt;
        CharAt++)
    {
@@ -717,7 +716,7 @@ Cng_RunCommand(str8 Command)
   {            
    Args[ArgsCount] = (char *)(ArgsBuffer + ArgsBufferIndex);
    ArgsCount += 1;
-   Assert(ArgsCount < ArrayCount(Args));
+   Assert(ArgsCount < (s32)ArrayCount(Args));
   }
   
   // Create null terminated string and copy it into ArgsBuffer
@@ -737,7 +736,7 @@ Cng_RunCommand(str8 Command)
  if(Args[0] && Args[0][0] != '/')
  {
   u8 Buffer[PATH_MAX] = {0};
-  str8 ExePath = LinuxFindCommandInPATH(sizeof(Buffer), Buffer, Args[0], GlobalEnv);
+  str8 ExePath = LinuxFindCommandInPATH(sizeof(Buffer), Buffer, (u8 *)Args[0], GlobalEnv);
   if(ExePath.Size)
   {
    Args[0] = (char *)ExePath.Data;
@@ -814,7 +813,7 @@ Cng_InitAndRebuildSelf(int ArgsCount, char *Args[], char *Env[])
   
   Arguments[0] = (char *)CommandName.Data;
   Arguments[At++] = "norebuild";
-  Assert(At < ArrayCount(Arguments));
+  Assert(At < (s32)ArrayCount(Arguments));
   
   LinuxRunCommand(Arguments);
   

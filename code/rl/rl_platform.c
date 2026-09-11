@@ -239,7 +239,7 @@ DisabledButton(str8 Text, b32 Disabled)
 }
 
 #define ToggleButton(ButtonText, Toggled, ButtonColor, ...) \
-UI_ButtonWithToggle(ButtonText, Toggled, GlobalPadding, ButtonColor, .ClipSize = true, ##__VA_ARGS__).OneClicked
+UI_ButtonWithToggle(S8(ButtonText), Toggled, GlobalPadding, ButtonColor, .ClipSize = true, ##__VA_ARGS__).OneClicked
 
 //~ Entrypoint
 C_LINKAGE ENTRY_POINT(EntryPoint)
@@ -460,7 +460,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
     
     OS_ProfileAndPrint("Messages");
     
-#if 1                
+#if RL_PLATFORM_DEBUG_UI
     for EachTextButton(Key, Id, NewInput)
     {
      b32 Alt = (Key->Modifiers == PlatformKeyModifier_Alt);
@@ -620,12 +620,12 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
       UI_SemanticWidth(UI_SizePx(ListWidth, 1.f))
       UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
      {
-      if(ToggleButton(S8("Record"), Replay.IsRecording, Color_Red))
+      if(ToggleButton("Record", Replay.IsRecording, Color_Red))
       {
        ReplayToggleRecording(&Replay, &AppMemory, true);
       }
       
-      if(ToggleButton(S8("Looping"), Replay.IsLooping, Color_Yellow, 
+      if(ToggleButton("Looping", Replay.IsLooping, Color_Yellow, 
                       .Disabled = RecordingHasNoSteps))
       {
        if(!RecordingHasNoSteps)
@@ -634,7 +634,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
        }
       }
       
-      if(ToggleButton(S8("Stepping"), Replay.IsStepping, Color_Yellow,
+      if(ToggleButton("Stepping", Replay.IsStepping, Color_Yellow,
                       .Disabled = RecordingHasNoSteps))
       {
        if(!RecordingHasNoSteps && !RecordingIsEmpty)
@@ -796,12 +796,12 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
       }
       
       
-      Logging ^= ToggleButton(S8("Logging"), Logging, Color_Red);
-      Paused  ^= ToggleButton(S8("Pause"),   Paused,  Color_Red);
-      GlobalIsProfiling ^= ToggleButton(S8("Profiling"), GlobalIsProfiling, Color_Red);
+      Logging ^= ToggleButton("Logging", Logging, Color_Red);
+      Paused  ^= ToggleButton("Pause",   Paused,  Color_Red);
+      GlobalIsProfiling ^= ToggleButton("Profiling", GlobalIsProfiling, Color_Red);
       
       DebugSpacer();
-      UI_State->RectDebugMode ^= ToggleButton(S8("UI Rects"), UI_State->RectDebugMode, Color_Red);
+      UI_State->RectDebugMode ^= ToggleButton("UI Rects", UI_State->RectDebugMode, Color_Red);
       DebugSpacer();
       
       UI_BackgroundColor(Color_Disabled)
