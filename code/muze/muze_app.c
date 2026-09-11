@@ -1072,6 +1072,16 @@ CustomDrawNoteInput(ui_box *Box)
  
  if(UI_State->InputConsumerBox == Box)
  {
+  ui_box *Hot = UI_BoxFromKey(UI_State->Hot);
+  if(S8Match(Hot->String, S8("Gap"), false))
+  {
+   
+   DebugBreak();
+   if(UI_State->FrameIdx == 3275)
+   {
+    DebugBreak();
+   }
+  }
   Result.LeftDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
   Result.RightDown = Input->Mouse.Buttons[PlatformMouseButton_Right].EndedDown;
   UI_ConsumeInput(Input, Box);

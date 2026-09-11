@@ -14,6 +14,11 @@ EqualsWithEpsilon(f32 A, f32 B, f32 Epsilon)
 internal void
 UI_ConsumeInput(app_input *Input, ui_box *Box)
 {
+ if(UI_State->FrameIdx == 3275)
+ {
+  DebugBreak();
+ }
+ 
  Input->Consumed = true;
  UI_State->InputConsumerBox = Box;
 }
@@ -280,8 +285,8 @@ UI_AddBox(str8 String, s32 Flags)
  Box->Key = Key;
  
 #if RL_PLATFORM_INTERNAL
- // NOTE(luca): If code is hot reloaded the strings might have been part of the dll, so we should add them to persistent storage.
- Box->String = PushS8(UI_State->FrameArenaFront, String.Size);
+ // NOTE(luca): If code is hot reloaded the strings might have been part of the dll, so we should add them to persistent storage.  We push onto the style arena since that won't change the addresses of our boxes.
+ Box->String = PushS8(UI_State->StyleArena, String.Size);
  MemoryCopy(Box->String.Data, String.Data, String.Size);
 #else
  Box->String = String;
@@ -460,16 +465,10 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
   app_button_state MouseLeft = Input->Mouse.Buttons[PlatformMouseButton_Left];
   b32 MouseUp = (!MouseLeft.EndedDown);
   
-  //UI_DebugPrintBoxes(Root);
-  
   for(ui_box *Box = UI_BoxDepthFirstPostOrderBegin(Root).Next;
       !UI_IsNilBox(Box);
       Box = UI_BoxDepthFirstPostOrder(Box).Next)
   {
-   if(UI_IsDebugBox(Box))
-   {
-    NoOp();
-   }
    
    Box->Clicked = false;
    Box->Hovered = false;
@@ -496,12 +495,11 @@ UI_BeginLayout(ui_box *Root, f32 HeightPx)
      {            
       if(Box->Hovered)
       {
-       UI_ConsumeInput(Input, Box);
-       
        if(UI_IsActive(UI_NilBox) ||
           UI_IsActive(Box)) 
        {
         UI_SetHot(Box->Key);
+        UI_ConsumeInput(Input, Box);
        }
       }
       else if(UI_IsHot(Box) && !UI_IsActive(Box))
@@ -559,6 +557,7 @@ UI_InitState(arena *Arena)
  UI_State->StyleArena = PushArena(UI_State->Arena, KB(64), false);
  UI_State->FrameArenaFront = PushArena(UI_State->Arena, MB(16), false);
  UI_State->FrameArenaBack = PushArena(UI_State->Arena, MB(16), false);
+ //UI_State->FrameArenaStrings = PushArena(UI_State->Arena, KB(64), false);
 }
 
 // TODO(luca): This can technically also belong in rl_platform.h
@@ -906,8 +905,6 @@ UI_DrawBoxes(ui_box *Box)
    
    if(Box->Flags & UI_BoxFlag_DrawHotEffects && UI_IsHot(Box))
    {
-    //if(UI_IsDebugBox(Box)) DebugBreak();
-    
     V3Math Color0->E *= 1.f - .3f*(Box->tHot - Box->tActive);
     V3Math Color1->E *= 1.f - .3f*(Box->tHot - Box->tActive);
    }
