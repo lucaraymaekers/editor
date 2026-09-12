@@ -323,7 +323,7 @@ PLATFORM_MIDI_SEND(P_MIDISend)
   SelectedOutOpened = true;
  }
  
- // TODO(luca): More checks
+ // TODO(luca): Sanitize incoming message.
  midi_message MessageEvent = {Message};
  u8 Channel = MessageEvent.U8[0] & 0x0F;
  Assert(Channel < 16);
@@ -403,7 +403,6 @@ P_INIT()
  if(timeBeginPeriod(1) == TIMERR_NOCANDO)
  {
   ErrorLog("Could not set timer resolution to 1ms");
-  // TODO(luca): Change the sleep method.
  }
  
  // MIDI
@@ -797,8 +796,8 @@ P_PROCESS_MESSAGES()
    }
   }
   
-#if 0       
-  // TODO(luca): Does not work when window is minimized.
+#if 0
+  // @resize TODO(luca): Does not work when window is minimized.
   Buffer->Width = GlobalBufferWidth;
   Buffer->Height = GlobalBufferHeight;
 #endif

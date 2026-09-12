@@ -3,31 +3,6 @@
 #if !defined(PLATFORM_H)
 #define PLATFORM_H
 
-// TODO(luca): So that everyone has the same sense of what the "release" version is of the app maybe the sets of flags set in release mode should be defined?
-
-// NOTE(luca): Adds some debug information and interactions that a normal user shouldn't be able to see.
-#if !defined(RL_PLATFORM_INTERNAL)
-# define RL_PLATFORM_INTERNAL 0
-#endif
-
-// NOTE(luca): Toggles the compiliation of the debug GUI in the platform layer, this is separate from RL_PLATFORM_INTERNAL because sometimes we want to test the "release" version of our app with our platform debug tools. 
-#if !defined(RL_PLATFORM_DEBUG_UI)
-# define RL_PLATFORM_DEBUG_UI 0
-#endif
-
-// NOTE(luca): For performance (specifically on my laptop).
-#if !defined(RL_PLATFORM_HOT_RELOAD_SHADERS)
-# define RL_PLATFORM_HOT_RELOAD_SHADERS 0
-#endif
-
-#if !defined(RL_PLATFORM_FORCE_X11)
-# define RL_PLATFORM_FORCE_X11 0
-#endif
-
-#if !defined(RL_PLATFORM_FORCE_SMALL_RESOLUTION)
-# define RL_PLATFORM_FORCE_SMALL_RESOLUTION 0
-#endif
-
 //~ Globals
 global_variable str8 ExeDirPath = {0};
 global_variable arena *FrameArena = 0;

@@ -90,7 +90,6 @@ global_variable s32 NoteBasePitchToStep[] =
 StaticAssert(ArrayCount(NoteBasePitchToStep) == Note_Count, NoteBasePitchToStepSizeCheck);
 
 //~ Helpers
-
 internal f32
 GetWallTime(void)
 {
@@ -104,7 +103,8 @@ InitReadOnlyGlobals(arena *Arena)
  ArenaSetPos(Arena, 0);
  UI_NilBox = PushArray(Arena, ui_box, 1);
  NilPanel = PushArray(Arena, panel, 1);
- NilNote = PushArray(Arena, note, 1);
+ NilNote = PushArray(Arena, rec_note, 1);
+ NilPieceNote = PushArray(Arena, piece_note, 1);
 }
 
 //~ Panels
@@ -575,7 +575,7 @@ PanelRecDepthFirstPreOrder(panel *Panel)
 
 //~ Muze - Notes 
 internal b32
-IsNilNote(note *Note)
+IsNilNote(rec_note *Note)
 {
  b32 Result = (Note == NilNote || Note == 0);
  return Result;
@@ -630,14 +630,14 @@ VoiceAdd(app_state *App)
  return Voice;
 }
 
-internal note *
+internal rec_note *
 NoteAdd(voice *Voice)
 {
- note *Note = NilNote;
+ rec_note *Note = NilNote;
  
  // Push on to the back
  {                
-  Note = PushArrayZero(Voice->Arena, note, 1);
+  Note = PushArrayZero(Voice->Arena, rec_note, 1);
   
   if(IsNilNote(Voice->FirstNote))
   { 
@@ -661,7 +661,7 @@ NoteAdd(voice *Voice)
 //~ Muze - Record and replay
 
 internal void
-PlayNote(app_memory *Memory, app_state *App, voice *Voice, note *Note)
+PlayNote(app_memory *Memory, app_state *App, voice *Voice, rec_note *Note)
 {
  if(App->OutputSynthEnabled)
  {
@@ -711,7 +711,7 @@ PlayNote(app_memory *Memory, app_state *App, voice *Voice, note *Note)
 }
 
 internal b32
-IsNotePlaying(note *Note, voice *Voice)
+IsNotePlaying(rec_note *Note, voice *Voice)
 {
  b32 Result = false;
  
@@ -747,7 +747,7 @@ StopAllPlayingNotes(app_memory *Memory, app_state *App, voice *Voice)
     Note->Duration = ClampTop(Now - Note->Timestamp, NoteMaxDuration);
    }
    
-   note OffNote = *Note;
+   rec_note OffNote = *Note;
    OffNote.Velocity = 0;
    PlayNote(Memory, App, Voice, &OffNote);
   }
@@ -804,7 +804,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
    if(0) {} 
    else if(Type == MIDIEventType_NoteOn && Data2 > 0) 
    {
-    note *Note = NoteAdd(Voice);
+    rec_note *Note = NoteAdd(Voice);
     
     Note->Timestamp = Timestamp;
     Note->Pitch = Data1;
@@ -844,7 +844,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
      
      if(NoteFound)
      {                
-      note OffNote = {0};
+      rec_note OffNote = {0};
       OffNote.Pitch = Pitch;
       if(IsOutputDeviceDifferent)
       {
@@ -868,7 +868,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
      
      if(On)
      {                    
-      note *Note = NoteAdd(Voice);
+      rec_note *Note = NoteAdd(Voice);
       Note->Kind = NoteKind_Pedal;
       Note->Controller = Controller;
       Note->Velocity = Velocity;
@@ -881,7 +881,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
      }
      else
      {
-      note *NoteFound = NilNote;
+      rec_note *NoteFound = NilNote;
       
       // Find matching pedal start
       {
@@ -900,7 +900,7 @@ ProcessMIDINotes(app_memory *Memory, app_state *App, voice *Voice, app_midi_even
       
       // Stop pedal
       {
-       note OffNote = *NoteFound;
+       rec_note OffNote = *NoteFound;
        OffNote.Velocity = 0;
        
        if(IsOutputDeviceDifferent)
@@ -941,16 +941,34 @@ StopRecording(voice *Voice)
  Voice->IsRecording = false;
 }
 
-//~ UI 
+//~ Muze - Piece
 
-typedef struct muze_box_data muze_box_data;
-struct muze_box_data
+internal piece_note *
+PieceNoteAdd(piece *Piece, 
+             piece_note_kind Kind, s32 Octave, note_pitch Pitch, f32 Length)
 {
- ui_box *Box;
- app_state *App;
- voice *Voice;
-};
+ piece_note *Note = NilPieceNote;
+ 
+ if(Piece->NoteCount < Piece->NoteMaxCount)
+ { 
+  Note = Piece->Notes + Piece->NoteCount;
+  
+  Note->Kind = PieceNoteKind_Pitch;
+  Note->Octave = Octave;
+  Note->Pitch = Pitch;
+  Note->Length = Length;
+  
+  Piece->NoteCount += 1;
+ }
+ else
+ {
+  ErrorLog("Note out of bounds.");
+ }
+ 
+ return Note;
+}
 
+//~ UI 
 internal ui_box *
 Label(str8 String)
 {
@@ -1035,7 +1053,7 @@ DebugStringAddArena(app_state *App, str8 Name, arena *Arena)
 
 //~ Custom draw UI elements 
 internal note_node *
-FindSelForNote(note_node *Selection, note *Note)
+FindSelForNote(note_node *Selection, rec_note *Note)
 {
  note_node *Result = 0;
  
@@ -1112,7 +1130,7 @@ CustomDrawNoteInput(ui_box *Box)
 
 internal void
 AddNoteToSelection(custom_draw_note_input_result *NoteInput, v4 Dest,
-                   app_state *App, voice *Voice, note_node *Sel, note *Note)
+                   app_state *App, voice *Voice, note_node *Sel, rec_note *Note)
 {
  // Draw selection rectangle
  if(NoteInput->LeftDown || NoteInput->RightDown)
@@ -1198,7 +1216,6 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
  v2 NoteDim = V2(NoteSize, NoteSize);
  v2 TailDim = V2(2.f, 24.f);
  
- // TODO(luca): Keep consistent with RecordMarkerX
  f32 SheetMusicWidth = (Box->FixedSize.X);
  
  v4 BarColor = ForegroundColor;
@@ -1413,13 +1430,100 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
  }
 }
 
-typedef struct custom_draw__single_line_text_input_params custom_draw__single_line_text_input_params;
-struct custom_draw__single_line_text_input_params
+UI_CUSTOM_DRAW(CustomDrawPiece)
 {
- ui_box *Box;
- str8 Text;
- f32 CursorAnimTime;
-};
+ piece_box_data *Data = (piece_box_data *)CustomDrawData;
+ ui_box *Box = Data->Box;
+ piece *Piece = Data->Piece;
+ 
+ f32 BeatWidth = 64.f;
+ 
+ v2 Pos = V2SubV2(Box->FixedPos, Box->Scroll);
+ 
+ f32 TotalLength = 0; 
+ for EachIndex(Idx, Piece->NoteCount)
+ {
+  piece_note *Note = Piece->Notes + Idx;
+  TotalLength += Note->Length;
+ }
+ 
+ Pos.Y += Box->FixedSize.Y/2.f;
+ 
+ v2 TailDim = V2(2.f, 24.f);
+ v2 NoteDim = V2(11.f, 11.f);
+ 
+ 
+ 
+ for EachIndex(Idx, Piece->NoteCount)
+ {
+  piece_note *Note = Piece->Notes + Idx;
+  
+  v2 NotePos = Pos;
+  v2 TailPos = Pos;
+  {
+   TailPos.X += NoteDim.X - 2.f;
+   TailPos.Y -= TailDim.Y - .5f*NoteDim.Y;
+  }
+  
+  b32 FillHead = (Note->Length < 2.f);;
+  s32 FlagCount = 0;
+  b32 HasStem = true;
+  b32 IsDotted = false;
+  
+  // Find out if is dotted
+  {
+   f32 Exp = -Log2F32(Note->Length);
+   f32 Remainder = ModF32(Exp, 1.f);
+   IsDotted = !(EqualsWithEpsilon(Remainder, 0.f, 0.0001f));
+  }
+  
+  if(HasStem)
+  {  
+   // Draw Flags
+   {
+    FlagCount = (s32)(-Log2F32(Note->Length));
+    v2 FlagPos = TailPos;
+    
+    for EachCount(FlagCount)
+    {
+     v4 Dest = RectFromSize(FlagPos, V2(8.f, TailDim.X));
+     DrawRect(Dest, Color_Yellow, 0.f, 0.f, 0.f);
+     
+     FlagPos.Y += 5.f;
+    }
+   }
+   
+   // Draw Stem
+   {  
+    v4 Dest = RectFromSize(TailPos, TailDim);
+    DrawRect(Dest, Color_Yellow, 0.f, 2.f, .5f);
+   }
+  }
+  
+  // Draw Head
+  {
+   v4 Dest = RectFromSize(NotePos, NoteDim);
+   f32 BorderThickness = (FillHead ? 0.f : 2.f);
+   DrawRect(Dest, Color_Yellow, NoteDim.X/2.f, BorderThickness, .5f);
+  }
+  
+  // Draw dot
+  if(IsDotted)
+  {
+   f32 dSize = 5.f;
+   
+   v2 DotDim = V2SubF32(NoteDim, dSize);
+   v2 DotPos = NotePos;
+   DotPos.X += NoteDim.X + 2.f;
+   DotPos.Y = NotePos.Y + dSize/2.f;
+   v4 Dest = RectFromSize(DotPos, DotDim);
+   f32 BorderThickness = (FillHead ? 0.f : 2.f);
+   DrawRect(Dest, Color_Yellow, DotDim.X/2.f, BorderThickness, .5f);
+  }
+  
+  Pos.X += BeatWidth;
+ }
+}
 
 UI_CUSTOM_DRAW(CustomDrawPianoRoll)
 {
@@ -1507,7 +1611,6 @@ UI_CUSTOM_DRAW(CustomDrawPianoRoll)
    {
     b32 NoteIsRecording = (Note->Duration == 0.f);
     
-    // TODO(luca): Visualize
     u8 Velocity = Note->Velocity;
     
     f32 StartX = RoundF32(Note->Timestamp*Zoom);
@@ -1938,8 +2041,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
     panel *Panel = PushArray(Arena, panel, 1);
     *Panel = (panel){Panel, Panel, Panel, Panel, Panel};
     
-    note *Note = PushArray(Arena, note, 1);
-    *Note = (note){Note, Note};
+    rec_note *RecNote = PushArray(Arena, rec_note, 1);
+    *RecNote = (rec_note){RecNote, RecNote};
+    
+    piece_note *PieceNote = PushArray(Arena, piece_note, 1);
+    MemoryZero(PieceNote);
    }
    
    OS_MarkReadonly(Arena->Base, Arena->Size);
@@ -2015,7 +2121,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
   {
    App->CommandCount = 0;
    
-   
    if(App->SelectedPanel->Kind == PanelKind_Roll ||
       App->SelectedPanel->Kind == PanelKind_Sheet)
    {
@@ -2023,9 +2128,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
    }
    SelectedVoice = App->SelectedVoice;
    
+   // TODO(luca): Remove (for debugging)
+   DoOnce()
+    App->SelectedPanel->Kind = PanelKind_Piece;
   }
-  
-  
   
   OS_ProfileAndPrint("Misc. Init");
  }
@@ -2627,14 +2733,47 @@ UPDATE_AND_RENDER(UpdateAndRender)
            ui_box *Contents;
            UI_BackgroundColor(Color_Night2)
             UI_FillAll()
-            Contents = UI_AddBox(S8("Contents"), UI_BoxFlag_MouseClickable);
+            Contents = UI_AddBox(S8("Contents"), 
+                                 UI_BoxFlag_MouseClickable|
+                                 UI_BoxFlag_DrawBackground);
            
            //- Panel contents 
            {     
             if(0) {}
+            else if(Panel->Kind == PanelKind_Piece)
+            {
+             piece *Piece = Panel->Piece;
+             if(Panel->Piece == 0)
+             {
+              Panel->Piece = PushArrayZero(App->Arena, piece, 1);
+              Piece = Panel->Piece;
+              
+              Piece->BPM = 100;
+              Piece->TimeSigNum = 2;
+              Piece->TimeSigDen = 4;
+              
+              Piece->NoteMaxCount = KB(1);
+              Piece->NoteCount = 0;
+              Piece->Notes = PushArrayZero(App->Arena, piece_note, Piece->NoteMaxCount);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.5f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/4.f);
+             }
+             
+             piece_box_data *Data = PushArray(FrameArena, piece_box_data, 1);
+             Data->Piece = Piece;
+             Data->Box = Contents;
+             
+             Contents->CustomDrawData = Data;
+             Contents->CustomDraw = CustomDrawPiece;
+            }
             else if(Panel->Kind == PanelKind_Controls)
             {
-             Contents->Flags |= UI_BoxFlag_DrawBackground;
              Contents->BackgroundColor = Color_Night2;
              
              ui_box *ConfigList;
@@ -2799,7 +2938,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                   ui_box *ButtonBox;
                   UI_BackgroundColor(Color_ButtonBackground)
                    ButtonBox = UI_AddBox(S8("Length"), 
-                                         UI_BoxFlag_Clip|
                                          UI_BoxFlag_MouseClickable|
                                          UI_BoxFlag_DrawHotEffects|
                                          UI_BoxFlag_DrawActiveEffects|
@@ -2841,7 +2979,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  
                  UI_BackgroundColor(Color_ButtonBackground)
                   UI_AddBox(S8("VoiceSelect"), 
-                            UI_BoxFlag_Clip|
                             UI_BoxFlag_DrawBorders|
                             UI_BoxFlag_DrawBackground);
                  UI_PaddingAround(ItemPadding)
@@ -2910,7 +3047,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
              ui_box *ConfigList;
              
-             Contents->Flags |= UI_BoxFlag_DrawBackground;
              Contents->BackgroundColor = Color_Night2;
              
              UI_Push()
@@ -3437,7 +3573,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
      {
       StopAllPlayingNotes(Memory, App, SelectedVoice);
       
-      note *LastNote = SelectedVoice->LastNote;
+      rec_note *LastNote = SelectedVoice->LastNote;
       
       f32 LastNoteEnd = (LastNote->Timestamp + LastNote->Duration); 
       //- Find the last note's end.
@@ -3453,7 +3589,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
       
       SelectedVoice->RecordLength = LastNoteEnd;
       
-      note *FirstNote = SelectedVoice->FirstNote;
+      rec_note *FirstNote = SelectedVoice->FirstNote;
       //- Find the first note played.
       {
        for EachNote(Note, FirstNote)
@@ -3476,7 +3612,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
        f32 SecondsPerBeat = 1.f/BeatsPerSecond;
        
        f32 BarTime = SecondsPerBeat*(f32)App->TimeSig;
-       // TODO(luca): Intrinsic
        f32 Pad = CeilF32(SelectedVoice->RecordLength/BarTime)*BarTime;
        
        SelectedVoice->RecordLength = Pad;
@@ -3563,8 +3698,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
      
      if(Node && Node->Next)
      {
-      note *Start = Node->Value;
-      note *End = Node->Next->Value;
+      rec_note *Start = Node->Value;
+      rec_note *End = Node->Next->Value;
       
       if(Start->Timestamp > End->Timestamp) Swap(Start, End);
       
@@ -3607,7 +3742,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
      {
       SelectedVoice->NoteCount -= 1;
       
-      note *Note = Node->Value;
+      rec_note *Note = Node->Value;
       
       // Remove the note
       {                                
@@ -3726,7 +3861,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     if(NoteEnd <= Voice->PlayPos &&
        NoteEnd > (Voice->PlayPos - dtForFrame))
     {
-     note OffNote = *Note;
+     rec_note OffNote = *Note;
      OffNote.Velocity = 0;
      PlayNote(Memory, App, Voice, &OffNote);
     }

@@ -1,3 +1,33 @@
+#define Cng_ConfigMatchers \
+if(0) {} \
+  else if(ConfigMatch(Name, S8("Asan"), Value)) Asan = 1; \
+  else if(ConfigMatch(Name, S8("Debug"), Value)) Debug = 1; \
+  else if(ConfigMatch(Name, S8("Clean"), Value)) Clean = 1; \
+  else if(ConfigMatch(Name, S8("Clang"), Value)) Clang = 1; \
+  else if(ConfigMatch(Name, S8("GCC"), Value)) GCC = 1; \
+  else if(ConfigMatch(Name, S8("Slow"), Value)) Slow = 1; \
+  else if(ConfigMatch(Name, S8("Wine"), Value)) Wine = 1; \
+  else if(ConfigMatch(Name, S8("Meta"), Value)) Meta = 1; \
+  else if(ConfigMatch(Name, S8("HaversineProcessor"), Value)) HaversineProcessor = 1; \
+  else if(ConfigMatch(Name, S8("HaversineGenerator"), Value)) HaversineGenerator = 1; \
+  else if(ConfigMatch(Name, S8("Sim86"), Value)) Sim86 = 1; \
+  else if(ConfigMatch(Name, S8("Editor"), Value)) Editor = 1; \
+  else if(ConfigMatch(Name, S8("Muze"), Value)) Muze = 1;
+#define Cng_ConfigBools \
+ \
+  b32 Asan = false; \
+  b32 Debug = false; \
+  b32 Clean = false; \
+  b32 Clang = false; \
+  b32 GCC = false; \
+  b32 Slow = false; \
+  b32 Wine = false; \
+  b32 Meta = false; \
+  b32 HaversineProcessor = false; \
+  b32 HaversineGenerator = false; \
+  b32 Sim86 = false; \
+  b32 Editor = false; \
+  b32 Muze = false;
 
   internal field_hash_node *
   GetFieldHashNode(str8 String, u64 Seed, u64 ArraySize, field_hash_node *Array)
@@ -46,23 +76,17 @@
   
   Hash = Array + Slot;
   
-  for(;Hash != 0;)
+  for(;Hash->Key != 0;)
   {
-   if(Hash->Key == 0)
-   {
-    break;
-   }
-   else if(Hash->Key == Key)
+   if(Hash->Key == Key)
    {
     // NOTE(luca): Collision.
     InvalidPath();
    }
    else
    {
-    if(Hash == 0)
-    {
-     Hash = PushArrayZero(Arena, field_hash_node, 1);
-    }
+    while(Hash->Next && Hash->Key != 0) Hash = Hash->Next;
+    Hash->Next = PushArrayZero(Arena, field_hash_node, 1);
     Hash = Hash->Next;
    }
   }
@@ -83,23 +107,17 @@
   
   Hash = Array + Slot;
   
-  for(;Hash != 0;)
+  for(;Hash->Key != 0;)
   {
-   if(Hash->Key == 0)
-   {
-    break;
-   }
-   else if(Hash->Key == Key)
+   if(Hash->Key == Key)
    {
     // NOTE(luca): Collision.
     InvalidPath();
    }
    else
    {
-    if(Hash == 0)
-    {
-     Hash = PushArrayZero(Arena, table_hash_node, 1);
-    }
+    while(Hash->Next && Hash->Key != 0) Hash = Hash->Next;
+    Hash->Next = PushArrayZero(Arena, table_hash_node, 1);
     Hash = Hash->Next;
    }
   }

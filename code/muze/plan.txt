@@ -1,60 +1,34 @@
 # Now
+- Serialization
+  - Implement Undo for commands.
+  - Serialize state along commands.
 
 Bugs:
-- First tab type button does not work
-- Selecting works even when another box is active/hot
+- bug: ui: Text with 0 horizontal padding will be clipped, fix this.
+- bug: When resizing mouse can glitch between resizing and pointer
+- bug: win32: MIDI devices are not getting selected correctly
 
 Demo:
+- Use showkey
+- Enqueue/Dequeue Commands
 x Select notes in sheet music view 
-- "Enqueue" Command
 x Scrolling in sheet music view
  x With scrollbar
  x Auto scrolling when recording/playing
 x Top control for changing panel kind
-- Use showkey
-- Scissor region for scrollables
-- Proper SDF rendering
-- Fast font rendering
 
-Panels:
-- Picker/Button that can change the panel type
-- Set selected panel by clicking child element of panel automatically.
-  - "Do not consume input"-flag
+# Next
+Improving your playing:
+- When practicing a piece as a whole or a segment, record what was played.
+  Then if you want you can time travel into your recording, and see a log of mistakes.
+  Visualizers for these errors:
+  - Volume/Velocity
+  - Pitch
+  - Rythm & duration
+  - Maybe (un)toggle depending on what you're practicing
+- Diff with the piece your practicing
 
-Slider:
-- Allow dragging, but when released snap.
-
-Lister:
-- optional title
-- close by clicking next to it
-x strong border around box
-x close by pressing escape
-
-Debug:
- Show debug borders from parent to all children
- Stack for adding debug elements.
- Stack for adding flags.
-
-Scrolling:
-- Pressing above or under the thumb should scroll exponentially.
-- Increase & Decrease buttons
-- Rounded corners are draw relative to the height of the rectangle drawn, therefore when clipping the height decreases. Which means that we'll get wrong corners giving a shrinking effect.
-
-Icons (i/o devices):
-- keyboard, midi device, synth
-
-Notes:
-- Use Voice Arena for note nodes, selection being per voice ? ,
-- Use only one DrawNote function in CustomDraws 
-- Start recording from the first note.
-
-rjf jank
-pushbuffer for rendering
-demo debugging features
-Memory alignment struct
-
-- Bug: Text with 0 horizontal padding will be clipped, fix this.
-- Window borders
+Fast font rendering
 
 SDF rects:
  - Color changes with smoothness
@@ -64,16 +38,38 @@ SDF rects:
    - https://discord.com/channels/239737791225790464/1474433782906880044
  - Uniform roundness on borders
 
-Implement Undo for commands.
-- Serialize state along commands.
+Notes:
+x Use Voice Arena for note nodes, selection being per voice ? ,
+x Use only one DrawNote function in CustomDraws 
+- Change recording starting pos
 
-# Next
-- Better scrolling
-  - Autoscroll when playing
-  - Scroll to End/Beginning
-- Serialization
+Text Input:
+- Implement most key binds
+
+Slider:
+- Allow dragging, but when released snap.
+
+Lister:
+- optional title
+- close by clicking next to it
+  - proper pop-up?
+x strong border around box
+x close by pressing escape
+
+Icons (i/o devices):
+- keyboard, midi device, synth
+
+Scrolling:
+- Pressing above or under the thumb should scroll exponentially.
+- Increase & Decrease buttons
+- Mousewheel
+x Rounded corners are drawn relative to the height of the rectangle drawn, therefore when clipping the height decreases. Which means that we'll get wrong corners giving a shrinking effect.
+
 - Sheet music show more than one octave
   - Raise an octave for selection
+
+- Notification for when a MIDI device is connected
+- Fade-out
 
 When assets are not loaded.
 Metaprogram assets path etc.
@@ -83,6 +79,11 @@ Metaprogram command enums etc.
 - File picker
 
 - Sheet music format
+- MIDI converter to our format
+- MSCZ converter to our format
+
+Muze:
+- 
 
 - Elongate & Shrink notes to their nearest musical length
   - When unsure, multiple possibilites make the user decide.
@@ -166,3 +167,17 @@ x UI lister for instruments
 x Redo panels.
 x Make instrument per voice
 x Proper panel resizing
+x panels: Picker/Button that can change the panel type
+x panels: Set selected panel by clicking child element of panel automatically.
+x Scissor region for scrollables
+x Window borders
+x pushbuffer for rendering
+x debug: Show debug borders from parent to all children
+x debug: Stack for adding debug elements.
+x Better scrolling
+  x Autoscroll when playing
+  x Scroll to End/Beginning
+x bug: First tab type button does not work
+x Selecting works even when another box is active/hot
+x bug: Some buttons and sliders in Controls are still getting clipped
+.

@@ -1,16 +1,18 @@
-# cling.h
-
+# Cling
 - Cng_InitAndRebuildSelf should be compressed between OS versions
 - Cng_RunCommand should take a str8_array instead of str8 since that seems to be the more common case
 - Provide a path to execute a command asynchronously and check later if it has completed.
 - linux: Instead of passing argument "norebuild" set an environment variable
 
-# mdesk
+# Meta
+- Parse all functions and generate a superheader with all signatures so declaration order does not matter anymore.
+- Accept @table with just one level of depth 
+
+# Done
 x @file 
 x $(_Idx)
-- @gen_strings better integration with one func
-- When nothing is written to the file, do not create the file.
-- Accept @table with just one level of depth 
+x @gen_strings better integration with one func
+x When nothing is written to the file, do not create the file.
 
 x Proper self-hosting on windows.
 x Cng_PathFromExe should return char *

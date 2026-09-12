@@ -192,7 +192,6 @@ Cng_CommonBuildCommand(b32 GCC, b32 Clang, b32 Debug, b32 Asan)
  
 #if OS_LINUX
  str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
- // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
  str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wswitch -Wshadow " 
                               "-Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-pointer-arith "
                               "-Wno-missing-field-initializers "

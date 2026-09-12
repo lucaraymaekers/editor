@@ -271,11 +271,7 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
   app_sound_buffer SoundBuffer = {0};
   
   // TODO(luca): Detect refresh rate
-#if defined(RL_PLATFORM_FORCE_UPDATE_HZ)
   f32 GameUpdateHz = RL_PLATFORM_FORCE_UPDATE_HZ;
-#else
-  f32 GameUpdateHz = 60.0f;
-#endif
   f32 TargetSecondsPerFrame = 1.0f/GameUpdateHz; 
   
   P_context PlatformContext = P_Init(PermanentArena, &WindowBuffer, &SoundBuffer, Running, Stringify(RL_PLATFORM_WINDOW_NAME), GameUpdateHz);
@@ -984,7 +980,6 @@ C_LINKAGE ENTRY_POINT(EntryPoint)
        
        if(SleepUS > 0)
        {
-        // TODO(luca): Intrinsic
         OS_Sleep((u32)SleepUS);
        }
        else

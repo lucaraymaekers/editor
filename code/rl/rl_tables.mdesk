@@ -41,7 +41,7 @@ ColorsV4:
 
 //~ Notes and keys
 @table(Colemak, Qwerty, Name, String)
-Notes:
+NotesTable:
 {
  { A A  C  "C"  }
  { W W  Cs "C#" }
@@ -61,7 +61,7 @@ Notes:
 MIDIInputKeys:
 {
  `#define APP_MIDIInputKeys `;
- @expand(Notes)
+ @expand(NotesTable)
   `app_button_state Key$(Qwerty); `
 }
 
@@ -69,7 +69,7 @@ MIDIInputKeys:
 @data_enum("note_pitch")
 NotePitches:
 {
- @expand(Notes)
+ @expand(NotesTable)
   ```Note_$(Name),
  ```;
  `Note_Count`;
@@ -79,7 +79,7 @@ NotePitches:
 @data_table("str8")
 NotePitchStrings: 
 {
- @expand(Notes) @strings
+ @expand(NotesTable) @strings
   `{$(String)},`;
 }
 
@@ -87,14 +87,14 @@ NotePitchStrings:
 Win32ColemakMIDIKeySymbols:
 {
  `#define Win32ColemakMIDIKeySymbolsDef `
- @expand(Notes) `'$(Colemak)', `
+ @expand(NotesTable) `'$(Colemak)', `
 }
 
 @data
 Win32QwertyMIDIKeySymbols:
 {
  `#define Win32QwertyMIDIKeySymbolsDef `
- @expand(Notes) `'$(Qwerty)', `
+ @expand(NotesTable) `'$(Qwerty)', `
 }
 
 @to_lower
@@ -102,7 +102,7 @@ Win32QwertyMIDIKeySymbols:
 LinuxColemakMIDIKeySymbols:
 {
  `#define LinuxColemakMIDIKeySymbolsDef `
- @expand(Notes) `XK_$(Colemak),`
+ @expand(NotesTable) `XK_$(Colemak),`
 }
 
 @to_lower
@@ -110,5 +110,5 @@ LinuxColemakMIDIKeySymbols:
 LinuxQwertyMIDIKeySymbols:
 {
  `#define LinuxQwertyMIDIKeySymbolsDef `
- @expand(Notes) `XK_$(Qwerty),`
+ @expand(NotesTable) `XK_$(Qwerty),`
 }

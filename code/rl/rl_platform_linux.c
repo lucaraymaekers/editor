@@ -589,7 +589,7 @@ P_INIT()
    
    u64 WindowAttributeMask = CWBitGravity | CWBackPixel | CWBorderPixel | CWColormap | CWEventMask;
    
-   // TODO(luca): Query information
+   // @resize TODO(luca): Query information
    s32 ScreenWidth = 1920;
    s32 ScreenHeight = 1080;
    
@@ -838,7 +838,8 @@ P_PROCESS_MESSAGES()
    
    while(snd_seq_event_input(MIDISeq, &SeqEvent) >= 0)
    {
-    // TODO(luca): Something more robust
+    // TODO(luca): Something more robuset that can detect new inputs and that doesn't force 
+    // us to select the device before being able to receive input from it.
     b32 Handled = false;
     
     midi_message Message = {0};
@@ -923,7 +924,7 @@ P_PROCESS_MESSAGES()
    b32 FilteredEvent = XFilterEvent(&WindowEvent, 0);
    if(FilteredEvent)
    {
-    // TODO(luca): Logging
+    // TODO(luca): Log the event for debugging?
     // NOTE(luca): I really don't know what I should expect here.
    }
    
@@ -1309,7 +1310,7 @@ P_PROCESS_MESSAGES()
     
     case MotionNotify:
     {
-     // TODO(luca): There can be multiple MotionNotify events per frame.  We should handle this if we want higher precision mouse movement.
+     // TODO(luca): There can be multiple MotionNotify events per frame.  We should handle this if we want higher precision mouse movement.  E.g., drawing lines.
      XMotionEvent *Event = (XMotionEvent *)&WindowEvent;
      
      Input->Mouse.Pos.X = Event->x;
@@ -1319,7 +1320,7 @@ P_PROCESS_MESSAGES()
     case ConfigureNotify:
     {
      XConfigureEvent *Event = (XConfigureEvent *)&WindowEvent;
-     // TODO(luca): Implement smooth resizing.
+     // @resize TODO(luca): Implement smooth resizing.
 #if 0
      Buffer->Width = Event->width;
      Buffer->Height = Event->height;

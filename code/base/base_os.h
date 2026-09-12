@@ -88,6 +88,7 @@ internal void *OS_Allocate(u64 Size);
 internal void  OS_MarkReadonly(void *Memory, u64 Size);
 internal void  OS_BarrierWait(barrier Barrier);
 internal f64   OS_GetWallClock(void);
+// TODO(luca): Implement our own sleep function?
 internal void  OS_Sleep(u32 MicroSeconds);
 internal void  OS_ChangeDirectory(char *Path);
 //- OS agnostic, implemented in `base_os.c`.

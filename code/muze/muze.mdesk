@@ -5,6 +5,7 @@ PanelTypes:
  { Sheet, }
  { Roll, }
  { Controls, }
+ { Piece, }
  { Debug, }
 }
 

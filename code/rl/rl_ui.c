@@ -14,11 +14,6 @@ EqualsWithEpsilon(f32 A, f32 B, f32 Epsilon)
 internal void
 UI_ConsumeInput(app_input *Input, ui_box *Box)
 {
- if(UI_State->FrameIdx == 3275)
- {
-  DebugBreak();
- }
- 
  Input->Consumed = true;
  UI_State->InputConsumerBox = Box;
 }
@@ -560,7 +555,6 @@ UI_InitState(arena *Arena)
  //UI_State->FrameArenaStrings = PushArena(UI_State->Arena, KB(64), false);
 }
 
-// TODO(luca): This can technically also belong in rl_platform.h
 internal void
 UI_BeginFrame(font_atlas *Atlas, u64 FrameIdx, app_input *Input)
 {
@@ -580,7 +574,7 @@ Two arena's are used to solve the following situation.
 
 Widget A
 
-2. We insert B
+2. We insert B (e.g., pop-up)
 
 Widget B
 Widget A

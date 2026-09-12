@@ -217,7 +217,6 @@ global_variable v4 Color_ButtonText = {U32ToV4Arg(0xff000000)};
 #define UI_FillAllStrict() \
 UI_SemanticWidth(UI_SizeFullStrict()) UI_SemanticHeight(UI_SizeFullStrict())
 
-// TODO(luca): Freelist?
 #define StackPush(Arena, t, PushValue, Top) \
 t *Push = PushArrayZero((Arena), t, 1); \
 Push->Value = (PushValue); \

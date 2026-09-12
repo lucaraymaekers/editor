@@ -96,55 +96,10 @@ LinuxBuildCommand(str8 Source,
  
  str8_array *Command = Cng_PushStr8Array(256);
  Cng_SetSelectedArray(Command);
- 
- // NOTE(luca): These are almost all c++ flags.
- str8 CommonCompilerFlags = S8("-fno-threadsafe-statics -nostdinc++ -D_GNU_SOURCE=1 -fno-exceptions -fno-rtti");
- // TODO(luca): nasr should fix his enums, so we can enable -Wswitch again.
- str8 CommonWarningFlags = S8("-Wall -Wextra -Wconversion -Wswitch -Wshadow " 
-                              "-Wno-double-promotion -Wno-unused-but-set-variable -Wno-write-strings -Wno-pointer-arith "
-                              "-Wno-missing-field-initializers "
-                              "-Wno-initializer-overrides "
-                              "-Wno-unused-parameter "
-                              "-Wno-unused-variable "
-                              "-Wno-unused-function "
-                              "-Wno-unused-command-line-argument ");
- 
- str8 LinkerFlags = S8("-lm");
- str8 Compiler = {0};
- if(0) {}
- else if(Clang) Compiler = S8("clang");
- else if(GCC) Compiler = S8("gcc");
- 
- str8 ModeFlags = (Debug ? 
-                   S8("-g -ggdb -g3 -fno-omit-frame-pointer") :
-                   S8("-O3"));
- 
- str8 ClangCompilerFlags = S8("-fdiagnostics-absolute-paths -ftime-trace -ferror-limit=5000");
- str8 ClangWarningFlags = S8("-Wno-null-dereference -Wno-missing-braces -Wno-vla-cxx-extension -Wno-writable-strings -Wno-missing-designated-field-initializers -Wno-address-of-temporary -Wno-int-to-void-pointer-cast");
- str8 AsanFlags = S8("-fsanitize=undefined,address");
- 
- str8 GCCWarningFlags = S8("-Wno-cast-function-type -Wno-missing-field-initializers -Wno-int-to-pointer-cast");
- 
- Cng_Str8ArrayAppendMultiple(Compiler,
-                             ModeFlags,
-                             CommonCompilerFlags,
-                             CommonWarningFlags);
- if(Clang)
- {
-  Cng_Str8ArrayAppendMultiple(ClangCompilerFlags, ClangWarningFlags);
- }
- if(GCC)
- {
-  Cng_Str8ArrayAppend(GCCWarningFlags);
- }
- if(Asan)
- {
-  Cng_Str8ArrayAppend(AsanFlags);
- }
+ Cng_CommonBuildCommand(GCC, Clang, Debug, Asan);
  
  Cng_Str8ArrayAppendMultiple(Cng_Str8ArrayJoinFrom(ExtraFlags, ' '),
                              S8("-o"), OutputName,
-                             LinkerFlags,
                              Source);
  
  if(Run)
@@ -372,27 +327,12 @@ ENTRY_POINT(EntryPoint)
   }
   
   //~ Config 
-  
-  //- Targets 
-  b32 Editor = false;
-  b32 HaversineProcessor = false;
-  b32 HaversineGenerator = false;
-  b32 Sim86 = false;
-  b32 Muze = false;
-  
-  //- Build parameters 
-  b32 Asan = false;
-  b32 Debug = false;
-  b32 Clean = false;
-  b32 Clang = false;
-  b32 GCC = false;
-  b32 Wine = false;
-  b32 Slow = false;
+  Cng_ConfigBools;
   
   MD_String8 FileName = S8("../code/cling/cling.mdesk");
   MD_ParseResult Parse = MD_ParseWholeFile(GlobalMDArena, FileName);
   
-  for (MD_Message *Message = Parse.errors.first; Message; Message = Message->next)
+  for(MD_Message *Message = Parse.errors.first; Message; Message = Message->next)
   {
    MD_CodeLoc Loc = MD_CodeLocFromNode(Message->node);
    MD_PrintMessage(stderr, Loc, Message->kind, Message->string);
@@ -401,34 +341,26 @@ ENTRY_POINT(EntryPoint)
   if(Parse.errors.max_message_kind < MD_MessageKind_Error)
   {
    MD_Node *Root = Parse.node->first_child;
-   for(MD_EachNode(Node, Root))
+   for(MD_EachNode(Table, Root))
    {
-    MD_String8 Name = Node->string;
-    MD_String8 Value = Node->first_child->string;
-    
-    if(0) {}
-    else if(ConfigMatch(Name, S8("Asan"),  Value)) Asan = 1;
-    else if(ConfigMatch(Name, S8("Debug"), Value)) Debug = 1;
-    else if(ConfigMatch(Name, S8("Clean"), Value)) Clean = 1;
-    else if(ConfigMatch(Name, S8("Clang"), Value)) Clang = 1;
-    else if(ConfigMatch(Name, S8("GCC"),   Value)) GCC = 1;
-    else if(ConfigMatch(Name, S8("Slow"),  Value)) Slow = 1;
-    else if(ConfigMatch(Name, S8("Wine"),  Value)) Wine = 1;
-    
-    else if(ConfigMatch(Name, S8("HaversineProcessor"), Value)) HaversineProcessor = 1;
-    else if(ConfigMatch(Name, S8("HaversineGenerator"), Value)) HaversineGenerator = 1;
-    else if(ConfigMatch(Name, S8("Sim86"),  Value)) Sim86 = 1;
-    else if(ConfigMatch(Name, S8("Editor"), Value)) Editor = 1;
-    else if(ConfigMatch(Name, S8("Muze"),   Value)) Muze = 1;
+    if(S8Match(Table->string, S8("Config"), false))
+    {
+     for(MD_EachNode(Node, Table->first_child))
+     {      
+      MD_String8 Name = MD_NodeAtIndex(Node->first_child, 0)->string;
+      MD_String8 Value = MD_NodeAtIndex(Node->first_child, 1)->string;
+      Cng_ConfigMatchers;
+     }
+     break;
+    }
     
    }
   }
   
-  Slow = Slow || Asan;
+  Slow |= Asan;
   
   //~ Metaprogram
-  b32 Metaprogram = true;
-  if(Metaprogram)
+  if(Meta)
   {
    Log("Generating code...\n");
    

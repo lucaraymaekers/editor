@@ -1,8 +1,4 @@
-// TODO(luca): Intrinsics.
-#include <math.h>
-
 //~ Functions
-
 internal void
 RenderBuildAtlas(arena *Arena, 
                  font_atlas *Atlas, 
@@ -118,7 +114,6 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
   stbtt_packedchar *PackedChar = &Atlas->PackedChars[CharIdx];
   stbtt_aligned_quad *Quad = &Atlas->AlignedQuads[CharIdx];
   // TODO(luca): Investigate why floorf needed.
-  // TODO(luca): Intrinsic
   f32 Width = FloorF32(PackedChar->x1 - PackedChar->x0);
   f32 Height = FloorF32(PackedChar->y1 - PackedChar->y0);
   {    

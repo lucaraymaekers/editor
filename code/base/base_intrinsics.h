@@ -55,6 +55,13 @@ FloorF32(f32 X)
  return Result;
 }
 
+internal inline f32 
+ModF32(f32 X, f32 Y)
+{
+ f32 Result = fmodf(X, Y);
+ return Result;
+}
+
 internal inline f32
 AbsF32(f32 X)
 {

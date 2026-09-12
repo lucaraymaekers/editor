@@ -1,18 +1,45 @@
 //~ Build options
-// TODO(luca): Overridable defaults
-Asan: 0
-Debug: 1
-Clean: 0
-Clang: 1
-GCC: 0
-Slow: 0
-Wine: 0
+@table(Name, Default)
+Config:
+{
+ // Build Params
+ { Asan  0 }
+ { Debug 1 }
+ { Clean 0 }
+ { Clang 1 }
+ { GCC   0 }
+ { Slow  0 }
+ { Wine  0 }
+ // Targets
+ { Meta               1 }
+ { HaversineProcessor 0 }
+ { HaversineGenerator 0 }
+ { Sim86              0 }
+ { Editor             0 }
+ { Muze               1 }
+}
 
-HaversineProcessor: 0
-HaversineGenerator: 0
-Sim86: 0
-Editor: 0
-Muze: 1
+//~ Config
+@data
+ConfigMatchers:
+{
+ ```#define Cng_ConfigMatchers \
+```;
+ `if(0) {}`;
+ @expand(Config)
+  ``` \
+  else if(ConfigMatch(Name, S8("$(Name)"), Value)) $(Name) = 1;```
+}
+
+@data
+ConfigBools:
+{
+ ```#define Cng_ConfigBools \
+```;
+ @expand(Config)
+  ``` \
+  b32 $(Name) = false;```
+}
 
 //~ Hash functions
 @table(Type, Name)
@@ -58,23 +85,17 @@ HashGetters:
   
   Hash = Array + Slot;
   
-  for(;Hash != 0;)
+  for(;Hash->Key != 0;)
   {
-   if(Hash->Key == 0)
-   {
-    break;
-   }
-   else if(Hash->Key == Key)
+   if(Hash->Key == Key)
    {
     // NOTE(luca): Collision.
     InvalidPath();
    }
    else
    {
-    if(Hash == 0)
-    {
-     Hash = PushArrayZero(Arena, $(Type), 1);
-    }
+    while(Hash->Next && Hash->Key != 0) Hash = Hash->Next;
+    Hash->Next = PushArrayZero(Arena, $(Type), 1);
     Hash = Hash->Next;
    }
   }

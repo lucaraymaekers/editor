@@ -4,6 +4,7 @@
 
 // NOTE(luca): These are the default values, if you want to override them create
 // a ".base_build.h" file in which you can define the values.
+// When none of these values are overridden that means that we are in release mode.
 
 //- Base 
 #if !defined(BASE_PROFILE)
@@ -14,9 +15,11 @@
 #if !defined(RL_PLATFORM_COLEMAK)
 # define RL_PLATFORM_COLEMAK 0
 #endif
+// NOTE(luca): Adds some debug information and interactions that a normal user shouldn't be able to see.
 #if !defined(RL_PLATFORM_INTERNAL)
 # define RL_PLATFORM_INTERNAL 0
 #endif
+// NOTE(luca): Toggles the compiliation of the debug GUI in the platform layer, this is separate from RL_PLATFORM_INTERNAL because sometimes we want to test the "release" version of our app with our platform debug tools. 
 #if !defined(RL_PLATFORM_DEBUG_UI)
 # define RL_PLATFORM_DEBUG_UI 0
 #endif

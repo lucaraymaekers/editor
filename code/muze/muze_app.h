@@ -6,6 +6,36 @@
 //~ Types
 
 //- Muze 
+typedef enum piece_note_kind piece_note_kind;
+enum piece_note_kind
+{
+ PieceNoteKind_Silence,
+ PieceNoteKind_Pitch,
+};
+
+typedef struct piece_note piece_note;
+struct piece_note
+{
+ piece_note_kind Kind;
+ f32 Length;
+ note_pitch Pitch;
+ s32 Octave;
+};
+
+typedef struct piece piece; 
+struct piece 
+{
+ f32 BPM;
+ f32 TimeSigNum;
+ f32 TimeSigDen;
+ note_pitch Key;
+ b32 Major;
+ 
+ u64 NoteMaxCount;
+ u64 NoteCount;
+ piece_note *Notes;
+};
+
 typedef enum note_kind note_kind;
 enum note_kind
 {
@@ -13,11 +43,11 @@ enum note_kind
  NoteKind_Pedal
 };
 
-typedef struct note note;
-struct note
+typedef struct rec_note rec_note;
+struct rec_note
 {
- note *Next;
- note *Prev;
+ rec_note *Next;
+ rec_note *Prev;
  
  u8 Pitch;
  u8 Velocity;
@@ -32,22 +62,21 @@ raddbg_type_view(note, rows(Note, (s32)Pitch, no_char((note_pitch)(Pitch%Note_Co
 typedef struct note_node note_node;
 struct note_node
 {
- note *Value;
+ rec_note *Value;
  note_node *Next;
  note_node *Prev;
 };
 #define EachNoteNode(Index, First) \
 (note_node *_node = (First); _node; _node = _node->Next) \
-for (note *Index = _node->Value, *_note = _node->Value; _note; _note = 0)
-#define EachNote(Index, First) (note *Index = First; !IsNilNote(Index); Note = Note->Next)
-#define EachNoteBack(Index, Last) (note *Index = Last; !IsNilNote(Index); Note = Note->Prev)
+for (rec_note *Index = _node->Value, *_note = _node->Value; _note; _note = 0)
+#define EachNote(Index, First) (rec_note *Index = First; !IsNilNote(Index); Note = Note->Next)
+#define EachNoteBack(Index, Last) (rec_note *Index = Last; !IsNilNote(Index); Note = Note->Prev)
 
-// TODO(luca): Rename to voice
 typedef struct voice voice;
 struct voice
 {
- note *FirstNote;
- note *LastNote;
+ rec_note *FirstNote;
+ rec_note *LastNote;
  s64 NoteCount;
  
  b32 IsRecording;
@@ -94,6 +123,7 @@ struct panel
  panel_kind Kind;
  voice *Voice;
  v2 Scroll;
+ piece *Piece;
 };
 raddbg_type_view(panel, 
                  rows($,
@@ -199,16 +229,13 @@ typedef struct app_state app_state;
 struct app_state
 {
  //- UI 
- // TODO(luca): This is already in the FontAtlas, so it should go away?
+ arena *UIArena;
  font Font;
  font IconsFont;
  font_atlas FontAtlas;
  arena *FontAtlasArena; 
  f32 PreviousHeightPx;
  f32 HeightPx;
- 
- // TODO(luca): Move to UI state ?
- arena *UIArena;
  
  //- Panels 
  panel *SelectedPanel;
@@ -282,10 +309,35 @@ struct lister_item
  u64 Idx;
 };
 
+//- UI 
+typedef struct piece_box_data piece_box_data;
+struct piece_box_data
+{
+ ui_box *Box;
+ piece *Piece;
+};
+
+typedef struct muze_box_data muze_box_data;
+struct muze_box_data
+{
+ ui_box *Box;
+ app_state *App;
+ voice *Voice;
+};
+
+typedef struct custom_draw__single_line_text_input_params custom_draw__single_line_text_input_params;
+struct custom_draw__single_line_text_input_params
+{
+ ui_box *Box;
+ str8 Text;
+ f32 CursorAnimTime;
+};
+
 //~ Globals
 #define DefaultHeightPx 20
 
-global_variable note *NilNote;
+global_variable rec_note *NilNote;
+global_variable piece_note *NilPieceNote;
 global_variable f32 dtForFrame;
 
 #endif //MUZE_APP_H
