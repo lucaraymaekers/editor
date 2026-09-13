@@ -7,6 +7,8 @@ Bugs:
 - bug: ui: Text with 0 horizontal padding will be clipped, fix this.
 - bug: When resizing mouse can glitch between resizing and pointer
 - bug: win32: MIDI devices are not getting selected correctly
+- bug: win32?: When clicking it only focuses the window and does not click the elements
+       maybe there is a frame of delay?
 
 Demo:
 - Use showkey
@@ -16,6 +18,9 @@ x Scrolling in sheet music view
  x With scrollbar
  x Auto scrolling when recording/playing
 x Top control for changing panel kind
+
+Piece:
+- Visualizer for which note is getting played and is about to get played.
 
 # Next
 Improving your playing:

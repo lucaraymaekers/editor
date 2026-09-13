@@ -578,7 +578,7 @@ ENTRY_POINT(EntryPoint)
                   
                   if(OutString.Size == 0)
                   {
-                   Log("ERROR: field \"%s\" not found", FieldName);
+                   Log("ERROR: field \"%S\" not found\n", FieldName);
                   }
                   
                  }

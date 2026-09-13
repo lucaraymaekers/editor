@@ -34,6 +34,11 @@ struct piece
  u64 NoteMaxCount;
  u64 NoteCount;
  piece_note *Notes;
+ 
+ b32 IsPlaying;
+ f32 PlayPos;
+ f32 PlayBPM;
+ b32 Metronome;
 };
 
 typedef enum note_kind note_kind;

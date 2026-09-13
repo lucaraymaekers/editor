@@ -40,29 +40,42 @@ ColorsV4:
 }
 
 //~ Notes and keys
-@table(Colemak, Qwerty, Name, String)
+@table(Colemak, Qwerty, Name, Base, String, Step)
 NotesTable:
 {
- { A A  C  "C"  }
- { W W  Cs "C#" }
- { R S  D  "D"  }
- { F E  Ds "D#" }
- { S D  E  "E"  }
- { T F  F  "F"  }
- { G T  Fs "F#" }
- { D G  G  "G"  }
- { J Y  Gs "G#" }
- { H H  A  "A"  }
- { L U  As "A#" }
- { N J  B  "B"  }
+ { A A  C  C "C"  0 }
+ { W W  Cs C "C#" 0 }
+ { R S  D  D "D"  1 }
+ { F E  Ds D "D#" 1 }
+ { S D  E  E "E"  2 }
+ { T F  F  F "F"  3 }
+ { G T  Fs F "F#" 3 }
+ { D G  G  G "G"  4 }
+ { J Y  Gs G "G#" 4 }
+ { H H  A  A "A"  5 }
+ { L U  As A "A#" 5 }
+ { N J  B  B "B"  6 }
 }
 
-@data
-MIDIInputKeys:
+@table(Name)
+NotesBase:
 {
- `#define APP_MIDIInputKeys `;
- @expand(NotesTable)
-  `app_button_state Key$(Qwerty); `
+ { C }
+ { D }
+ { E }
+ { F }
+ { G }
+ { A }
+ { B }
+}
+
+@data_enum("base_note")
+BaseNotePitches:
+{
+ @expand(NotesBase)
+  ```BaseNote_$(Name),
+ ```;
+ `BaseNote_Count`;
 }
 
 
@@ -75,6 +88,20 @@ NotePitches:
  `Note_Count`;
 }
 
+@data_table("s32")
+NoteStepFromPitch:
+{
+ @expand(NotesTable)
+  `$(Step),`;
+}
+
+@data
+MIDIInputKeys:
+{
+ `#define APP_MIDIInputKeys `;
+ @expand(NotesTable)
+  `app_button_state Key$(Qwerty); `
+}
 
 @data_table("str8")
 NotePitchStrings: 

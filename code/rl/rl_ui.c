@@ -862,12 +862,13 @@ UI_DrawBoxes(ui_box *Box)
   NoOp();
  }
  
+ if(Box->Flags & UI_BoxFlag_Scroll)
+ {
+  RenderPushClip(Dest);
+ }
+ 
  if(RectValid(Dest))
  {
-  if(Box->Flags & UI_BoxFlag_Scroll)
-  {
-   RenderPushClip(Dest);
-  }
   
   if(Box->Flags & UI_BoxFlag_DrawShadow)
   {
@@ -986,8 +987,6 @@ UI_DrawBoxes(ui_box *Box)
  {
   UI_DrawBoxes(Box->Next);
  }
- 
- 
 }
 
 //~ Calculations End

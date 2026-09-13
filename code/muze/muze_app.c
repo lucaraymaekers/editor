@@ -39,55 +39,11 @@ global_variable panel *NilPanel;
 global_variable drag_data *DragData;
 global_variable ui_size GlobalItemPadding;
 
-StaticAssert(ArrayCount(NotePitchStrings) == Note_Count, NotePitchStringsSizeCheck);
-
-global_variable note_pitch NoteBasePitches[] =
-{
- Note_C,
- Note_C,
- Note_D,
- Note_D,
- Note_E,
- Note_F,
- Note_F,
- Note_G,
- Note_G,
- Note_A,
- Note_A,
- Note_B
-};
-StaticAssert(ArrayCount(NoteBasePitches) == Note_Count, NoteBasePitchesSizeCheck);
-
 global_variable b32 NotePianoColors[] =
 {
  true, false, true, false, true, true, false, true, false, true, false, true 
 };
 StaticAssert(ArrayCount(NotePianoColors) == Note_Count, NotePianoColorsSizeCheck);
-
-typedef enum base_note base_note;
-enum base_note 
-{
- BaseNote_A,
- BaseNote_B,
- BaseNote_C,
- BaseNote_D,
- BaseNote_E,
- BaseNote_F,
- BaseNote_G,
- BaseNote_Count
-};
-
-global_variable s32 NoteBasePitchToStep[] =
-{
- 0, 0,
- 1, 1,
- 2,
- 3, 3,
- 4, 4,
- 5, 5,
- 6
-};
-StaticAssert(ArrayCount(NoteBasePitchToStep) == Note_Count, NoteBasePitchToStepSizeCheck);
 
 //~ Helpers
 internal f32
@@ -1307,9 +1263,9 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
    f32 NoteX = (NoteStart*BPS/(f32)App->TimeSig)*WholeBarWidth;
    
    s32 FirstNoteOctave = 6;
-   s32 FirstNoteSteps = NoteBasePitchToStep[Note_F];
+   s32 FirstNoteSteps = NoteStepFromPitch[Note_F];
    
-   s32 NoteSteps = NoteBasePitchToStep[PitchClass];
+   s32 NoteSteps = NoteStepFromPitch[PitchClass];
    s32 NoteOctave = Note->Pitch/Note_Count;
    
    s32 Steps = ((FirstNoteOctave*BaseNote_Count + FirstNoteSteps) - (NoteOctave*BaseNote_Count + NoteSteps));
@@ -1436,92 +1392,164 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
  ui_box *Box = Data->Box;
  piece *Piece = Data->Piece;
  
+ f32 BarPadding = 16.f;
  f32 BeatWidth = 64.f;
+ f32 WholeBarWidth = BeatWidth*Piece->TimeSigNum + 2.f*BarPadding;
+ 
+ f32 NoteSize = 11.f;
+ v2 TailDim = V2(2.f, 24.f);
+ v2 NoteDim = V2(NoteSize, NoteSize);
+ 
+ s32 StaffLineCount = 5;
+ f32 StaffLineWidth = 2.f;
+ f32 StaffHeight = (f32)(StaffLineCount-1)*NoteSize + StaffLineWidth;
  
  v2 Pos = V2SubV2(Box->FixedPos, Box->Scroll);
+ Pos.Y += Box->FixedSize.Y/2.f - StaffHeight/2.f;
+ Pos.X += BarPadding;
  
- f32 TotalLength = 0; 
- for EachIndex(Idx, Piece->NoteCount)
- {
-  piece_note *Note = Piece->Notes + Idx;
-  TotalLength += Note->Length;
+ // Draw staff
+ {    
+  f32 BarCount = 0.f;
+  f32 TotalLength = 0.f;
+  for EachIndex(Idx, Piece->NoteCount)
+  {
+   piece_note *Note = Piece->Notes + Idx;
+   TotalLength += Note->Length;
+  }
+  BarCount = CeilF32(TotalLength/Piece->TimeSigNum);
+  if(BarCount == 0.f) BarCount = 1.f;
+  
+  v2 StaffPos = Pos;
+  {   
+   for EachIndex(Idx, 5)
+   {
+    f32 X = StaffPos.X;
+    f32 Y = StaffPos.Y + (f32)Idx*(NoteSize);
+    
+    f32 Width = BarCount*WholeBarWidth;
+    
+    v4 Dest = RectFromSize(V2(X, Y), V2(Width, StaffLineWidth));
+    Dest = RectIntersect(Dest, Box->Rec);
+    
+    DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
+   }
+  }
+  
+  // Draw bars
+  {    
+   for EachIndex(Idx, (s32)BarCount + 1)
+   {
+    v2 BarPos = V2(Pos.X + ((f32)(Idx) * WholeBarWidth),
+                   StaffPos.Y);
+    
+    v4 Dest = RectFromSize(BarPos, V2(2.f, StaffHeight));
+    DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
+    
+    if(Idx == (s32)BarCount)
+    {
+     BarPos.X -= 4.f;
+     Dest = RectFromSize(BarPos, V2(2.f, StaffHeight));
+     DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
+    }
+   }
+  }
+  
  }
  
- Pos.Y += Box->FixedSize.Y/2.f;
- 
- v2 TailDim = V2(2.f, 24.f);
- v2 NoteDim = V2(11.f, 11.f);
- 
- 
- 
- for EachIndex(Idx, Piece->NoteCount)
- {
-  piece_note *Note = Piece->Notes + Idx;
-  
+ // Draw notes
+ { 
   v2 NotePos = Pos;
-  v2 TailPos = Pos;
+  NotePos.X += BarPadding;
+  f32 LengthSum = 0.f;
+  
+  for EachIndex(Idx, Piece->NoteCount)
   {
-   TailPos.X += NoteDim.X - 2.f;
-   TailPos.Y -= TailDim.Y - .5f*NoteDim.Y;
-  }
-  
-  b32 FillHead = (Note->Length < 2.f);;
-  s32 FlagCount = 0;
-  b32 HasStem = true;
-  b32 IsDotted = false;
-  
-  // Find out if is dotted
-  {
-   f32 Exp = -Log2F32(Note->Length);
-   f32 Remainder = ModF32(Exp, 1.f);
-   IsDotted = !(EqualsWithEpsilon(Remainder, 0.f, 0.0001f));
-  }
-  
-  if(HasStem)
-  {  
-   // Draw Flags
+   piece_note *Note = Piece->Notes + Idx;
+   
+   // Find Y position depending on pitch
    {
-    FlagCount = (s32)(-Log2F32(Note->Length));
-    v2 FlagPos = TailPos;
+    // Sets the notes at the octave's C
+    f32 MinStepCount = 9.f;
+    f32 StepSize = NoteSize/2.f;
+    f32 StepCount = MinStepCount - NoteStepFromPitch[Note->Pitch];
+    NotePos.Y = Pos.Y + StaffLineWidth/2.f + StepSize*StepCount;
+    Note->Pitch;
+   }
+   
+   if(Note->Kind == PieceNoteKind_Pitch)
+   {
+    b32 FillHead = (Note->Length < 2.f);;
+    s32 FlagCount = 0;
+    b32 HasStem = true;
+    b32 IsDotted = false;
     
-    for EachCount(FlagCount)
+    // Find out if is dotted
     {
-     v4 Dest = RectFromSize(FlagPos, V2(8.f, TailDim.X));
-     DrawRect(Dest, Color_Yellow, 0.f, 0.f, 0.f);
+     f32 Exp = -Log2F32(Note->Length);
+     f32 Remainder = ModF32(Exp, 1.f);
+     IsDotted = !(EqualsWithEpsilon(Remainder, 0.f, 0.0001f));
+    }
+    
+    if(HasStem)
+    {
+     v2 TailPos = NotePos;
+     {
+      TailPos.X += NoteDim.X - 2.f;
+      TailPos.Y -= TailDim.Y - .5f*NoteDim.Y;
+     }
      
-     FlagPos.Y += 5.f;
+     // Draw Flags
+     {
+      FlagCount = (s32)(-Log2F32(Note->Length));
+      v2 FlagPos = TailPos;
+      
+      for EachCount(FlagCount)
+      {
+       v4 Dest = RectFromSize(FlagPos, V2(8.f, TailDim.X));
+       DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f);
+       
+       FlagPos.Y += 5.f;
+      }
+     }
+     
+     // Draw Stem
+     {  
+      v4 Dest = RectFromSize(TailPos, TailDim);
+      DrawRect(Dest, Box->TextColor, 0.f, 2.f, .5f);
+     }
+    }
+    
+    // Draw Head
+    {
+     v4 Dest = RectFromSize(NotePos, NoteDim);
+     f32 BorderThickness = (FillHead ? 0.f : 2.f);
+     DrawRect(Dest, Box->TextColor, NoteDim.X/2.f, BorderThickness, .5f);
+    }
+    
+    // Draw dot
+    if(IsDotted)
+    {
+     f32 dSize = 5.f;
+     
+     v2 DotDim = V2SubF32(NoteDim, dSize);
+     v2 DotPos = NotePos;
+     DotPos.X += NoteDim.X + 2.f;
+     DotPos.Y = NotePos.Y + dSize/2.f;
+     v4 Dest = RectFromSize(DotPos, DotDim);
+     f32 BorderThickness = (FillHead ? 0.f : 2.f);
+     DrawRect(Dest, Box->TextColor, DotDim.X/2.f, BorderThickness, .5f);
     }
    }
    
-   // Draw Stem
-   {  
-    v4 Dest = RectFromSize(TailPos, TailDim);
-    DrawRect(Dest, Color_Yellow, 0.f, 2.f, .5f);
+   NotePos.X += BeatWidth*Note->Length;
+   LengthSum += Note->Length;
+   if(LengthSum >= Piece->TimeSigNum)
+   {
+    NotePos.X += 2.f*BarPadding;
+    LengthSum -= Piece->TimeSigNum;
    }
   }
-  
-  // Draw Head
-  {
-   v4 Dest = RectFromSize(NotePos, NoteDim);
-   f32 BorderThickness = (FillHead ? 0.f : 2.f);
-   DrawRect(Dest, Color_Yellow, NoteDim.X/2.f, BorderThickness, .5f);
-  }
-  
-  // Draw dot
-  if(IsDotted)
-  {
-   f32 dSize = 5.f;
-   
-   v2 DotDim = V2SubF32(NoteDim, dSize);
-   v2 DotPos = NotePos;
-   DotPos.X += NoteDim.X + 2.f;
-   DotPos.Y = NotePos.Y + dSize/2.f;
-   v4 Dest = RectFromSize(DotPos, DotDim);
-   f32 BorderThickness = (FillHead ? 0.f : 2.f);
-   DrawRect(Dest, Color_Yellow, DotDim.X/2.f, BorderThickness, .5f);
-  }
-  
-  Pos.X += BeatWidth;
  }
 }
 
@@ -2743,8 +2771,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
             else if(Panel->Kind == PanelKind_Piece)
             {
              piece *Piece = Panel->Piece;
-             if(Panel->Piece == 0)
+             local_persist b32 DoItOnce = false;
+             if(Panel->Piece == 0 || !DoItOnce)
              {
+              DoItOnce = true;
               Panel->Piece = PushArrayZero(App->Arena, piece, 1);
               Piece = Panel->Piece;
               
@@ -2760,17 +2790,52 @@ UPDATE_AND_RENDER(UpdateAndRender)
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/2.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/4.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/4.f);
+              
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.5f/1.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/4.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/4.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_A, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/1.f);
              }
              
-             piece_box_data *Data = PushArray(FrameArena, piece_box_data, 1);
-             Data->Piece = Piece;
-             Data->Box = Contents;
+             ui_box *PieceBox;
              
-             Contents->CustomDrawData = Data;
-             Contents->CustomDraw = CustomDrawPiece;
+             
+             UI_FillAll()
+              UI_Push()
+              UI_Column()
+             {         
+              UI_SemanticHeight(UI_SizePx(ItemHeight,  1.f))
+               UI_Row()
+               UI_SemanticWidth(UI_SizePx(200.f, 0))
+              {               
+               Piece->IsPlaying ^= UI_ButtonWithToggle(S8("Play"), Piece->IsPlaying, GlobalItemPadding, Color_Green).OneClicked;
+               UI_FillWidth()
+                UI_BackgroundColor(Color_ButtonBackground)
+                UI_AddBox(S8("Top"), 
+                          UI_BoxFlag_DrawBackground|
+                          UI_BoxFlag_DrawBorders);
+              }
+              UI_FillAll()
+               PieceBox = UI_AddBox(S8("Piece"), 
+                                    UI_BoxFlag_Scroll|
+                                    UI_BoxFlag_MouseClickable);
+              
+              piece_box_data *Data = PushArray(FrameArena, piece_box_data, 1);
+              Data->Piece = Piece;
+              Data->Box = PieceBox;
+              
+              PieceBox->CustomDrawData = Data;
+              PieceBox->CustomDraw = CustomDrawPiece;
+             }
+             
             }
             else if(Panel->Kind == PanelKind_Controls)
             {
