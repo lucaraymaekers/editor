@@ -1458,7 +1458,8 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
  }
  
  // Draw notes
- { 
+ {
+  
   v2 NotePos = Pos;
   NotePos.X += BarPadding;
   f32 LengthSum = 0.f;
@@ -1466,6 +1467,9 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
   for EachIndex(Idx, Piece->NoteCount)
   {
    piece_note *Note = Piece->Notes + Idx;
+   
+   v4 NoteColor = Box->TextColor;
+   if(Note->Playing) NoteColor = Color_Yellow;
    
    // Find Y position depending on pitch
    {
@@ -1507,7 +1511,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
       for EachCount(FlagCount)
       {
        v4 Dest = RectFromSize(FlagPos, V2(8.f, TailDim.X));
-       DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f);
+       DrawRect(Dest, NoteColor, 0.f, 0.f, 0.f);
        
        FlagPos.Y += 5.f;
       }
@@ -1516,7 +1520,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
      // Draw Stem
      {  
       v4 Dest = RectFromSize(TailPos, TailDim);
-      DrawRect(Dest, Box->TextColor, 0.f, 2.f, .5f);
+      DrawRect(Dest, NoteColor, 0.f, 2.f, .5f);
      }
     }
     
@@ -1524,7 +1528,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
     {
      v4 Dest = RectFromSize(NotePos, NoteDim);
      f32 BorderThickness = (FillHead ? 0.f : 2.f);
-     DrawRect(Dest, Box->TextColor, NoteDim.X/2.f, BorderThickness, .5f);
+     DrawRect(Dest, NoteColor, NoteDim.X/2.f, BorderThickness, .5f);
     }
     
     // Draw dot
@@ -1538,7 +1542,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
      DotPos.Y = NotePos.Y + dSize/2.f;
      v4 Dest = RectFromSize(DotPos, DotDim);
      f32 BorderThickness = (FillHead ? 0.f : 2.f);
-     DrawRect(Dest, Box->TextColor, DotDim.X/2.f, BorderThickness, .5f);
+     DrawRect(Dest, NoteColor, DotDim.X/2.f, BorderThickness, .5f);
     }
    }
    
@@ -1814,6 +1818,9 @@ Button(.Text = ButtonText, .CenterText = true, .Padding = GlobalItemPadding, ##_
 
 #define ControlButton(ButtonText, ...) \
 Button(.Text = ButtonText, .Padding = GlobalItemPadding, ##__VA_ARGS__).Pressed
+
+#define SimpleToggleButton(ButtonText, Toggled, Color) \
+Button(.Text = ButtonText, .Padding = GlobalItemPadding, .HasToggle = true, .ToggleToggled = Toggled, Color_Green, .ToggleToggledColor = Color).OneClicked
 
 typedef struct simple_slider_result simple_slider_result;
 struct simple_slider_result
@@ -2770,8 +2777,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
             if(0) {}
             else if(Panel->Kind == PanelKind_Piece)
             {
+             b32 Loop = true;
              piece *Piece = Panel->Piece;
-             local_persist b32 DoItOnce = false;
+             local_persist b32 DoItOnce = true;
              if(Panel->Piece == 0 || !DoItOnce)
              {
               DoItOnce = true;
@@ -2803,6 +2811,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_A, 1.f/2.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/1.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 4, 0, 4.f/1.f);
+              
+              Piece->PlayBPM = 80; // Andante
              }
              
              ui_box *PieceBox;
@@ -2814,9 +2826,22 @@ UPDATE_AND_RENDER(UpdateAndRender)
              {         
               UI_SemanticHeight(UI_SizePx(ItemHeight,  1.f))
                UI_Row()
-               UI_SemanticWidth(UI_SizePx(200.f, 0))
+               UI_SemanticWidth(UI_SizePx(150.f, 1))
               {               
-               Piece->IsPlaying ^= UI_ButtonWithToggle(S8("Play"), Piece->IsPlaying, GlobalItemPadding, Color_Green).OneClicked;
+               if(SimpleToggleButton(S8("Play"), Piece->IsPlaying, Color_Green))
+               {
+                Piece->IsPlaying ^= true;
+                if(Piece->IsPlaying) Piece->PlayPos = 0.f;
+               }
+               
+               Piece->Metronome ^= 
+                SimpleToggleButton(S8("Metronome"), Piece->Metronome, Color_Magenta);
+               
+               UI_SemanticWidth(UI_SizePx(200.f, 1))
+                Piece->PlayBPM = SimpleSlider(S8("PieceBPM"), 
+                                              Str8Fmt("BPM %3.0f", Piece->PlayBPM), 
+                                              Piece->PlayBPM, 0.f, 300.f, 1.f, false).Value;
+               
                UI_FillWidth()
                 UI_BackgroundColor(Color_ButtonBackground)
                 UI_AddBox(S8("Top"), 
@@ -2834,6 +2859,64 @@ UPDATE_AND_RENDER(UpdateAndRender)
               
               PieceBox->CustomDrawData = Data;
               PieceBox->CustomDraw = CustomDrawPiece;
+              
+              f32 LengthSum = 0.f;
+              
+              f32 PlayPosLengthBefore = (Piece->PlayPos - dtForFrame)*Piece->PlayBPM/60.f;
+              f32 PlayPosLength = Piece->PlayPos*Piece->PlayBPM/60.f;
+              b32 PieceEnded = false;
+              
+              for EachIndex(Idx, Piece->NoteCount)
+              {
+               piece_note *Note = Piece->Notes + Idx;
+               
+               if(Note->Kind == PieceNoteKind_Pitch)
+               {
+                f32 Start = LengthSum;
+                f32 End = Start + Note->Length;
+                
+                if(Start > PlayPosLengthBefore &&
+                   Start <= PlayPosLength)
+                {
+                 Note->Playing = true;
+                }
+                
+                if(End > PlayPosLengthBefore &&
+                   End <= PlayPosLength)
+                {
+                 Note->Playing = false;
+                }
+               }
+               
+               LengthSum += Note->Length;
+              }
+              
+              PieceEnded = (PlayPosLength >= LengthSum);
+              
+              
+              if(Piece->IsPlaying)
+              {
+               Piece->PlayPos += Input->dtForFrame;
+               // TODO(luca): 
+               if(PieceEnded)
+               {
+                Piece->PlayPos = 0.f;
+                if(!Loop) Piece->IsPlaying = false;
+               }
+              }
+              
+              if(Piece->Metronome)
+              {
+               b32 OnBeat = false;
+               if(OnBeat)
+               {
+                // TODO(luca): Play metronome beep
+               }
+              }
+              
+              f32 Scroll = UI_Scrollbar(Axis2_X, 100.f, Panel->Scroll.X);
+              PieceBox->Scroll.X = Scroll;
+              Panel->Scroll.X = Scroll;
              }
              
             }

@@ -20,6 +20,8 @@ struct piece_note
  f32 Length;
  note_pitch Pitch;
  s32 Octave;
+ 
+ b32 Playing;
 };
 
 typedef struct piece piece; 
