@@ -1476,9 +1476,8 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
     // Sets the notes at the octave's C
     f32 MinStepCount = 9.f;
     f32 StepSize = NoteSize/2.f;
-    f32 StepCount = MinStepCount - NoteStepFromPitch[Note->Pitch];
+    f32 StepCount = MinStepCount - (f32)(NoteStepFromPitch[Note->Pitch]);
     NotePos.Y = Pos.Y + StaffLineWidth/2.f + StepSize*StepCount;
-    Note->Pitch;
    }
    
    if(Note->Kind == PieceNoteKind_Pitch)
