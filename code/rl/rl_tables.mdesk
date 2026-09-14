@@ -40,21 +40,21 @@ ColorsV4:
 }
 
 //~ Notes and keys
-@table(Colemak, Qwerty, Name, Base, String, Step)
+@table(Colemak, Qwerty, Name, Base, String, Step, White)
 NotesTable:
 {
- { A A  C  C "C"  0 }
- { W W  Cs C "C#" 0 }
- { R S  D  D "D"  1 }
- { F E  Ds D "D#" 1 }
- { S D  E  E "E"  2 }
- { T F  F  F "F"  3 }
- { G T  Fs F "F#" 3 }
- { D G  G  G "G"  4 }
- { J Y  Gs G "G#" 4 }
- { H H  A  A "A"  5 }
- { L U  As A "A#" 5 }
- { N J  B  B "B"  6 }
+ { A A  C  C "C"  0 true  }
+ { W W  Cs C "C#" 0 false }
+ { R S  D  D "D"  1 true  }
+ { F E  Ds D "D#" 1 false }
+ { S D  E  E "E"  2 true  }
+ { T F  F  F "F"  3 true  }
+ { G T  Fs F "F#" 3 false }
+ { D G  G  G "G"  4 true  }
+ { J Y  Gs G "G#" 4 false }
+ { H H  A  A "A"  5 true  }
+ { L U  As A "A#" 5 false }
+ { N J  B  B "B"  6 true  }
 }
 
 @table(Name)
@@ -78,7 +78,6 @@ BaseNotePitches:
  `BaseNote_Count`;
 }
 
-
 @data_enum("note_pitch")
 NotePitches:
 {
@@ -93,6 +92,13 @@ NoteStepFromPitch:
 {
  @expand(NotesTable)
   `$(Step),`;
+}
+
+@data_table("b32")
+NoteIsWhite:
+{
+ @expand(NotesTable)
+  `$(White),`
 }
 
 @data

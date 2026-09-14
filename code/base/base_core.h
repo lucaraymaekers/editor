@@ -109,7 +109,16 @@
 
 //-
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
-#define CeilIntegerDiv(A,B) (((A) + (B) - 1)/(B))
+
+#if RL_PLATFORM_INTERNAL
+# define Get(Array, Size, Idx) \
+(Idx >= 0 && Idx < Size ? \
+Array[Idx] : (Log(ERROR_FMT "Out of bounds %s[%d]\n", ERROR_ARG, #Array, Idx), DbgBrk(), Array[0]))
+# define GetEl(Array, Idx) Get(Array, ArrayCount(Array), Idx)
+#else
+# define Get(Array, Size, Idx) Array[Idx]
+# define GetEl(Array, Idx) Array[Idx]
+#endif
 
 //-
 #define Stringify_(S) #S
@@ -124,6 +133,7 @@
 #define ClampTop(A, X) Min(A,X)
 #define ClampBot(X, B) Max(X,B)
 #define Clamp(A, X, B) (((X) < (A)) ? (A) : ((X) > (B)) ? (B) : (X))
+#define CeilIntegerDiv(A,B) (((A) + (B) - 1)/(B))
 
 #if LANG_C
 # define Swap(A, B) do { TypeOf((A)) (temp) = (TypeOf((A)))(A); (A) = (B); (B) = (temp); } while(0)
@@ -393,5 +403,8 @@ typedef unsigned int uint;
 
 //~ Globals
 global_variable b32 GlobalDebuggerIsAttached;
+
+//~ Functions
+internal void DbgBrk() { DebugBreak(); }
 
 #endif // BASE_CORE_H

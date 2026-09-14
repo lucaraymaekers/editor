@@ -17,11 +17,10 @@ typedef struct piece_note piece_note;
 struct piece_note
 {
  piece_note_kind Kind;
+ f32 Start;
  f32 Length;
- note_pitch Pitch;
- s32 Octave;
  
- b32 Playing;
+ s32 Pitch;
 };
 
 typedef struct piece piece; 
@@ -37,10 +36,20 @@ struct piece
  u64 NoteCount;
  piece_note *Notes;
  
+ b32 IsRecording;
  b32 IsPlaying;
+ f32 RecordLength;
  f32 PlayPos;
- f32 PlayBPM;
  b32 Metronome;
+ s32 Octave;
+ 
+ // UI
+ b32 BarWrapping;
+ f32 BarPadding;
+ f32 BeatWidth;
+ f32 NoteSize;
+ f32 StaffLineWidth;
+ f32 TailHeight;
 };
 
 typedef enum note_kind note_kind;

@@ -901,7 +901,7 @@ StopRecording(voice *Voice)
 
 internal piece_note *
 PieceNoteAdd(piece *Piece, 
-             piece_note_kind Kind, s32 Octave, note_pitch Pitch, f32 Length)
+             piece_note_kind Kind, note_pitch Pitch, f32 Length)
 {
  piece_note *Note = NilPieceNote;
  
@@ -909,12 +909,22 @@ PieceNoteAdd(piece *Piece,
  { 
   Note = Piece->Notes + Piece->NoteCount;
   
-  Note->Kind = PieceNoteKind_Pitch;
-  Note->Octave = Octave;
-  Note->Pitch = Pitch;
+  // TODO(luca): Better way?
+  // NOTE(luca): Sometimes we will add fractions which are not powers of 2, this is to
+  // correct the inaccuracies
+  f32 DecimalPart = ModF32(Piece->RecordLength, 1.f);
+  if(EqualsWithEpsilon(DecimalPart, 1.f, .001f))
+  {
+   Piece->RecordLength += 1.f - DecimalPart;
+  }
+  
+  Note->Kind = Kind;
+  Note->Pitch = Pitch + Note_Count*Piece->Octave;
   Note->Length = Length;
+  Note->Start = Piece->RecordLength;
   
   Piece->NoteCount += 1;
+  Piece->RecordLength += Length;
  }
  else
  {
@@ -922,6 +932,23 @@ PieceNoteAdd(piece *Piece,
  }
  
  return Note;
+}
+
+internal void 
+PiecePart1(piece *Piece, s32 Pitch1, s32 Pitch2, s32 Pitch3)
+{
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch1, 3.f/2.f);
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch2, 1.f/4.f);
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch3, 1.f/4.f);
+}
+
+internal void 
+PiecePart1Silence(piece *Piece, s32 Pitch1, s32 Pitch2, s32 Pitch3)
+{
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch1, 1.f/1.f);
+ PieceNoteAdd(Piece, PieceNoteKind_Silence, 0,      1.f/2.f);
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch2, 1.f/4.f);
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch3, 1.f/4.f);
 }
 
 //~ UI 
@@ -1046,16 +1073,6 @@ CustomDrawNoteInput(ui_box *Box)
  
  if(UI_State->InputConsumerBox == Box)
  {
-  ui_box *Hot = UI_BoxFromKey(UI_State->Hot);
-  if(S8Match(Hot->String, S8("Gap"), false))
-  {
-   
-   DebugBreak();
-   if(UI_State->FrameIdx == 3275)
-   {
-    DebugBreak();
-   }
-  }
   Result.LeftDown = Input->Mouse.Buttons[PlatformMouseButton_Left].EndedDown;
   Result.RightDown = Input->Mouse.Buttons[PlatformMouseButton_Right].EndedDown;
   UI_ConsumeInput(Input, Box);
@@ -1202,7 +1219,7 @@ UI_CUSTOM_DRAW(CustomDrawSheetMusic)
  {    
   StaffPos.Y += .5f*(BoxSize.Y - StaffHeight);
   {   
-   for EachIndex(Idx, 5)
+   for EachIndex(Idx, StaffLineCount)
    {
     f32 X = StaffPos.X;
     f32 Y = StaffPos.Y + (f32)Idx*(NoteSize);
@@ -1392,66 +1409,77 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
  ui_box *Box = Data->Box;
  piece *Piece = Data->Piece;
  
- f32 BarPadding = 16.f;
- f32 BeatWidth = 64.f;
+ f32 BarPadding = Piece->BarPadding;
+ f32 BeatWidth = Piece->BeatWidth;
  f32 WholeBarWidth = BeatWidth*Piece->TimeSigNum + 2.f*BarPadding;
  
- f32 NoteSize = 11.f;
- v2 TailDim = V2(2.f, 24.f);
+ f32 NoteSize = Piece->NoteSize;
  v2 NoteDim = V2(NoteSize, NoteSize);
  
  s32 StaffLineCount = 5;
- f32 StaffLineWidth = 2.f;
+ f32 StaffLineWidth = Piece->StaffLineWidth;
  f32 StaffHeight = (f32)(StaffLineCount-1)*NoteSize + StaffLineWidth;
+ 
+ v2 TailDim = V2(StaffLineWidth, Piece->TailHeight);
  
  v2 Pos = V2SubV2(Box->FixedPos, Box->Scroll);
  Pos.Y += Box->FixedSize.Y/2.f - StaffHeight/2.f;
  Pos.X += BarPadding;
  
+ f32 BarCount = CeilF32(Piece->RecordLength/Piece->TimeSigNum);
+ BarCount = Max(BarCount, 1.f);
+ 
+ s32 BarsPerWidth = (s32)((Box->FixedSize.X - 2.f*BarPadding)/WholeBarWidth);
+ BarsPerWidth = Max(1, BarsPerWidth);
+ 
  // Draw staff
  {    
-  f32 BarCount = 0.f;
-  f32 TotalLength = 0.f;
-  for EachIndex(Idx, Piece->NoteCount)
-  {
-   piece_note *Note = Piece->Notes + Idx;
-   TotalLength += Note->Length;
-  }
-  BarCount = CeilF32(TotalLength/Piece->TimeSigNum);
-  if(BarCount == 0.f) BarCount = 1.f;
-  
   v2 StaffPos = Pos;
-  {   
-   for EachIndex(Idx, 5)
-   {
-    f32 X = StaffPos.X;
-    f32 Y = StaffPos.Y + (f32)Idx*(NoteSize);
-    
-    f32 Width = BarCount*WholeBarWidth;
-    
-    v4 Dest = RectFromSize(V2(X, Y), V2(Width, StaffLineWidth));
-    Dest = RectIntersect(Dest, Box->Rec);
-    
-    DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
-   }
-  }
   
   // Draw bars
-  {    
-   for EachIndex(Idx, (s32)BarCount + 1)
+  { 
+   v2 BarPos = StaffPos;
+   for EachIndex(Idx, (s32)BarCount)
    {
-    v2 BarPos = V2(Pos.X + ((f32)(Idx) * WholeBarWidth),
-                   StaffPos.Y);
-    
     v4 Dest = RectFromSize(BarPos, V2(2.f, StaffHeight));
     DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
     
-    if(Idx == (s32)BarCount)
+    for EachIndex(LineIdx, StaffLineCount)
     {
-     BarPos.X -= 4.f;
-     Dest = RectFromSize(BarPos, V2(2.f, StaffHeight));
+     v2 LinePos = BarPos;
+     LinePos.Y += (f32)LineIdx*NoteSize;
+     v4 LineDest = RectFromSize(LinePos, V2(WholeBarWidth, StaffLineWidth));
+     DrawRect(LineDest, Box->TextColor, 0.f, 0.f, 0.f);
+    }
+    
+    BarPos.X += WholeBarWidth;
+    
+    // Last bar gets double line
+    if(Idx == (s32)BarCount - 1)
+    {
+     v2 LastBarPos = BarPos;
+     
+     LastBarPos.X -= 4.f;
+     Dest = RectFromSize(LastBarPos, V2(2.f, StaffHeight));
      DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
     }
+    
+    // TODO(luca): Reduce world's biggest condition.
+    b32 LastBar = (((Idx + 1)%BarsPerWidth == 0) ||
+                   (BarsPerWidth == 1) || 
+                   (Idx == (s32)BarCount));
+    if(LastBar)
+    {
+     Dest = RectFromSize(BarPos, V2(2.f, StaffHeight));
+     DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
+     
+     if(Piece->BarWrapping)
+     {
+      BarPos.X = StaffPos.X;
+      BarPos.Y += 2.f*StaffHeight;
+     }
+    }
+    
    }
   }
   
@@ -1459,9 +1487,13 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
  
  // Draw notes
  {
-  
   v2 NotePos = Pos;
   NotePos.X += BarPadding;
+  
+  f32 PlayPosLength = Piece->PlayPos*Piece->BPM/60.f;
+  f32 PlayPosLengthBefore = (Piece->PlayPos - dtForFrame)*Piece->BPM/60.f;
+  
+  // Used to see when a new bar begins and we should add padding.
   f32 LengthSum = 0.f;
   
   for EachIndex(Idx, Piece->NoteCount)
@@ -1469,29 +1501,69 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
    piece_note *Note = Piece->Notes + Idx;
    
    v4 NoteColor = Box->TextColor;
-   if(Note->Playing) NoteColor = Color_Yellow;
    
-   // Find Y position depending on pitch
+   b32 NoteIsPlaying = false;
+   if(Piece->IsPlaying)
    {
-    // Sets the notes at the octave's C
-    f32 MinStepCount = 9.f;
-    f32 StepSize = NoteSize/2.f;
-    f32 StepCount = MinStepCount - (f32)(NoteStepFromPitch[Note->Pitch]);
-    NotePos.Y = Pos.Y + StaffLineWidth/2.f + StepSize*StepCount;
+    f32 Start = Note->Start;
+    f32 End = Start + Note->Length;
+    
+    NoteIsPlaying = (PlayPosLength >= Start &&
+                     PlayPosLength < End);
    }
+   
+   if(NoteIsPlaying) NoteColor = Color_Yellow;
    
    if(Note->Kind == PieceNoteKind_Pitch)
    {
+    s32 RelPitch = Note->Pitch%Note_Count;
     b32 FillHead = (Note->Length < 2.f);;
     s32 FlagCount = 0;
-    b32 HasStem = true;
+    b32 HasStem = (Note->Length < 4.f);
     b32 IsDotted = false;
+    b32 IsBarred = false;
+    b32 IsSharp = !GetEl(NoteIsWhite, RelPitch);
+    
+    // Calculate position
+    {
+     s32 RelOctave = 6;
+     // Get Y From pitch
+     // Sets the notes at the octave's C
+     s32 MinStepCount = 5;
+     f32 StepSize = NoteSize/2.f;
+     
+     s32 NoteOctave = Note->Pitch/Note_Count;
+     s32 StepForPitch = GetEl(NoteStepFromPitch, RelPitch);
+     s32 StepCount = BaseNote_Count*(RelOctave - NoteOctave);
+     StepCount -= MinStepCount + StepForPitch;
+     
+     NotePos.Y = Pos.Y + StaffLineWidth/2.f + StepSize*StepCount;
+     
+     if(Piece->BarWrapping)
+     {
+      s32 BarIdx = (s32)FloorF32(Note->Start/Piece->TimeSigNum);
+      s32 HeightIdx = BarIdx/BarsPerWidth;
+      
+      f32 BarXIdx = (f32)(BarIdx%BarsPerWidth);
+      f32 BarStart = BarPadding + BarXIdx*WholeBarWidth;
+      
+      f32 Remainder = ModF32(Note->Start, Piece->TimeSigNum);
+      NotePos.X = BarStart + BarPadding + Remainder*BeatWidth;
+      
+      NotePos.Y += (f32)HeightIdx*2.f*StaffHeight;
+     }
+    }
     
     // Find out if is dotted
     {
      f32 Exp = -Log2F32(Note->Length);
      f32 Remainder = ModF32(Exp, 1.f);
      IsDotted = !(EqualsWithEpsilon(Remainder, 0.f, 0.0001f));
+    }
+    
+    // Find out if is barred
+    {
+     IsBarred = (Note->Pitch == Note_C);
     }
     
     if(HasStem)
@@ -1542,6 +1614,29 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
      v4 Dest = RectFromSize(DotPos, DotDim);
      f32 BorderThickness = (FillHead ? 0.f : 2.f);
      DrawRect(Dest, NoteColor, DotDim.X/2.f, BorderThickness, .5f);
+    }
+    
+    // Draw barred
+    if(IsBarred)
+    {
+     // TODO(luca): Should draw bars above / below until reaching back to the staff. 
+     f32 Portrusion = 1.f;
+     v2 HeadBarDim = V2(NoteDim.X + Portrusion*2.f, 2.f);
+     v2 HeadBarPos = NotePos;
+     HeadBarPos.X -= Portrusion;
+     HeadBarPos.Y += .5f*(NoteDim.Y - HeadBarDim.Y);
+     v4 Dest = RectFromSize(HeadBarPos, HeadBarDim);
+     DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f);
+    }
+    
+    // Draw sharp
+    if(IsSharp)
+    {
+     v2 SharpPos = NotePos;
+     SharpPos.X -= NoteSize;
+     SharpPos.Y -= 5.f;
+     
+     DrawRectChar(UI_State->Atlas, SharpPos, '#', NoteColor);
     }
    }
    
@@ -2778,46 +2873,125 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
              b32 Loop = true;
              piece *Piece = Panel->Piece;
-             local_persist b32 DoItOnce = true;
+             local_persist b32 DoItOnce = false;
              if(Panel->Piece == 0 || !DoItOnce)
              {
               DoItOnce = true;
               Panel->Piece = PushArrayZero(App->Arena, piece, 1);
               Piece = Panel->Piece;
               
-              Piece->BPM = 100;
+              Piece->BPM = 60;
               Piece->TimeSigNum = 2;
               Piece->TimeSigDen = 4;
+              Piece->Key = Note_D;
+              Piece->Major = true;
               
               Piece->NoteMaxCount = KB(1);
               Piece->NoteCount = 0;
               Piece->Notes = PushArrayZero(App->Arena, piece_note, Piece->NoteMaxCount);
+              Piece->Octave = 4;
               
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/1.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/2.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/4.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/4.f);
+              Piece->BarWrapping = true;
+              Piece->BarPadding = 16.f;
+              Piece->BeatWidth = 64.f;
+              Piece->NoteSize = 11.f;
+              Piece->StaffLineWidth = 2.f;
+              Piece->TailHeight = 24.f;
               
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.5f/1.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/4.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/4.f);
+#if 1              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_E, 1.f/4.f);
               
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_F, 1.f/2.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
+              PiecePart1(Piece, Note_Fs, Note_Fs, Note_E);
               
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_D, 1.f/2.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_A, 1.f/2.f);
-              PieceNoteAdd(Piece, PieceNoteKind_Pitch, 4, Note_E, 1.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_D, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_D, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_D, 1.f/2.f);
               
-              PieceNoteAdd(Piece, PieceNoteKind_Silence, 4, 0, 4.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_D, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_A, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_E, 1.f/1.f);
               
-              Piece->PlayBPM = 80; // Andante
+              PiecePart1Silence(Piece, Note_Fs, Note_Fs, Note_E);
+              PiecePart1Silence(Piece, Note_Fs, Note_Fs, Note_E);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Fs, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_D, 1.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_D, 1.f/2.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_D, 1.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 0,      1.f/1.f);
+              
+              // Double repeat
+#endif
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_D  + 0,  1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_B  - 12, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Cs + 0,  1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_D  + 0,  1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_E  + 0,  1.f/2.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Fs + 0,  3.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_B  + 0,  1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Cs + 12, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_D  + 12, 1.f/2.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Cs + 12, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_B  + 0,  1.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Fs + 0,  1.f/2.f);
+              
+              PiecePart1Silence(Piece, Note_E, Note_E,  Note_Fs);
+              PiecePart1(       Piece, Note_G, Note_Fs, Note_E);
+              PiecePart1Silence(Piece, Note_D, Note_E,  Note_D);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Cs + 0,  1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Cs + 0, 1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Cs + 0,  1.f/4.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_D  + 0,  1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_E  + 0,  1.f/2.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_Fs + 0,  1.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 0,            1.f/1.f);
+              
+              PiecePart1(       Piece, Note_Fs, Note_Fs, Note_E);
+              PiecePart1Silence(Piece, Note_Fs, Note_E,  Note_Fs);
+              PiecePart1(       Piece, Note_G,  Note_G,  Note_Fs);
+              PiecePart1Silence(Piece, Note_G,  Note_Fs, Note_G);
+              PiecePart1(       Piece, Note_A,  Note_A,  Note_G);
+              PiecePart1Silence(Piece, Note_A,  Note_G,  Note_A);
+              PiecePart1(       Piece, Note_B,  Note_A,  Note_B);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Cs + 12, 1.f/1.f); 
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 1.f/2.f); 
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/2.f); 
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_B, 3.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_B, 1.f/2.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_A,  1.f/3.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_G,  1.f/3.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/3.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_E,  1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_D,  1.f/2.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Cs, 3.f/1.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 0,  1.f/2.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_B - 12,  1.f/2.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_B - 12,  4.f/1.f);
+              
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
+              PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
+              
              }
              
              ui_box *PieceBox;
-             
              
              UI_FillAll()
               UI_Push()
@@ -2829,17 +3003,20 @@ UPDATE_AND_RENDER(UpdateAndRender)
               {               
                if(SimpleToggleButton(S8("Play"), Piece->IsPlaying, Color_Green))
                {
+                tsf_note_off_all(GlobalTSF);
                 Piece->IsPlaying ^= true;
                 if(Piece->IsPlaying) Piece->PlayPos = 0.f;
                }
                
                Piece->Metronome ^= 
                 SimpleToggleButton(S8("Metronome"), Piece->Metronome, Color_Magenta);
+               Piece->BarWrapping ^= 
+                SimpleToggleButton(S8("BarWrapping"), Piece->BarWrapping, Color_Magenta);
                
                UI_SemanticWidth(UI_SizePx(200.f, 1))
-                Piece->PlayBPM = SimpleSlider(S8("PieceBPM"), 
-                                              Str8Fmt("BPM %3.0f", Piece->PlayBPM), 
-                                              Piece->PlayBPM, 0.f, 300.f, 1.f, false).Value;
+                Piece->BPM = SimpleSlider(S8("PieceBPM"), 
+                                          Str8Fmt("BPM %3.0f", Piece->BPM), 
+                                          Piece->BPM, 0.f, 300.f, 1.f, false).Value;
                
                UI_FillWidth()
                 UI_BackgroundColor(Color_ButtonBackground)
@@ -2859,11 +3036,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
               PieceBox->CustomDrawData = Data;
               PieceBox->CustomDraw = CustomDrawPiece;
               
-              f32 LengthSum = 0.f;
-              
-              f32 PlayPosLengthBefore = (Piece->PlayPos - dtForFrame)*Piece->PlayBPM/60.f;
-              f32 PlayPosLength = Piece->PlayPos*Piece->PlayBPM/60.f;
-              b32 PieceEnded = false;
+              f32 PlayPosLength = Piece->PlayPos*Piece->BPM/60.f;
+              f32 PlayPosLengthBefore = (Piece->PlayPos - dtForFrame)*Piece->BPM/60.f;
+              b32 PieceEnded = (PlayPosLength > Piece->RecordLength);
               
               for EachIndex(Idx, Piece->NoteCount)
               {
@@ -2871,27 +3046,32 @@ UPDATE_AND_RENDER(UpdateAndRender)
                
                if(Note->Kind == PieceNoteKind_Pitch)
                {
-                f32 Start = LengthSum;
+                f32 Start = Note->Start;
                 f32 End = Start + Note->Length;
                 
-                if(Start > PlayPosLengthBefore &&
-                   Start <= PlayPosLength)
-                {
-                 Note->Playing = true;
+                b32 NoteIsPlaying = (Start > PlayPosLengthBefore &&
+                                     Start <= PlayPosLength);
+                b32 NoteHasEnded = (End > PlayPosLengthBefore &&
+                                    End <= PlayPosLength);
+                
+                s32 Pitch = Note->Pitch + 0*12;
+                
+                if(Piece->IsPlaying)
+                 
+                {                 
+                 if(NoteIsPlaying)
+                 {
+                  tsf_channel_note_on(GlobalTSF, 0, Pitch, .5f);
+                 }
+                 
+                 if(NoteHasEnded)
+                 {
+                  tsf_channel_note_off(GlobalTSF, 0, Pitch);
+                 }
                 }
                 
-                if(End > PlayPosLengthBefore &&
-                   End <= PlayPosLength)
-                {
-                 Note->Playing = false;
-                }
                }
-               
-               LengthSum += Note->Length;
               }
-              
-              PieceEnded = (PlayPosLength >= LengthSum);
-              
               
               if(Piece->IsPlaying)
               {
@@ -2913,9 +3093,19 @@ UPDATE_AND_RENDER(UpdateAndRender)
                }
               }
               
-              f32 Scroll = UI_Scrollbar(Axis2_X, 100.f, Panel->Scroll.X);
-              PieceBox->Scroll.X = Scroll;
-              Panel->Scroll.X = Scroll;
+              // Scrollbar
+              if(!Piece->BarWrapping)
+              {
+               f32 BarPadding = Piece->BarPadding;
+               f32 BarCount = Max(1.f, CeilF32(Piece->RecordLength/Piece->TimeSigNum));
+               f32 WholeBarWidth = Piece->BeatWidth*Piece->TimeSigNum + 2.f*BarPadding;
+               f32 Width = BarCount*WholeBarWidth + 2.f*BarPadding;
+               Width -= WholeBarWidth + 2.f*BarPadding;
+               
+               f32 Scroll = UI_Scrollbar(Axis2_X, Width, Panel->Scroll.X);
+               PieceBox->Scroll.X = Scroll;
+               Panel->Scroll.X = Scroll;
+              }
              }
              
             }

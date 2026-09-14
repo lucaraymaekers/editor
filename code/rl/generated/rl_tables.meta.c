@@ -73,6 +73,10 @@ s32 NoteStepFromPitch[] = {
 0,0,1,1,2,3,3,4,4,5,5,6,
 };
 
+b32 NoteIsWhite[] = {
+true,false,true,false,true,true,false,true,false,true,false,true,
+};
+
 #define APP_MIDIInputKeys app_button_state KeyA; app_button_state KeyW; app_button_state KeyS; app_button_state KeyE; app_button_state KeyD; app_button_state KeyF; app_button_state KeyT; app_button_state KeyG; app_button_state KeyY; app_button_state KeyH; app_button_state KeyU; app_button_state KeyJ; 
 str8 NotePitchStrings[] = {
 {(u8 *)"C", 1},{(u8 *)"C#", 2},{(u8 *)"D", 1},{(u8 *)"D#", 2},{(u8 *)"E", 1},{(u8 *)"F", 1},{(u8 *)"F#", 2},{(u8 *)"G", 1},{(u8 *)"G#", 2},{(u8 *)"A", 1},{(u8 *)"A#", 2},{(u8 *)"B", 1},

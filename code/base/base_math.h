@@ -3,6 +3,8 @@
 #ifndef BASE_MATH_H
 #define BASE_MATH_H
 
+#define S32Mod(a, m) (((a) % (m) + (m)) % (m))
+
 //~ Types
 typedef struct range_s64 range_s64;
 struct range_s64

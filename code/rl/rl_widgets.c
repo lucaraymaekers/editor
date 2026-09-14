@@ -319,7 +319,8 @@ UI_Scrollbar(axis2 Axis, f32 TotalSize, f32 Scroll)
                       UI_BoxFlag_DrawHotEffects|
                       UI_BoxFlag_DrawActiveEffects);
    
-   f32 ScrollP = Scroll;
+   // Clamp in container shrunk.
+   f32 ScrollP = Min(Scroll, TotalSize);
    
    if(UI_IsActive(Thumb) || UI_IsActive(Scrollbar))
    {                                                                            
