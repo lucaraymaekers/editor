@@ -3,6 +3,8 @@
   - Implement Undo for commands.
   - Serialize state along commands.
 
+- SelectPanel() function that sets selectedvoice etc.
+
 Bugs:
 - bug: ui: Text with 0 horizontal padding will be clipped, fix this.
 - bug: When resizing mouse can glitch between resizing and pointer

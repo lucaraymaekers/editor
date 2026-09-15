@@ -196,7 +196,6 @@ UI_Slider(f32 Value, f32 Min, f32 Max, f32 StepSize, char *Format, b32 Interacti
   ui_box *Box;
   UI_SemanticWidth(UI_SizeText(1.f, 1.f))
    Box = UI_AddBox(S8("Out"), 
-                   UI_BoxFlag_Clip|
                    UI_BoxFlag_DrawDisplayString|
                    UI_BoxFlag_CenterTextVertically|
                    UI_BoxFlag_CenterTextHorizontally);
@@ -215,8 +214,7 @@ UI_Slider(f32 Value, f32 Min, f32 Max, f32 StepSize, char *Format, b32 Interacti
  {
   
   UI_LayoutAxis(Axis2_X)
-   Slider = UI_AddBox(S8("Slider"), (UI_BoxFlag_Clip|
-                                     UI_BoxFlag_DrawBackground|
+   Slider = UI_AddBox(S8("Slider"), (UI_BoxFlag_DrawBackground|
                                      UI_BoxFlag_DrawHotEffects|
                                      UI_BoxFlag_CenterTextHorizontally|
                                      UI_BoxFlag_CenterTextVertically));

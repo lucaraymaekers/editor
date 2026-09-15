@@ -529,6 +529,17 @@ PanelRecDepthFirstPreOrder(panel *Panel)
  return Rec;
 }
 
+internal void
+PanelSelect(app_state *App, panel *Panel)
+{
+ App->SelectedPanel	= Panel;
+ if(Panel->Kind == PanelKind_Sheet ||
+    Panel->Kind == PanelKind_Roll)
+ {
+  App->SelectedVoice = Panel->Voice;
+ }
+}
+
 //~ Muze - Notes 
 internal b32
 IsNilNote(rec_note *Note)
@@ -1423,7 +1434,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
  v2 TailDim = V2(StaffLineWidth, Piece->TailHeight);
  
  v2 Pos = V2SubV2(Box->FixedPos, Box->Scroll);
- Pos.Y += Box->FixedSize.Y/2.f - StaffHeight/2.f;
+ Pos.Y += StaffHeight;
  Pos.X += BarPadding;
  
  f32 BarCount = CeilF32(Piece->RecordLength/Piece->TimeSigNum);
@@ -1431,6 +1442,8 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
  
  s32 BarsPerWidth = (s32)((Box->FixedSize.X - 2.f*BarPadding)/WholeBarWidth);
  BarsPerWidth = Max(1, BarsPerWidth);
+ 
+ 
  
  // Draw staff
  {    
@@ -2230,7 +2243,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
      }
     }
     
-    App->SelectedPanel = PanelNextLeaf(App->FirstPanel, false);
+    PanelSelect(App, PanelNextLeaf(App->FirstPanel, false));
+    
+    App->SelectedPanel->Kind = PanelKind_Piece;
    }
   }
   
@@ -2249,17 +2264,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
   // Init Muze
   {
    App->CommandCount = 0;
-   
-   if(App->SelectedPanel->Kind == PanelKind_Roll ||
-      App->SelectedPanel->Kind == PanelKind_Sheet)
-   {
-    App->SelectedVoice = App->SelectedPanel->Voice;
-   }
    SelectedVoice = App->SelectedVoice;
-   
-   // TODO(luca): Remove (for debugging)
-   DoOnce()
-    App->SelectedPanel->Kind = PanelKind_Piece;
   }
   
   OS_ProfileAndPrint("Misc. Init");
@@ -3021,7 +3026,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                
                UI_FillWidth()
                 UI_BackgroundColor(Color_ButtonBackground)
-                UI_AddBox(S8("Top"), 
+                UI_AddBox(S8("TopSpacer"), 
                           UI_BoxFlag_DrawBackground|
                           UI_BoxFlag_DrawBorders);
               }
@@ -3257,8 +3262,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                   if(ControlButton(S8("Stop recording/playing"))) PushCommand(App, Command_Stop);
                   if(ControlButton(S8("Trim recording"))) PushCommand(App, Command_Trim);
                   if(ControlButton(S8("Reset recording"))) PushCommand(App, Command_Reset);
-                  if(ControlButton(S8("Start from beginning"))) PushCommand(App, Command_PlayFromStart);
-                  if(ControlButton(S8("Start from note"))) PushCommand(App, Command_PlayFromNote);
+                  if(ControlButton(S8("Play from beginning"))) PushCommand(App, Command_PlayFromStart);
+                  if(ControlButton(S8("Play from note"))) PushCommand(App, Command_PlayFromNote);
                  }
                 }
                 
@@ -3270,7 +3275,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  if(ControlButton(S8("Sync notes to the beat"))) PushCommand(App, Command_Sync);
                  
                  if(ControlButton(S8("Guess BPM from notes"))) PushCommand(App, Command_GuessBPM);
-                 if(ControlButton(S8("Delete note"))) PushCommand(App, Command_DeleteSelection);
+                 if(ControlButton(S8("Delete selected notes"))) PushCommand(App, Command_DeleteSelection);
                  
                  {
                   ui_box *ButtonBox;
@@ -3314,6 +3319,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 //- Voice
                 {
                  UI_BackgroundColor(Color_Night0) Label(S8("Voice"));
+                 
                  
                  UI_BackgroundColor(Color_ButtonBackground)
                   UI_AddBox(S8("VoiceSelect"), 
@@ -3424,134 +3430,83 @@ UPDATE_AND_RENDER(UpdateAndRender)
             }
             else if(Panel->Kind == PanelKind_Sheet)
             {
-             muze_box_data *Data = PushArray(FrameArena, muze_box_data, 1);
-             Data->Box = Contents;
-             Data->Voice = Panel->Voice;
-             Data->App = App;
-             
-             Contents->CustomDraw = CustomDrawSheetMusic;
-             Contents->CustomDrawData = Data;
-             
-             //- Scrollbar 
+             voice *Voice = Panel->Voice;
+             UI_FillAll()
+              UI_Push()
+              UI_Column()
              {
-              f32 ThumbWidth = 32.f;
-              f32 HalfThumbWidth = ThumbWidth/2.f;
-              f32 PaddingInsideScrollbar = 2.f;
-              ui_box *Scrollbar;
-              
-              UI_LayoutAxis(Axis2_X)
-               UI_FillWidth() 
-               UI_SemanticHeight(UI_SizePx(16.f, 1.f))
-               UI_AddBox(S8("ScrollbarParent"), 0);
-              UI_PaddingAround(UI_SizePx(PaddingInsideScrollbar, 1.f))
+              //- Top controls 
               {
-               UI_FillAll()
-                Scrollbar = UI_AddBox(S8("Scrollbar"), UI_BoxFlag_MouseClickable);
-               UI_Push()
-               {                                                    
-                // NOTE(luca): ]Scrollable width = BarWidth * BarCount + BoxWidth - BarWidth 
-                
-                f32 WholeBarWidth = 100.f;
-                
-                f32 BPS = (App->BPM/60.f);
-                f32 BarDuration = (1.f/BPS)*(f32)App->TimeSig;
-                f32 BarCount = 1.f + FloorF32(Panel->Voice->RecordLength/(BarDuration + 1e-6f));
-                
-                // NOTE(luca): Make it so that we can scroll until there is only one bar of space left empty.
-                f32 ScrollableWidth = Scrollbar->FixedSize.X - ThumbWidth;
-                
-                f32 ExtraWidth = (Contents->FixedSize.X - WholeBarWidth);
-                
-                f32 Zoom = (BPS/(f32)App->TimeSig*WholeBarWidth);
-                f32 WholeSheetWidth = Panel->Voice->RecordLength*Zoom;
-                WholeSheetWidth -= ExtraWidth;
-                
-                f32 Factor = WholeSheetWidth/ScrollableWidth;
-                
-                ui_box *Spacer;
-                UI_FillHeight()
-                 Spacer = UI_AddBox(S8(""), 0);
-                
-                ui_box *Thumb;
-                
-                UI_SemanticWidth(UI_SizePx(ThumbWidth, 1.f))
-                 UI_BorderColor(Color_Black)
-                 UI_BackgroundColor(Color_Orange)
-                 Thumb = UI_AddBox(S8("Thumb"), 
-                                   UI_BoxFlag_DrawBackground|
-                                   UI_BoxFlag_DrawBorders|
-                                   UI_BoxFlag_MouseClickable|
-                                   UI_BoxFlag_DrawHotEffects|
-                                   UI_BoxFlag_DrawActiveEffects);
-                
-                f32 ScrollX = Panel->Scroll.X;
-                
-                if(Panel->Voice->AutoScroll)
+               UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
+                UI_Row()
+                UI_SemanticWidth(UI_SizePx(150.f, 1.f))
+               {
+                if(UI_ButtonWithToggle(S8("Record"), Panel->Voice->IsRecording, ItemPadding, Color_Red).OneClicked)
                 {
-                 f32 Pad = Contents->FixedSize.X/2.f;
+                 PushCommand(App, Command_ToggleRecording);
+                }
+                
+                if(SimpleToggleButton(S8("Play"), Voice->IsPlaying, Color_Green))
+                {
+                 PushCommand(App, Command_TogglePlaying);
+                }
+                
+                // Voice select
+                {                
+                 u64 Idx = (u64)(Voice - App->Voices);
+                 f32 NewIdx = 0.f;
                  
-                 // TODO(luca): When user stops playing it should be playing position and we user stops recording it should be RecordLength;
-                 f32 End = (Panel->Voice->IsPlaying ? 
-                            Panel->Voice->PlayPos :
-                            Panel->Voice->RecordLength);
+                 UI_SemanticWidth(UI_SizePx(200.f, 1.f))
+                  NewIdx = SimpleSlider(S8("VoiceSelect"), 
+                                        Str8Fmt("Voice %2llu/%-2llu",
+                                                Idx + 1, App->VoiceCount), 
+                                        (f32)Idx + 1.f, 1.f, App->VoiceCount, 1.f, false).Value;
+                 NewIdx -= 1.f;
                  
-                 f32 Width = (End*BPS/(f32)App->TimeSig)*WholeBarWidth;
-                 
-                 f32 AutoScrollFactor = (Width - (Contents->FixedSize.X - Pad))/ScrollableWidth;
-                 
-                 ScrollX = ScrollableWidth*AutoScrollFactor;
-                 
-                 f32 MaxScrollX = ScrollableWidth*Factor;
-                 ScrollX = ClampTop(ScrollX, MaxScrollX);
-                 
-                 // When it all fits, scrolling shouldn't be possible.
-                 {                                                                    
-                  if(WholeSheetWidth < 0.f)
-                  {
-                   ScrollX = 0.f;
-                  }
-                  
-                  if(Width + Pad < Contents->FixedSize.X)
-                  {
-                   ScrollX = 0.f;
-                  }
+                 if((u64)NewIdx != Idx)
+                 {
+                  Log("Setting voice.\n");
+                  voice *NewVoice = App->Voices + (u64)NewIdx;
+                  PushCommand(App, Command_SetPanelVoice)->Voice = NewVoice;
                  }
                 }
                 
-                if(UI_IsActive(Thumb) || UI_IsActive(Scrollbar))
-                {
-                 if(Panel->Voice->AutoScroll)
-                 {
-                  PushCommand(App, Command_ToggleAutoScroll);
-                 }
-                 
-                 // TODO(luca): It should not be half thumb width, it should be divided by where the mouse clicked inside the thumb.  E.g., if it clicked on the left part the first part will be small and the second part will be bigger.
-                 f32 MouseX = (f32)Input->Mouse.Pos.X;
-                 f32 RelX = MouseX - Scrollbar->FixedPos.X;
-                 RelX = Clamp(HalfThumbWidth, 
-                              RelX, 
-                              Scrollbar->FixedSize.X - HalfThumbWidth); 
-                 RelX -= HalfThumbWidth;
-                 
-                 
-                 ScrollX = RelX*Factor;
-                 
-                 if(WholeSheetWidth < Contents->FixedSize.X)
-                 {
-                  ScrollX = 0.f;
-                 }
-                }
-                
-                Panel->Scroll.X = ScrollX;
-                Contents->Scroll.X = Panel->Scroll.X;
-                
-                f32 SpaceBeforeThumb = Panel->Scroll.X/Factor;
-                Spacer->SemanticSize[Axis2_X] = UI_SizePx(SpaceBeforeThumb, 1.f);
-                
+                UI_FillWidth()
+                 UI_BackgroundColor(Color_ButtonBackground)
+                 UI_AddBox(S8("TopSpacer"), 
+                           UI_BoxFlag_DrawBackground|
+                           UI_BoxFlag_DrawBorders);
                }
-               
               }
               
+              ui_box *SheetBox;
+              //- Sheet contents 
+              {             
+               SheetBox = UI_AddBox(S8("Sheet"), UI_BoxFlag_MouseClickable);
+               
+               muze_box_data *Data = PushArray(FrameArena, muze_box_data, 1);
+               Data->Box = SheetBox;
+               Data->Voice = Panel->Voice;
+               Data->App = App;
+               
+               SheetBox->CustomDraw = CustomDrawSheetMusic;
+               SheetBox->CustomDrawData = Data;
+              }
+              
+              //- Scrollbar 
+              {
+               f32 WholeBarWidth = 100.f;
+               f32 BPS = (App->BPM/60.f);
+               f32 Zoom = (BPS/(f32)App->TimeSig*WholeBarWidth);
+               f32 WholeSheetWidth = Panel->Voice->RecordLength*Zoom;
+               
+               // NOTE(luca): Make it so that we can scroll until there is only one bar of space left empty.
+               WholeSheetWidth -= WholeBarWidth;
+               
+               f32 Scroll = UI_Scrollbar(Axis2_X, WholeSheetWidth, Panel->Scroll.X);
+               SheetBox->Scroll.X = Scroll;
+               Panel->Scroll.X = Scroll;
+              }
              }
             }
             else if(Panel->Kind == PanelKind_Roll)
@@ -3586,7 +3541,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
           
           if(PanelBox->WasClicked || ChildIsActive)
           {
-           App->SelectedPanel	= Panel;
+           PanelSelect(App, Panel);
+           SelectedVoice = App->SelectedPanel->Voice;
           }
          }
          
@@ -3889,7 +3845,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
     case Command_PlayFromStart:
     {
      StopRecording(SelectedVoice);
-     
+     if(App->OutputSynthEnabled)
+     {
+      tsf_channel_note_off_all(GlobalTSF, SelectedVoice->Channel);
+     }
      f32 Pos = 0.f;
      
      if(Command->Kind == Command_PlayFromNote)
