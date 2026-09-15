@@ -901,7 +901,7 @@ StopRecording(voice *Voice)
 
 internal piece_note *
 PieceNoteAdd(piece *Piece, 
-             piece_note_kind Kind, note_pitch Pitch, f32 Length)
+             piece_note_kind Kind, s32 Pitch, f32 Length)
 {
  piece_note *Note = NilPieceNote;
  
@@ -937,9 +937,9 @@ PieceNoteAdd(piece *Piece,
 internal void 
 PiecePart1(piece *Piece, s32 Pitch1, s32 Pitch2, s32 Pitch3)
 {
- PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch1, 3.f/2.f);
- PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch2, 1.f/4.f);
- PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch3, 1.f/4.f);
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch, Pitch1, 3.f/2.f);
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch, Pitch2, 1.f/4.f);
+ PieceNoteAdd(Piece, PieceNoteKind_Pitch, Pitch3, 1.f/4.f);
 }
 
 internal void 
@@ -1537,7 +1537,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
      s32 StepCount = BaseNote_Count*(RelOctave - NoteOctave);
      StepCount -= MinStepCount + StepForPitch;
      
-     NotePos.Y = Pos.Y + StaffLineWidth/2.f + StepSize*StepCount;
+     NotePos.Y = Pos.Y + StaffLineWidth/2.f + StepSize*(f32)StepCount;
      
      if(Piece->BarWrapping)
      {

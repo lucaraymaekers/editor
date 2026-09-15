@@ -114,7 +114,7 @@
 # define Get(Array, Size, Idx) \
 (Idx >= 0 && Idx < Size ? \
 Array[Idx] : (Log(ERROR_FMT "Out of bounds %s[%d]\n", ERROR_ARG, #Array, Idx), DbgBrk(), Array[0]))
-# define GetEl(Array, Idx) Get(Array, ArrayCount(Array), Idx)
+# define GetEl(Array, Idx) Get(Array, (TypeOf(Idx))ArrayCount(Array), Idx)
 #else
 # define Get(Array, Size, Idx) Array[Idx]
 # define GetEl(Array, Idx) Array[Idx]
