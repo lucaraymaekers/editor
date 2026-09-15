@@ -356,7 +356,6 @@ internal void
 LinuxMainEntryPoint(int ArgsCount, char **Args, char **Env)
 {
  arena *Arena = ArenaAlloc();
- 
  SetStringsScratch(Arena);
  
  LinuxSetDebuggerAttached();

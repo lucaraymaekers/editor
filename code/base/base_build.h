@@ -10,6 +10,22 @@
 #if !defined(BASE_PROFILE)
 # define BASE_PROFILE 0
 #endif
+// NOTE(luca): Force number of threads to use, 0 means use all threads.
+#if !defined(BASE_FORCE_THREADS_COUNT)
+# define BASE_FORCE_THREADS_COUNT 0
+#endif
+// NOTE(luca): On windows this means to open an external console when the program is launched.
+#if !defined(BASE_CONSOLE_APPLICATION)
+# define BASE_CONSOLE_APPLICATION 0
+#endif
+// NOTE(luca): Specify that libraries will be included from elsewhere
+#if !defined(BASE_EXTERNAL_LIBS)
+# define BASE_EXTERNAL_LIBS 0
+#endif
+// NOTE(luca): This code has no executable entrypoint, e.g., DLL
+#if !defined(BASE_NO_ENTRYPOINT)
+# define BASE_NO_ENTRYPOINT 0
+#endif 
 
 //- RL 
 #if !defined(RL_PLATFORM_COLEMAK)

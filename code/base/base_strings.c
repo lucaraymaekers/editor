@@ -209,8 +209,7 @@ Str8Fmt(char *Format, ...)
 }
 
 //~ Hashing 
-
-#if !defined(BASE_EXTERNAL_LIBS)
+#if !BASE_EXTERNAL_LIBS
 # if !defined(XXH_IMPLEMENTATION)
 # define XXH_INLINE_ALL
 # define XXH_STATIC_LINKING_ONLY

@@ -2678,6 +2678,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
            {
             lister_item *Item = FilteredItems + Idx;
             str8 ItemString = Str8Fmt("%S###Item%d", Item->Name, Idx);
+            
             b32 Selected = (SelectedIdx == Item->Idx);
             
             UI_SemanticHeight(UI_SizePx(ItemHeight, 1.f))
@@ -3011,7 +3012,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                Piece->Metronome ^= 
                 SimpleToggleButton(S8("Metronome"), Piece->Metronome, Color_Magenta);
                Piece->BarWrapping ^= 
-                SimpleToggleButton(S8("BarWrapping"), Piece->BarWrapping, Color_Magenta);
+                SimpleToggleButton(S8("Wrapping"), Piece->BarWrapping, Color_Magenta);
                
                UI_SemanticWidth(UI_SizePx(200.f, 1))
                 Piece->BPM = SimpleSlider(S8("PieceBPM"), 

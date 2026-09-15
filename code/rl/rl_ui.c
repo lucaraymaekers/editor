@@ -280,7 +280,9 @@ UI_AddBox(str8 String, s32 Flags)
  Box->Key = Key;
  
 #if RL_PLATFORM_INTERNAL
- // NOTE(luca): If code is hot reloaded the strings might have been part of the dll, so we should add them to persistent storage.  We push onto the style arena since that won't change the addresses of our boxes.
+ // NOTE(luca): In internal mode, the code might be hot reloaded.  If the strings are constant
+ // literals inside the DLL, when the DLL is closed they will no longer be accessible.  So
+ // we duplicate them.
  Box->String = PushS8(UI_State->StyleArena, String.Size);
  MemoryCopy(Box->String.Data, String.Data, String.Size);
 #else
