@@ -965,6 +965,22 @@ PiecePart1Silence(piece *Piece, s32 Pitch1, s32 Pitch2, s32 Pitch3)
  PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Pitch3, 1.f/4.f);
 }
 
+internal b32
+PieceWasTimestampPlayed(piece *Piece, f32 Timestamp)
+{
+ b32 Result = false;
+ 
+ f32 BPS = Piece->BPM/60.f;
+ 
+ f32 Now = Piece->PlayPos;
+ f32 Before = Piece->PlayPos - BPS*dtForFrame;
+ 
+ Result = (Timestamp > Before && 
+           Timestamp <= Now);
+ 
+ return Result;
+}
+
 //~ UI 
 internal ui_box *
 Label(str8 String)
@@ -1446,8 +1462,6 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
  s32 BarsPerWidth = (s32)((Box->FixedSize.X - 2.f*BarPadding)/WholeBarWidth);
  BarsPerWidth = Max(1, BarsPerWidth);
  
- 
- 
  // Draw staff
  {    
   v2 StaffPos = Pos;
@@ -1483,7 +1497,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
     // TODO(luca): Reduce world's biggest condition.
     b32 LastBar = (((Idx + 1)%BarsPerWidth == 0) ||
                    (BarsPerWidth == 1) || 
-                   (Idx == (s32)BarCount));
+                   (Idx == (s32)BarCount - 1));
     if(LastBar)
     {
      Dest = RectFromSize(BarPos, V2(2.f, StaffHeight));
@@ -1506,8 +1520,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
   v2 NotePos = Pos;
   NotePos.X += BarPadding;
   
-  f32 PlayPosLength = Piece->PlayPos*Piece->BPM/60.f;
-  f32 PlayPosLengthBefore = (Piece->PlayPos - dtForFrame)*Piece->BPM/60.f;
+  f32 BPS = Piece->BPM/60.f;
   
   // Used to see when a new bar begins and we should add padding.
   f32 LengthSum = 0.f;
@@ -1524,8 +1537,8 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
     f32 Start = Note->Start;
     f32 End = Start + Note->Length;
     
-    NoteIsPlaying = (PlayPosLength >= Start &&
-                     PlayPosLength < End);
+    NoteIsPlaying = (Piece->PlayPos >= Start &&
+                     Piece->PlayPos < End);
    }
    
    if(NoteIsPlaying) NoteColor = Color_Yellow;
@@ -2919,7 +2932,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             UI_BackgroundColor(Color_ButtonBackground)
              UI_FillWidth() 
              UI_SemanticHeight(UI_SizeText(4.f, 1.f))
-             UI_AddBox(S8("Top"), UI_BoxFlag_DrawBackground|
+             UI_AddBox(S8("Top"), 
+                       UI_BoxFlag_DrawBackground|
                        UI_BoxFlag_DrawBorders);
             
             UI_Push()
@@ -2977,6 +2991,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
            UI_BackgroundColor(Color_Night2)
             UI_FillAll()
             Contents = UI_AddBox(S8("Contents"), 
+                                 UI_BoxFlag_Scroll|
                                  UI_BoxFlag_MouseClickable|
                                  UI_BoxFlag_DrawBackground);
            
@@ -3139,10 +3154,61 @@ UPDATE_AND_RENDER(UpdateAndRender)
                           UI_BoxFlag_DrawBackground|
                           UI_BoxFlag_DrawBorders);
               }
-              UI_FillAll()
-               PieceBox = UI_AddBox(S8("Piece"), 
-                                    UI_BoxFlag_Scroll|
-                                    UI_BoxFlag_MouseClickable);
+              UI_Row()
+               
+              {               
+               UI_FillAll()
+                PieceBox = UI_AddBox(S8("Piece"), 
+                                     UI_BoxFlag_Scroll|
+                                     UI_BoxFlag_MouseClickable);
+               
+               f32 VerticalOverflow = 0.f;
+               // Find out if vertically overflowing and if it is, add a scrollbar
+               {
+                if(Piece->BarWrapping)
+                {
+                 f32 WholeBarWidth = Piece->BeatWidth*Piece->TimeSigNum + 2.f*Piece->BarPadding;
+                 s32 BarsPerWidth = (s32)((PieceBox->FixedSize.X - 2.f*Piece->BarPadding)/WholeBarWidth);
+                 BarsPerWidth = Max(1, BarsPerWidth);
+                 s32 BarCount = (s32)Max(1.f, CeilF32(Piece->RecordLength/Piece->TimeSigNum));
+                 
+#if 0            
+                 // TODO(luca): Maybe we want this API, waiting for 3rd case
+                 s32 WholeBarWidth = PieceWholeBarWidth(Piece);
+                 s32 BarCount = PieceBarCount(Piece);
+                 s32 BarsPerWidth = PieceBarsPerWidth(Piece, WholeBarWidth);
+                 f32 StaffHeight = PieceStaffHeight(Piece);
+                 
+                 s32 Rows = ((BarCount/BarsPerWidth + 1)*2 + 1);
+                 f32 Height = StaffHeight*Rows; 
+                 
+                 // Or something like this
+                 f32 Height = PieceHeight();
+                 // Or compute it in Piece
+                 f32 Height = PieceHeight();
+#endif
+                 
+                 s32 StaffLineCount = 5;
+                 f32 StaffLineWidth = Piece->StaffLineWidth;
+                 f32 StaffHeight = (f32)(StaffLineCount-1)*Piece->NoteSize + StaffLineWidth;
+                 
+                 f32 Height = PieceBox->FixedSize.Y;
+                 s32 Rows = BarCount/BarsPerWidth + 1;
+                 Rows = 2*Rows + 1;
+                 f32 HeightForRows = (f32)Rows*StaffHeight; 
+                 
+                 VerticalOverflow = HeightForRows - Height;
+                }
+                
+                if(VerticalOverflow > 0.f)
+                {               
+                 f32 Scroll = Panel->Scroll.Y; 
+                 Scroll = M_Scrollbar(Axis2_Y, VerticalOverflow, Scroll);
+                 PieceBox->Scroll.Y = Scroll;
+                 Panel->Scroll.Y = Scroll;
+                }
+               }
+              }
               
               piece_box_data *Data = PushArray(FrameArena, piece_box_data, 1);
               Data->Piece = Piece;
@@ -3150,10 +3216,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
               
               PieceBox->CustomDrawData = Data;
               PieceBox->CustomDraw = CustomDrawPiece;
-              
-              f32 PlayPosLength = Piece->PlayPos*Piece->BPM/60.f;
-              f32 PlayPosLengthBefore = (Piece->PlayPos - dtForFrame)*Piece->BPM/60.f;
-              b32 PieceEnded = (PlayPosLength > Piece->RecordLength);
+              f32 BPS = Piece->BPM/60.f;
               
               for EachIndex(Idx, Piece->NoteCount)
               {
@@ -3164,10 +3227,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 f32 Start = Note->Start;
                 f32 End = Start + Note->Length;
                 
-                b32 NoteIsPlaying = (Start > PlayPosLengthBefore &&
-                                     Start <= PlayPosLength);
-                b32 NoteHasEnded = (End > PlayPosLengthBefore &&
-                                    End <= PlayPosLength);
+                b32 NoteIsPlaying = PieceWasTimestampPlayed(Piece, Start);
+                b32 NoteHasEnded = PieceWasTimestampPlayed(Piece, End);
                 
                 s32 Pitch = Note->Pitch + 0*12;
                 
@@ -3190,8 +3251,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
               
               if(Piece->IsPlaying)
               {
-               Piece->PlayPos += Input->dtForFrame;
-               // TODO(luca): 
+               Piece->PlayPos += BPS*Input->dtForFrame;
+               
+               b32 PieceEnded = (Piece->PlayPos > Piece->RecordLength);
                if(PieceEnded)
                {
                 Piece->PlayPos = 0.f;
@@ -3226,8 +3288,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             }
             else if(Panel->Kind == PanelKind_Controls)
             {
-             Contents->BackgroundColor = Color_Night2;
-             
              ui_box *ConfigList;
              
              UI_Push()
@@ -3237,7 +3297,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
               {
                UI_FillAll()
                 UI_LayoutAxis(Axis2_Y)
-                ConfigList = UI_AddBox(S8("Settings"), UI_BoxFlag_Clip|UI_BoxFlag_Scroll);
+                ConfigList = UI_AddBox(S8("Settings"), UI_BoxFlag_Clip);
                UI_Clip(ConfigList->Rec)
                 UI_FillAll()
                 UI_Push()
@@ -3440,8 +3500,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             else if(Panel->Kind == PanelKind_Debug)
             {
              ui_box *ConfigList;
-             
-             Contents->BackgroundColor = Color_Night2;
              
              UI_Push()
              {                                                    
