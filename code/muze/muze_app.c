@@ -584,6 +584,7 @@ VoiceAdd(app_state *App)
   tsf_channel_set_presetindex(GlobalTSF, Voice->Channel, Voice->PresetIdx);
   
   Voice->Volume = 1.f;
+  Voice->MIDISoftness = 1.f;
   
   App->VoiceCount += 1;
  }
@@ -637,7 +638,8 @@ PlayNote(app_memory *Memory, app_state *App, voice *Voice, rec_note *Note)
   {
    if(Note->Velocity > 0)
    {
-    tsf_channel_note_on(GlobalTSF, Voice->Channel, Note->Pitch, (f32)Note->Velocity/127.f);
+    f32 Volume = (f32)Note->Velocity/127.f;
+    tsf_channel_note_on(GlobalTSF, Voice->Channel, Note->Pitch, Volume);
    }
    else
    {
@@ -662,7 +664,8 @@ PlayNote(app_memory *Memory, app_state *App, voice *Voice, rec_note *Note)
    {
     Message.U8[0] = MIDIEventType_NoteOn;
     Message.U8[1] = Note->Pitch;
-    Message.U8[2] = Note->Velocity;
+    f32 Volume = (f32)Note->Velocity*Voice->MIDISoftness;
+    Message.U8[2] = (u8)Volume;
    } break;
    
    case NoteKind_Pedal:
@@ -1883,28 +1886,6 @@ UI_CUSTOM_DRAW(CustomDrawSingleLineTextInput)
 }
 
 //~ UI 
-
-internal void
-ListBegin(str8 Name, f32 ItemHeight)
-{
- UI_SemanticHeight(UI_SizeChildren(1.f))
-  UI_LayoutAxis(Axis2_Y)
-  UI_AddBox(Name, UI_BoxFlag_Clip);
- UI_PushBox();
- 
- UI_PushSemanticHeight(UI_SizePx(ItemHeight, 1.f));
- 
- Label(Name);
- UI_Spacer(UI_SizeEm(.2f, 1.f));
-}
-
-internal void
-ListEnd(void)
-{
- UI_PopSemanticHeight();
- UI_PopBox();
-}
-
 internal void
 DebugStringAdd(app_state *App, char *Format, ...)
 {
@@ -1919,29 +1900,70 @@ DebugStringAdd(app_state *App, char *Format, ...)
  }
 }
 
-
-#define SimpleButton(ButtonText, ...) \
+#define M_Button(ButtonText, ...) \
 Button(.Text = ButtonText, .CenterText = true, .Padding = GlobalItemPadding, ##__VA_ARGS__).Pressed
 
-#define ControlButton(ButtonText, ...) \
+#define M_ControlButton(ButtonText, ...) \
 Button(.Text = ButtonText, .Padding = GlobalItemPadding, ##__VA_ARGS__).Pressed
 
-#define SimpleToggleButton(ButtonText, Toggled, Color) \
+#define M_SimpleToggleButton(ButtonText, Toggled, Color) \
 Button(.Text = ButtonText, .Padding = GlobalItemPadding, .HasToggle = true, .ToggleToggled = Toggled, Color_Green, .ToggleToggledColor = Color).OneClicked
 
-typedef struct simple_slider_result simple_slider_result;
-struct simple_slider_result
+typedef struct m_slider_result m_slider_result;
+struct m_slider_result
 {
  f32 Value;
  b32 Clicked;
 };
 
-internal simple_slider_result
-SimpleSlider(str8 String, str8 DisplayString, 
-             f32 Value, f32 Min, f32 Max, f32 StepSize,
-             b32 Clickable)
+typedef struct m_slider_params m_slider_params;
+struct m_slider_params
 {
- simple_slider_result Result = {0};
+ str8 String; 
+ str8 DisplayString; 
+ str8 ValueString;
+ ui_size SliderSize;
+ b32 Align;
+ 
+ f32 StepValue;
+ f32 StepMin; 
+ f32 StepMax; 
+ f32 StepSize;
+ 
+ b32 IsClickable;
+};
+
+#define M_Slider(Str, DisplayStr, ValueStr, Value, Min, Max, Step, Clickable, ...) \
+M_Slider_((m_slider_params){ \
+.String = Str, \
+.DisplayString = DisplayStr, \
+.ValueString = ValueStr, \
+.SliderSize = UI_SizeFull(), \
+.Align = true, \
+.StepValue = Value, \
+.StepMin = Min, \
+.StepMax = Max, \
+.StepSize = Step, \
+.IsClickable = Clickable, \
+##__VA_ARGS__})
+
+internal m_slider_result
+M_Slider_(m_slider_params Params)
+{
+ m_slider_result Result = {0};
+ 
+ str8 String = Params.String; 
+ str8 DisplayString = Params.DisplayString; 
+ str8 ValueString = Params.ValueString;
+ ui_size SliderSize = Params.SliderSize;
+ b32 NoAlign = !Params.Align;
+ 
+ f32 Value = Params.StepValue;
+ f32 Min = Params.StepMin; 
+ f32 Max = Params.StepMax; 
+ f32 Step = Params.StepSize;
+ 
+ b32 Clickable = Params.IsClickable;
  
  s32 Flags = (UI_BoxFlag_Clip|
               UI_BoxFlag_DrawBorders|
@@ -1955,35 +1977,124 @@ SimpleSlider(str8 String, str8 DisplayString,
  }
  
  {
-  ui_box *Box;
+  ui_box *Slider;
   UI_BackgroundColor(Color_ButtonBackground)
-   Box = UI_AddBox(String, Flags);
+   Slider = UI_AddBox(String, Flags);
   
   UI_PaddingAround(GlobalItemPadding)
   {
-   ui_box *Slider;
-   UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-    Slider = UI_AddBox(String, UI_BoxFlag_DrawDisplayString|
-                       UI_BoxFlag_CenterTextVertically);
-   Slider->DisplayString = DisplayString;
+   if(DisplayString.Size > 0)
+   {
+    ui_box *Box;
+    UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+     Box = UI_AddBox(S8("SliderText"),
+                     UI_BoxFlag_DrawDisplayString|
+                     UI_BoxFlag_CenterTextVertically);
+    Box->DisplayString = DisplayString;
+   }
    
-   UI_Spacer(UI_SizePx(5.f, 1.f));
+   if(!NoAlign)
+   {   
+    UI_Spacer(UI_SizeFull());
+   }
    
-   UI_BackgroundColor(Color_Orange)
+   if(ValueString.Size > 0)
+   {
+    ui_box *Box;
+    UI_SemanticWidth(UI_SizeText(1.f, 1.f))
+     Box = UI_AddBox(S8("ValueText"),
+                     UI_BoxFlag_DrawDisplayString|
+                     UI_BoxFlag_CenterTextVertically);
+    Box->DisplayString = ValueString;
+    
+    UI_Spacer(GlobalItemPadding);
+   }
+   
+   UI_SemanticWidth(SliderSize)
+    UI_BackgroundColor(Color_Orange)
     UI_BorderColor(Color_Black)
-    Result.Value = UI_Slider(Value, Min, Max, StepSize, 0, true);
+    Result.Value = UI_Slider(Value, Min, Max, Step, 0, true);
   }
   
-  Result.Clicked = Box->Clicked;
+  Result.Clicked = Slider->Clicked;
  }
  
  return Result;
 }
 
-
-//~ UI macro's
-#define UI_List(Name, ItemHeight) \
-DeferLoop(ListBegin(Name, ItemHeight), ListEnd())
+internal f32
+M_Scrollbar(axis2 Axis, f32 TotalSize, f32 Scroll)
+{
+ f32 Result = 0.f;
+ 
+ f32 ScrollbarSize = 16.f;
+ f32 ThumbSize = 32.f;
+ f32 HalfThumbSize = .5f*ThumbSize;
+ f32 Padding = 2.f;
+ 
+ ui_box *Scrollbar;
+ ui_box *Thumb;
+ ui_box *Spacer;
+ 
+ app_input *Input = UI_State->Input;
+ 
+ UI_BackgroundColor(Color_Night3)
+  UI_LayoutAxis(Axis)
+  UI_SemanticSizeOnAxis(Axis, UI_SizeParent(1.f, 0.f))
+  UI_SemanticSizeOnAxis(1 - Axis, UI_SizePx(ScrollbarSize, 1.f))
+  UI_AddBox(S8("ScrollbarParent"), 
+            UI_BoxFlag_Clip|
+            UI_BoxFlag_DrawBackground);
+ UI_PaddingAround(UI_SizePx(Padding, 1.f))
+ {
+  UI_LayoutAxis(Axis)
+   UI_FillAll()
+   Scrollbar = UI_AddBox(S8("Scrollbar"), UI_BoxFlag_MouseClickable);
+  UI_Push()
+  {                                                    
+   f32 ScrollableSize = Scrollbar->FixedSize.e[Axis] - ThumbSize;
+   f32 Factor = TotalSize/ScrollableSize;
+   //Factor = 1.f;
+   
+   Spacer = UI_AddBox(S8("Spacer"), 0);
+   
+   UI_FillOnAxis(1 - Axis)
+    UI_SemanticSizeOnAxis(Axis, UI_SizePx(ThumbSize, 1.f))
+    UI_BorderColor(Color_Black)
+    UI_BackgroundColor(Color_Orange)
+    Thumb = UI_AddBox(S8("Thumb"), 
+                      UI_BoxFlag_Clip|
+                      UI_BoxFlag_DrawBackground|
+                      UI_BoxFlag_DrawBorders|
+                      UI_BoxFlag_MouseClickable|
+                      UI_BoxFlag_DrawHotEffects|
+                      UI_BoxFlag_DrawActiveEffects);
+   
+   // Clamp in container shrunk.
+   f32 ScrollP = Min(Scroll, TotalSize);
+   
+   if(UI_IsActive(Thumb) || UI_IsActive(Scrollbar))
+   {                                                                            
+    f32 MouseP = (f32)Input->Mouse.Pos.e[Axis];
+    f32 RelP = MouseP - Scrollbar->FixedPos.e[Axis];
+    RelP -= HalfThumbSize;
+    RelP = Clamp(0, RelP, ScrollableSize);
+    
+    ScrollP = RelP*Factor;
+   }
+   
+   Result = ScrollP;
+   
+   f32 SpaceBeforeThumb = ScrollP/Factor;
+   
+   Spacer->SemanticSize[Axis] = UI_SizePx(SpaceBeforeThumb, 1.f);
+   Spacer->SemanticSize[1 - Axis] = UI_SizeParent(1.f, 0.f);
+  }
+  
+ }
+ 
+ return Result;
+}
 
 //~ EntryPoint
 C_LINKAGE
@@ -2252,8 +2363,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
   App->MaxDebugStringCount = 128;
  }
  
- voice *SelectedVoice;
- 
  // Frame Initialization
  {
   // Init read-only variables
@@ -2264,7 +2373,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
   // Init Muze
   {
    App->CommandCount = 0;
-   SelectedVoice = App->SelectedVoice;
   }
   
   OS_ProfileAndPrint("Misc. Init");
@@ -2452,7 +2560,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
      DebugStringAddArena(App, S8("UI"), App->UIArena);
      DebugStringAddArena(App, S8("Panel"), App->PanelArena);
      DebugStringAddArena(App, S8("Muze"), App->Arena);
-     DebugStringAddArena(App, S8("Voice"), SelectedVoice->Arena);
+     DebugStringAddArena(App, S8("Voice"), App->SelectedVoice->Arena);
      DebugStringAddArena(App, S8("TSF"), App->TSFArena);
     }
 #endif
@@ -2483,7 +2591,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     default: InvalidPath(); break;
     case ListerKind_Instruments:
     {
-     SelectedIdx = (u64)SelectedVoice->PresetIdx; 
+     SelectedIdx = (u64)App->SelectedVoice->PresetIdx; 
      NameListSize = (u64)App->InstrumentCount;
      NameList = App->InstrumentNames;
     } break;
@@ -2734,7 +2842,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
          f32 TotalElementSize = (f32)FilteredItemCount*ItemHeight;
          TotalElementSize -= ItemHeight;
          
-         App->ListerScroll = UI_Scrollbar(Axis2_Y, TotalElementSize, App->ListerScroll);  
+         App->ListerScroll = M_Scrollbar(Axis2_Y, TotalElementSize, App->ListerScroll);  
          
         }
        }
@@ -3007,7 +3115,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                UI_Row()
                UI_SemanticWidth(UI_SizePx(150.f, 1))
               {               
-               if(SimpleToggleButton(S8("Play"), Piece->IsPlaying, Color_Green))
+               if(M_SimpleToggleButton(S8("Play"), Piece->IsPlaying, Color_Green))
                {
                 tsf_note_off_all(GlobalTSF);
                 Piece->IsPlaying ^= true;
@@ -3015,14 +3123,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
                }
                
                Piece->Metronome ^= 
-                SimpleToggleButton(S8("Metronome"), Piece->Metronome, Color_Magenta);
+                M_SimpleToggleButton(S8("Metronome"), Piece->Metronome, Color_Magenta);
                Piece->BarWrapping ^= 
-                SimpleToggleButton(S8("Wrapping"), Piece->BarWrapping, Color_Magenta);
+                M_SimpleToggleButton(S8("Wrapping"), Piece->BarWrapping, Color_Magenta);
                
                UI_SemanticWidth(UI_SizePx(200.f, 1))
-                Piece->BPM = SimpleSlider(S8("PieceBPM"), 
-                                          Str8Fmt("BPM %3.0f", Piece->BPM), 
-                                          Piece->BPM, 0.f, 300.f, 1.f, false).Value;
+                Piece->BPM = M_Slider(S8("PieceBPM"), S8("BPM"), 
+                                      Str8Fmt("%3.0f", Piece->BPM),
+                                      Piece->BPM, 0.f, 300.f, 1.f, false,
+                                      .Align = false).Value;
                
                UI_FillWidth()
                 UI_BackgroundColor(Color_ButtonBackground)
@@ -3108,7 +3217,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                f32 Width = BarCount*WholeBarWidth + 2.f*BarPadding;
                Width -= WholeBarWidth + 2.f*BarPadding;
                
-               f32 Scroll = UI_Scrollbar(Axis2_X, Width, Panel->Scroll.X);
+               f32 Scroll = M_Scrollbar(Axis2_X, Width, Panel->Scroll.X);
                PieceBox->Scroll.X = Scroll;
                Panel->Scroll.X = Scroll;
               }
@@ -3186,7 +3295,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  // Synth toggle and open instrument lister
                  {      
                   str8 Text = (SoundFontLoaded ? 
-                               App->InstrumentNames[SelectedVoice->PresetIdx] : 
+                               App->InstrumentNames[App->SelectedVoice->PresetIdx] : 
                                S8("No soundfont loaded."));
                   
                   Text = Str8Fmt("Set synth instrument   - \"%S\"###Synth", Text);
@@ -3201,69 +3310,44 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  }
                 }
                 
+                ui_size SliderSize = UI_SizePx(250.f, 1.f);
+                
                 //- Song 
-                {                
-                 UI_BackgroundColor(Color_ButtonBackground)
-                  UI_AddBox(S8("BPM"), 
-                            UI_BoxFlag_DrawBorders|
-                            UI_BoxFlag_DrawBackground);
-                 UI_PaddingAround(ItemPadding)
-                 {
-                  UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-                   UI_AddBox(S8("Set BPM           "), (UI_BoxFlag_Clip|
-                                                        UI_BoxFlag_DrawDisplayString|
-                                                        UI_BoxFlag_CenterTextVertically));
-                  
-                  UI_Spacer(UI_SizeParent(1.f, 0.f));
-                  
-                  UI_BackgroundColor(Color_Orange)
-                   UI_BorderColor(Color_Black)
-                   App->BPM = UI_Slider(App->BPM, 30.f, 300.f, 1.0f, "%3.0f", true);
-                 }
+                {
+                 App->BPM = M_Slider(S8("BPM"), S8("Set BPM"), 
+                                     Str8Fmt("%3.0f", App->BPM),  
+                                     App->BPM, 30.f, 300.f, 1.f, false, 
+                                     .SliderSize = SliderSize).Value;
                  
-                 UI_BackgroundColor(Color_ButtonBackground)
-                  UI_AddBox(S8("TimeSig"), 
-                            UI_BoxFlag_DrawBorders|
-                            UI_BoxFlag_DrawBackground);
-                 UI_PaddingAround(ItemPadding)
-                 {
-                  UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-                   UI_AddBox(S8("Set time signature"), 
-                             UI_BoxFlag_Clip|
-                             UI_BoxFlag_DrawDisplayString|
-                             UI_BoxFlag_CenterTextVertically);
-                  
-                  UI_Spacer(UI_SizeParent(1.f, 0.f));
-                  
-                  UI_BackgroundColor(Color_Orange)
-                   UI_BorderColor(Color_Black)
-                   App->TimeSig = (s32)UI_Slider((f32)App->TimeSig, 1.f, 4.f, 1.f, "%1.0f/4", true);
-                 }
+                 App->TimeSig = (s32)M_Slider(S8("TimeSig"), S8("Set time signature"), 
+                                              Str8Fmt("%d/4",  App->TimeSig),
+                                              App->TimeSig, 1.f, 4.f, 1.f, false, 
+                                              .SliderSize = SliderSize).Value;
                  
                  //- Song 
                  {
                   UI_BackgroundColor(Color_Night0) Label(S8("Song"));
                   
-                  if(UI_ButtonWithToggle(S8("Record"), SelectedVoice->IsRecording, ItemPadding, Color_Red).OneClicked)
+                  if(UI_ButtonWithToggle(S8("Record"), App->SelectedVoice->IsRecording, ItemPadding, Color_Red).OneClicked)
                   {
                    PushCommand(App, Command_ToggleRecording);
                   }
                   
-                  if(UI_ButtonWithToggle(S8("Play"), SelectedVoice->IsPlaying, ItemPadding, Color_Green).OneClicked)
+                  if(UI_ButtonWithToggle(S8("Play"), App->SelectedVoice->IsPlaying, ItemPadding, Color_Green).OneClicked)
                   {
                    PushCommand(App, Command_TogglePlaying);
                   }
                   
-                  if(UI_ButtonWithToggle(S8("Auto Scroll"), SelectedVoice->AutoScroll, ItemPadding, Color_Green).OneClicked)
+                  if(UI_ButtonWithToggle(S8("Auto Scroll"), App->SelectedVoice->AutoScroll, ItemPadding, Color_Green).OneClicked)
                   {
                    PushCommand(App, Command_ToggleAutoScroll);
                   }
                   
-                  if(ControlButton(S8("Stop recording/playing"))) PushCommand(App, Command_Stop);
-                  if(ControlButton(S8("Trim recording"))) PushCommand(App, Command_Trim);
-                  if(ControlButton(S8("Reset recording"))) PushCommand(App, Command_Reset);
-                  if(ControlButton(S8("Play from beginning"))) PushCommand(App, Command_PlayFromStart);
-                  if(ControlButton(S8("Play from note"))) PushCommand(App, Command_PlayFromNote);
+                  if(M_ControlButton(S8("Stop recording/playing"))) PushCommand(App, Command_Stop);
+                  if(M_ControlButton(S8("Trim recording"))) PushCommand(App, Command_Trim);
+                  if(M_ControlButton(S8("Reset recording"))) PushCommand(App, Command_Reset);
+                  if(M_ControlButton(S8("Play from beginning"))) PushCommand(App, Command_PlayFromStart);
+                  if(M_ControlButton(S8("Play from note"))) PushCommand(App, Command_PlayFromNote);
                  }
                 }
                 
@@ -3271,98 +3355,64 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 {
                  UI_BackgroundColor(Color_Night0) Label(S8("Notes"));
                  
-                 if(ControlButton(S8("Round notes' length"))) PushCommand(App, Command_Round);
-                 if(ControlButton(S8("Sync notes to the beat"))) PushCommand(App, Command_Sync);
+                 if(M_ControlButton(S8("Round notes' length"))) PushCommand(App, Command_Round);
+                 if(M_ControlButton(S8("Sync notes to the beat"))) PushCommand(App, Command_Sync);
                  
-                 if(ControlButton(S8("Guess BPM from notes"))) PushCommand(App, Command_GuessBPM);
-                 if(ControlButton(S8("Delete selected notes"))) PushCommand(App, Command_DeleteSelection);
+                 if(M_ControlButton(S8("Guess BPM from notes"))) PushCommand(App, Command_GuessBPM);
+                 if(M_ControlButton(S8("Delete selected notes"))) PushCommand(App, Command_DeleteSelection);
                  
                  {
-                  ui_box *ButtonBox;
-                  UI_BackgroundColor(Color_ButtonBackground)
-                   ButtonBox = UI_AddBox(S8("Length"), 
-                                         UI_BoxFlag_MouseClickable|
-                                         UI_BoxFlag_DrawHotEffects|
-                                         UI_BoxFlag_DrawActiveEffects|
-                                         UI_BoxFlag_DrawBorders|
-                                         UI_BoxFlag_DrawBackground);
-                  UI_PaddingAround(ItemPadding)
-                  {
-                   ui_box *Box;
-                   UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-                    Box = UI_AddBox(S8("SetLength"), UI_BoxFlag_DrawDisplayString|
-                                    UI_BoxFlag_CenterTextVertically);
-                   
-                   f32 Length = SelectedVoice->NoteSetLength;
-                   char *Format = (Length >= 0.f ? 
-                                   "Length %3.0f" :
-                                   "Length 1/%1.0f");
-                   f32 Value = PowF32(2.f, AbsF32(Length));
-                   Box->DisplayString = Str8Fmt(Format, Value);
-                   
-                   UI_Spacer(UI_SizePx(5.f, 1.f));
-                   
-                   UI_BackgroundColor(Color_Orange)
-                    UI_BorderColor(Color_Black)
-                    SelectedVoice->NoteSetLength = UI_Slider(Length, -3, 2, 1.f, 0, true);
-                  }
+                  f32 Length = App->SelectedVoice->NoteSetLength;
+                  char *Format = (Length >= 0.f ? "%3.0f" : "1/%1.0f");
+                  f32 Value = PowF32(2.f, AbsF32(Length));
+                  str8 DisplayString = Str8Fmt(Format, Value);
                   
-                  if(ButtonBox->Clicked)
+                  m_slider_result SliderResult = M_Slider(S8("SetLength"), S8("Set note Length"), 
+                                                          Str8Fmt(Format, Value), 
+                                                          App->SelectedVoice->NoteSetLength, -3.f, 2.f, 1.f, true, 
+                                                          .SliderSize = SliderSize);
+                  App->SelectedVoice->NoteSetLength = SliderResult.Value;
+                  
+                  if(SliderResult.Clicked)
                   {
-                   PushCommand(App, Command_SetLength)->Length = SelectedVoice->NoteSetLength;;
+                   PushCommand(App, Command_SetLength)->Length = SliderResult.Value;
                   }
                  }
                  
-                 if(ControlButton(S8("Clear selection"))) PushCommand(App, Command_ClearSelection);
+                 if(M_ControlButton(S8("Clear selection"))) PushCommand(App, Command_ClearSelection);
                 }
                 
                 //- Voice
                 {
                  UI_BackgroundColor(Color_Night0) Label(S8("Voice"));
                  
-                 
-                 UI_BackgroundColor(Color_ButtonBackground)
-                  UI_AddBox(S8("VoiceSelect"), 
-                            UI_BoxFlag_DrawBorders|
-                            UI_BoxFlag_DrawBackground);
-                 UI_PaddingAround(ItemPadding)
-                 {
-                  u64 Idx = (u64)(SelectedVoice - App->Voices);
-                  f32 NewIdx = 0.f;
-                  
-                  UI_SemanticWidth(UI_SizeText(1.f, 1.f))
-                   UI_AddBox(Str8Fmt("Select voice %2llu/%-2llu###VoiceText", Idx + 1, App->VoiceCount),
-                             UI_BoxFlag_DrawDisplayString|
-                             UI_BoxFlag_CenterTextVertically);
-                  
-                  UI_BorderColor(Color_Black)
-                   NewIdx = UI_Slider((f32)Idx + 1, 1.f, (f32)App->VoiceCount, 1.f, 0, true); 
-                  NewIdx -= 1.f;
-                  
-                  // Set panel voice
-                  if((u64)NewIdx != Idx)
-                  {
-                   voice *NewVoice = App->Voices + (u64)NewIdx;
-                   PushCommand(App, Command_SetPanelVoice)->Voice = NewVoice;
-                  }
-                 }
-                 
-                 if(ControlButton(S8("Delete voice"))) PushCommand(App, Command_DeleteVoice);
-                 if(ControlButton(S8("New voice"))) PushCommand(App, Command_AddVoice);
-                 if(ControlButton(S8("Enqueue playing"))) PushCommand(App, Command_Enqueue);
-                 if(ControlButton(S8("Dequeue playing"))) PushCommand(App, Command_Dequeue);
-                 if(ControlButton(S8("Play all voices"))) PushCommand(App, Command_PlayAllVoices);
-                 if(ControlButton(S8("Stop all voices"))) PushCommand(App, Command_StopAllVoices);
+                 if(M_ControlButton(S8("Delete voice"))) PushCommand(App, Command_DeleteVoice);
+                 if(M_ControlButton(S8("New voice"))) PushCommand(App, Command_AddVoice);
+                 if(M_ControlButton(S8("Enqueue playing"))) PushCommand(App, Command_Enqueue);
+                 if(M_ControlButton(S8("Dequeue playing"))) PushCommand(App, Command_Dequeue);
+                 if(M_ControlButton(S8("Play all voices"))) PushCommand(App, Command_PlayAllVoices);
+                 if(M_ControlButton(S8("Stop all voices"))) PushCommand(App, Command_StopAllVoices);
                  
                  // Volume control
                  {                                    
-                  f32 Volume = SelectedVoice->Volume;
-                  Volume = SimpleSlider(S8("Volume"), 
-                                        Str8Fmt("Set volume %3.0f%%", Volume*100.f),
-                                        Volume, 0.f, 1.f, .01f,
-                                        false).Value;
-                  tsf_channel_set_volume(GlobalTSF, SelectedVoice->Channel, Volume);
-                  SelectedVoice->Volume = Volume;
+                  f32 Volume = App->SelectedVoice->Volume;
+                  Volume = M_Slider(S8("Volume"), S8("Set volume"),
+                                    Str8Fmt("%3.0f%%", Volume*100.f), 
+                                    Volume, 0.f, 1.f, .01f,
+                                    false, 
+                                    .SliderSize = SliderSize).Value;
+                  tsf_channel_set_volume(GlobalTSF, App->SelectedVoice->Channel, Volume);
+                  App->SelectedVoice->Volume = Volume;
+                 }
+                 
+                 // 
+                 {
+                  f32 Softness = App->SelectedVoice->MIDISoftness;
+                  Softness = M_Slider(S8("MIDISoftness"), S8("Set MIDI output softness"),
+                                      Str8Fmt("%3.0f%%", Softness*100.f),
+                                      Softness, 0.f, 1.f, .01f, false, 
+                                      .SliderSize = SliderSize).Value;
+                  App->SelectedVoice->MIDISoftness = Softness;
                  }
                  
                 }
@@ -3377,7 +3427,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 f32 TotalElementSize = ItemCount*ItemHeight;
                 TotalElementSize -= ItemHeight;
                 
-                f32 Scroll = UI_Scrollbar(Axis2_Y, TotalElementSize, Panel->Scroll.Y);
+                f32 Scroll = M_Scrollbar(Axis2_Y, TotalElementSize, Panel->Scroll.Y);
                 ConfigList->Scroll.Y = Scroll;
                 Panel->Scroll.Y = Scroll;
                }
@@ -3409,7 +3459,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                                                UI_State->RectDebugMode, 
                                                                ItemPadding, V4(1.f, 0.f, 1.f, 1.f)).OneClicked;
                 
-                if(SimpleButton(S8("Info")))
+                if(M_Button(S8("Info")))
                 {
                  PushCommand(App, Command_OpenLister)->ListerKind = ListerKind_DebugInfo;
                 }
@@ -3420,7 +3470,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                 f32 TotalElementSize = 2.f*ItemHeight;
                 TotalElementSize -= ItemHeight;
                 
-                f32 Scroll = UI_Scrollbar(Axis2_Y, TotalElementSize, Panel->Scroll.Y);
+                f32 Scroll = M_Scrollbar(Axis2_Y, TotalElementSize, Panel->Scroll.Y);
                 ConfigList->Scroll.Y = Scroll;
                 Panel->Scroll.Y = Scroll;
                }
@@ -3446,7 +3496,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  PushCommand(App, Command_ToggleRecording);
                 }
                 
-                if(SimpleToggleButton(S8("Play"), Voice->IsPlaying, Color_Green))
+                if(M_SimpleToggleButton(S8("Play"), Voice->IsPlaying, Color_Green))
                 {
                  PushCommand(App, Command_TogglePlaying);
                 }
@@ -3457,10 +3507,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  f32 NewIdx = 0.f;
                  
                  UI_SemanticWidth(UI_SizePx(200.f, 1.f))
-                  NewIdx = SimpleSlider(S8("VoiceSelect"), 
-                                        Str8Fmt("Voice %2llu/%-2llu",
-                                                Idx + 1, App->VoiceCount), 
-                                        (f32)Idx + 1.f, 1.f, App->VoiceCount, 1.f, false).Value;
+                  NewIdx = M_Slider(S8("VoiceSelect"), S8("Voice"),
+                                    Str8Fmt("%2llu", Idx + 1),
+                                    (f32)Idx + 1.f, 1.f, App->VoiceCount, 1.f, false,
+                                    .Align = false).Value;
                  NewIdx -= 1.f;
                  
                  if((u64)NewIdx != Idx)
@@ -3500,10 +3550,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
                f32 Zoom = (BPS/(f32)App->TimeSig*WholeBarWidth);
                f32 WholeSheetWidth = Panel->Voice->RecordLength*Zoom;
                
+#if 0               
                // NOTE(luca): Make it so that we can scroll until there is only one bar of space left empty.
                WholeSheetWidth -= WholeBarWidth;
+#endif
                
-               f32 Scroll = UI_Scrollbar(Axis2_X, WholeSheetWidth, Panel->Scroll.X);
+               f32 Scroll = M_Scrollbar(Axis2_X, WholeSheetWidth, Panel->Scroll.X);
                SheetBox->Scroll.X = Scroll;
                Panel->Scroll.X = Scroll;
               }
@@ -3542,7 +3594,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
           if(PanelBox->WasClicked || ChildIsActive)
           {
            PanelSelect(App, Panel);
-           SelectedVoice = App->SelectedPanel->Voice;
           }
          }
          
@@ -3695,7 +3746,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     case Command_SelectInputDevice:
     {
      // NOTE(luca): Stop all notes on all voices. 
-     StopAllPlayingNotes(Memory, App, SelectedVoice);
+     StopAllPlayingNotes(Memory, App, App->SelectedVoice);
      
      App->In = *Command->Device;
      Memory->PlatformMIDIListen(App->In);
@@ -3708,13 +3759,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     case Command_SelectInstrument:
     {
-     if(Command->PresetIdx != SelectedVoice->PresetIdx)
+     if(Command->PresetIdx != App->SelectedVoice->PresetIdx)
      {
-      tsf_channel_note_off_all(GlobalTSF, SelectedVoice->Channel);
+      tsf_channel_note_off_all(GlobalTSF, App->SelectedVoice->Channel);
      }
      
-     SelectedVoice->PresetIdx = Command->PresetIdx;
-     tsf_channel_set_presetindex(GlobalTSF, SelectedVoice->Channel, SelectedVoice->PresetIdx);
+     App->SelectedVoice->PresetIdx = Command->PresetIdx;
+     tsf_channel_set_presetindex(GlobalTSF, App->SelectedVoice->Channel, App->SelectedVoice->PresetIdx);
     } break;
     
     case Command_ToggleMIDIInput:
@@ -3795,87 +3846,87 @@ UPDATE_AND_RENDER(UpdateAndRender)
    {   
     case Command_ToggleRecording:
     {
-     StopAllPlayingNotes(Memory, App, SelectedVoice);
+     StopAllPlayingNotes(Memory, App, App->SelectedVoice);
      
-     if(SelectedVoice->IsRecording)
+     if(App->SelectedVoice->IsRecording)
      {
-      StopRecording(SelectedVoice);
+      StopRecording(App->SelectedVoice);
      }
      else
      {
-      VoiceReset(SelectedVoice);
-      SelectedVoice->RecordStart = GetWallTime();
-      SelectedVoice->PlayPos = 0.f;
-      SelectedVoice->IsRecording = true;
+      VoiceReset(App->SelectedVoice);
+      App->SelectedVoice->RecordStart = GetWallTime();
+      App->SelectedVoice->PlayPos = 0.f;
+      App->SelectedVoice->IsRecording = true;
      }
      
-     SelectedVoice->IsPlaying = false;
+     App->SelectedVoice->IsPlaying = false;
     } break;
     
     case Command_TogglePlaying:
     {
-     StopAllPlayingNotes(Memory, App, SelectedVoice);
-     StopRecording(SelectedVoice);
+     StopAllPlayingNotes(Memory, App, App->SelectedVoice);
+     StopRecording(App->SelectedVoice);
      
-     SelectedVoice->IsPlaying ^= 1;
+     App->SelectedVoice->IsPlaying ^= 1;
     } break;
     
     case Command_ToggleAutoScroll:
     {
-     SelectedVoice->AutoScroll ^= 1;
+     App->SelectedVoice->AutoScroll ^= 1;
     } break;
     
     case Command_Reset:
     {
-     VoiceReset(SelectedVoice);
-     SelectedVoice->IsRecording = false;
-     SelectedVoice->IsPlaying = false;
-     StopAllPlayingNotes(Memory, App, SelectedVoice);
+     VoiceReset(App->SelectedVoice);
+     App->SelectedVoice->IsRecording = false;
+     App->SelectedVoice->IsPlaying = false;
+     StopAllPlayingNotes(Memory, App, App->SelectedVoice);
     } break;
     
     case Command_Stop:
     {
-     StopRecording(SelectedVoice);
-     StopAllPlayingNotes(Memory, App, SelectedVoice);
-     SelectedVoice->IsPlaying = false;
-     SelectedVoice->PlayPos = 0.f;
+     StopRecording(App->SelectedVoice);
+     StopAllPlayingNotes(Memory, App, App->SelectedVoice);
+     App->SelectedVoice->IsPlaying = false;
+     App->SelectedVoice->PlayPos = 0.f;
     } break;
     
     case Command_PlayFromNote:
     case Command_PlayFromStart:
     {
-     StopRecording(SelectedVoice);
+     StopRecording(App->SelectedVoice);
      if(App->OutputSynthEnabled)
      {
-      tsf_channel_note_off_all(GlobalTSF, SelectedVoice->Channel);
+      tsf_channel_note_off_all(GlobalTSF, App->SelectedVoice->Channel);
      }
      f32 Pos = 0.f;
      
      if(Command->Kind == Command_PlayFromNote)
      {
-      note_node *Note = SelectedVoice->NoteSel;
+      note_node *Note = App->SelectedVoice->NoteSel;
       if(Note)
       {
        Pos = Note->Value->Timestamp;
       }
      }
      
-     SelectedVoice->PlayPos = Pos;
-     SelectedVoice->IsPlaying = true;
+     App->SelectedVoice->PlayPos = Pos;
+     App->SelectedVoice->IsPlaying = true;
     } break;
     
     case Command_Trim:
     {
-     if(!IsNilNote(SelectedVoice->FirstNote))
+     if(!IsNilNote(App->SelectedVoice->FirstNote))
      {
-      StopAllPlayingNotes(Memory, App, SelectedVoice);
+      StopAllPlayingNotes(Memory, App, App->SelectedVoice);
       
-      rec_note *LastNote = SelectedVoice->LastNote;
+      rec_note *LastNote = App->SelectedVoice->LastNote;
       
       f32 LastNoteEnd = (LastNote->Timestamp + LastNote->Duration); 
       //- Find the last note's end.
       {
-       for EachNote(Note, SelectedVoice->FirstNote)
+       for EachNote(Note, App->SelectedVoice->FirstNote)
        {
         if(Note->Kind == NoteKind_Note)
         {
@@ -3884,9 +3935,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
        }
       }
       
-      SelectedVoice->RecordLength = LastNoteEnd;
+      App->SelectedVoice->RecordLength = LastNoteEnd;
       
-      rec_note *FirstNote = SelectedVoice->FirstNote;
+      rec_note *FirstNote = App->SelectedVoice->FirstNote;
       //- Find the first note played.
       {
        for EachNote(Note, FirstNote)
@@ -3903,20 +3954,20 @@ UPDATE_AND_RENDER(UpdateAndRender)
       
       //- Get new voice length 
       {                                    
-       SelectedVoice->RecordLength -= StartSilence;
+       App->SelectedVoice->RecordLength -= StartSilence;
        
        f32 BeatsPerSecond = App->BPM/60.f;
        f32 SecondsPerBeat = 1.f/BeatsPerSecond;
        
        f32 BarTime = SecondsPerBeat*(f32)App->TimeSig;
-       f32 Pad = CeilF32(SelectedVoice->RecordLength/BarTime)*BarTime;
+       f32 Pad = CeilF32(App->SelectedVoice->RecordLength/BarTime)*BarTime;
        
-       SelectedVoice->RecordLength = Pad;
+       App->SelectedVoice->RecordLength = Pad;
       }
       
       //- Update notes .
       {
-       for EachNote(Note, SelectedVoice->FirstNote)
+       for EachNote(Note, App->SelectedVoice->FirstNote)
        {
         
         if(Note->Kind == NoteKind_Pedal)
@@ -3934,7 +3985,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
           f32 NewTimestamp = Note->Timestamp - StartSilence;
           
           f32 NoteEnd = NewTimestamp + Note->Duration;
-          f32 NewEnd = Min(NoteEnd, SelectedVoice->RecordLength);
+          f32 NewEnd = Min(NoteEnd, App->SelectedVoice->RecordLength);
           Note->Duration = (NewEnd - NewTimestamp);
          }
         }
@@ -3950,7 +4001,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     {
      f32 BPS = App->BPM/60.f;
      
-     for EachNoteNode(Note, SelectedVoice->NoteSel)
+     for EachNoteNode(Note, App->SelectedVoice->NoteSel)
      {
       f32 NoteLength = Note->Duration*BPS;
       f32 DenomOfFraction = RoundF32(-Log2F32(NoteLength));
@@ -3965,7 +4016,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     case Command_Sync:
     {
      f32 BPS = App->BPM/60.f;
-     for EachNoteNode(Note, SelectedVoice->NoteSel)
+     for EachNoteNode(Note, App->SelectedVoice->NoteSel)
      {
       f32 NoteLength = Note->Duration*BPS;
       f32 DenomOfFraction = RoundF32(-Log2F32(NoteLength));
@@ -3988,7 +4039,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     case Command_GuessBPM:
     {
-     note_node *Node = SelectedVoice->NoteSel;
+     note_node *Node = App->SelectedVoice->NoteSel;
      
      f32 AveragedDiff = 0.f;
      f32 Diff = 0.f;
@@ -4014,13 +4065,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
     case Command_SetLength:
     {
      
-     f32 NoteSetLength = SelectedVoice->NoteSetLength;
-     f32 Length = PowF32(2.f, SelectedVoice->NoteSetLength);
+     f32 NoteSetLength = App->SelectedVoice->NoteSetLength;
+     f32 Length = PowF32(2.f, App->SelectedVoice->NoteSetLength);
      
      f32 SecondsPerBeat = 1.f/(App->BPM/60.f);
      f32 Duration = SecondsPerBeat * Length;
      
-     for EachNoteNode(Note, SelectedVoice->NoteSel)
+     for EachNoteNode(Note, App->SelectedVoice->NoteSel)
      {
       Note->Duration = Duration;
      }
@@ -4029,15 +4080,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
     
     case Command_ClearSelection:
     {
-     SelectedVoice->NoteSel = 0;
+     App->SelectedVoice->NoteSel = 0;
     } break;
     
     case Command_DeleteSelection: 
     {
-     for(note_node *Node = SelectedVoice->NoteSel;
+     for(note_node *Node = App->SelectedVoice->NoteSel;
          Node;)
      {
-      SelectedVoice->NoteCount -= 1;
+      App->SelectedVoice->NoteCount -= 1;
       
       rec_note *Note = Node->Value;
       
@@ -4053,14 +4104,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
         Note->Prev->Next = Note->Next;
        }
        
-       if(Note == SelectedVoice->FirstNote)
+       if(Note == App->SelectedVoice->FirstNote)
        {
-        SelectedVoice->FirstNote = Note->Next;
+        App->SelectedVoice->FirstNote = Note->Next;
        }
        
-       if(Note == SelectedVoice->LastNote)
+       if(Note == App->SelectedVoice->LastNote)
        {
-        SelectedVoice->LastNote = Note->Prev;
+        App->SelectedVoice->LastNote = Note->Prev;
        }
       }
       
@@ -4080,9 +4131,9 @@ UPDATE_AND_RENDER(UpdateAndRender)
          Node->Next->Prev = Node->Prev;
         }
         
-        if(Node == SelectedVoice->NoteSel)
+        if(Node == App->SelectedVoice->NoteSel)
         {
-         SelectedVoice->NoteSel = (Node->Next ? Node->Next : Node->Prev);
+         App->SelectedVoice->NoteSel = (Node->Next ? Node->Next : Node->Prev);
         }
        }
        
@@ -4122,7 +4173,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
    case Command_SplitPanel:
    {
     App->SelectedPanel = SplitPanel(Command->Panel, Command->Axis, false);
-    App->SelectedPanel->Voice = SelectedVoice;
+    App->SelectedPanel->Voice = App->SelectedVoice;
    } break;
    
    case Command_SetPanelType:
@@ -4231,13 +4282,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
     }
    }
    
-   ProcessMIDINotes(Memory, App, SelectedVoice, Events, EventCount);
+   ProcessMIDINotes(Memory, App, App->SelectedVoice, Events, EventCount);
   }
   
   //- MIDI notes from Input 
   if(App->InputMIDIEnabled)
   {
-   ProcessMIDINotes(Memory, App, SelectedVoice, Input->MIDI.Events, Input->MIDI.EventCount);
+   ProcessMIDINotes(Memory, App, App->SelectedVoice, Input->MIDI.Events, Input->MIDI.EventCount);
   }
  }
  

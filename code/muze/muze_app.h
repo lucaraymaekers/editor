@@ -113,6 +113,7 @@ struct voice
  int Channel;
  int PresetIdx;
  f32 Volume;
+ f32 MIDISoftness;
  
  f32 SheetScrollX;
  

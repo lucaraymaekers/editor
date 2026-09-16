@@ -4,6 +4,7 @@
   - Serialize state along commands.
 
 - SelectPanel() function that sets selectedvoice etc.
+- Reimplement Autoscroll
 
 Bugs:
 - bug: ui: Text with 0 horizontal padding will be clipped, fix this.
@@ -11,6 +12,7 @@ Bugs:
 - bug: win32: MIDI devices are not getting selected correctly
 - bug: win32?: When clicking it only focuses the window and does not click the elements
        maybe there is a frame of delay?
+- bug: ui: When moving panels it animates the buttons
 
 Demo:
 - Use showkey
