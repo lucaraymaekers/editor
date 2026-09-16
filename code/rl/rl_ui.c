@@ -874,9 +874,9 @@ UI_DrawBoxes(ui_box *Box)
   
   if(Box->Flags & UI_BoxFlag_DrawShadow)
   {
-   f32 ShadowSize = 4.f;
-   v4 ShadowDest = RectV2(V2AddF32(Dest.Min, ShadowSize), 
-                          V2AddF32(Dest.Max, ShadowSize)); 
+   f32 ShadowSize = 6.f;
+   
+   v4 ShadowDest = RectV2(Dest.Min, V2AddF32(Dest.Max, ShadowSize)); 
    rect_instance *Inst = DrawRect(ShadowDest, Color_Black, 0.f, ShadowSize, .5f*ShadowSize);
    Inst->CornerRadii = Box->CornerRadii;
   }

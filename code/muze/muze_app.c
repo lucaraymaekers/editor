@@ -580,7 +580,8 @@ VoiceAdd(app_state *App)
   Voice->Arena = PushArena(App->Arena, KB(64), false);
   
   VoiceReset(Voice);
-  Voice->Channel = (int)App->VoiceCount;
+  Voice->Channel = App->NextChannelIdx;
+  App->NextChannelIdx += 1;
   tsf_channel_set_presetindex(GlobalTSF, Voice->Channel, Voice->PresetIdx);
   
   Voice->Volume = 1.f;
@@ -2109,6 +2110,104 @@ M_Scrollbar(axis2 Axis, f32 TotalSize, f32 Scroll)
  return Result;
 }
 
+//~ Serialization
+/*
+- Serialize() Function for every type
+- Leafiest functions have if(IsReading) read(); else write();
+- When writing you set the version to the current latest version
+
+we wrap this in a macro called ADD, #define ADD(revision, field) if (r.version>=revision) Serialise(r, d.field);
+*/
+
+typedef struct serializer serializer;
+struct serializer
+{
+ u64 At;
+ str8 Buffer;
+ 
+ b32 IsReading;
+ u64 Version;
+};
+
+enum serializer_version
+{
+ SerializerVersion_Initial,
+ SerializerVersion_Piece,
+ SerializerVersion_Count,
+};
+typedef enum serializer_version serializer_version;
+#define SerializerVersion_Latest (SerializerVersion_Count - 1)
+
+internal void
+SerializeU64(serializer *Serializer, u64 *Value)
+{
+ u8 *Dest = Serializer->Buffer.Data + Serializer->At;
+ u64 Size = sizeof(*Value);
+ 
+ if(Serializer->IsReading)
+ {
+  MemoryCopy(Value, Dest, Size);
+ }
+ else
+ {
+  MemoryCopy(Dest, Value, Size);
+ }
+ 
+ Assert(Serializer->At + Size <= Serializer->Buffer.Size);
+ Serializer->At += Size;
+}
+
+internal void
+SerializeF32(serializer *Serializer, f32 *Value)
+{
+ u8 *Dest = Serializer->Buffer.Data + Serializer->At;
+ u64 Size = sizeof(*Value);
+ 
+ if(Serializer->IsReading)
+ {
+  MemoryCopy(Value, Dest, Size);
+ }
+ else
+ {
+  MemoryCopy(Dest, Value, Size);
+ }
+ 
+ Assert(Serializer->At + Size <= Serializer->Buffer.Size);
+ Serializer->At += Size;
+}
+
+internal void
+SerializeS32(serializer *Serializer, s32 *Value)
+{
+ u8 *Dest = Serializer->Buffer.Data + Serializer->At;
+ u64 Size = sizeof(*Value);
+ 
+ if(Serializer->IsReading)
+ {
+  MemoryCopy(Value, Dest, Size);
+ }
+ else
+ {
+  MemoryCopy(Dest, Value, Size);
+ }
+ 
+ Assert(Serializer->At + Size <= Serializer->Buffer.Size);
+ Serializer->At += Size;
+}
+
+internal void
+SerializePiece(serializer *Serializer, piece *Piece)
+{
+ if(Serializer->Version >= SerializerVersion_Piece)
+ {
+  SerializeF32(Serializer, &Piece->BPM);
+  SerializeF32(Serializer, &Piece->TimeSigNum);
+  SerializeF32(Serializer, &Piece->TimeSigDen);
+  SerializeS32(Serializer, &(s32)Piece->Key);
+ }
+}
+
+
 //~ EntryPoint
 C_LINKAGE
 UPDATE_AND_RENDER(UpdateAndRender)
@@ -2214,6 +2313,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
    }
    
    App->TrackerForTSF = GlobalTSF;
+   
+   App->MetronomeChannel = App->NextChannelIdx;
+   App->NextChannelIdx += 1;
+   App->MetronomePreset = 115; // Woodblock
+   tsf_channel_set_presetindex(GlobalTSF, App->MetronomeChannel, App->MetronomePreset);
   }
   
   OS_ProfileAndPrint("TSF init");
@@ -2583,6 +2687,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
    OS_ProfileAndPrint("UI setup");
   }
   
+  //- Lister UI 
   if(App->ListerOpened)
   {
    s32 ShowItemCount = 10.f;
@@ -2745,7 +2850,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
        UI_AddBox(S8("Lister"), 
                  UI_BoxFlag_Clip|
                  UI_BoxFlag_DrawBorders|
-                 UI_BoxFlag_DrawBackground);
+                 UI_BoxFlag_DrawBackground|
+                 UI_BoxFlag_DrawShadow);
       
       UI_PaddingAround(UI_SizePx(ListerBorderSize, 1.f)) 
       {
@@ -3009,6 +3115,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
               Panel->Piece = PushArrayZero(App->Arena, piece, 1);
               Piece = Panel->Piece;
               
+              Piece->Preset = 73;
+              Piece->Channel = App->NextChannelIdx;
+              App->NextChannelIdx += 1;
+              tsf_channel_set_presetindex(GlobalTSF, Piece->Channel, Piece->Preset);
+              
               Piece->BPM = 60;
               Piece->TimeSigNum = 2;
               Piece->TimeSigDen = 4;
@@ -3117,7 +3228,44 @@ UPDATE_AND_RENDER(UpdateAndRender)
               PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
               PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
               PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
+             }
+             
+             //- Piece Serialization
+             {
+              serializer Serializer = {0};
+              Serializer.IsReading = !Memory->Initialized;
               
+              str8 FileName = S8("data.muze");
+              char *FilePath = PathFromExe(FrameArena, FileName);
+              
+              if(Serializer.IsReading)
+              {
+               Serializer.Buffer = OS_ReadEntireFileIntoMemory(FilePath);
+               if(Serializer.Buffer.Size)
+               {               
+                SerializeU64(&Serializer, &Serializer.Version);
+                Assert(Serializer.Version <= SerializerVersion_Latest);
+               }
+              }
+              else
+              {
+               Serializer.Buffer = PushS8(FrameArena, MB(8));
+               
+               SerializeU64(&Serializer, &Serializer.Version);
+               Serializer.Version = SerializerVersion_Latest;
+              }
+              
+              SerializePiece(&Serializer, Piece);
+              
+              if(Serializer.IsReading)
+              {
+               OS_FreeFileMemory(Serializer.Buffer);
+              }
+              else
+              {
+               str8 Out = {.Data = Serializer.Buffer.Data, .Size = Serializer.At};
+               OS_WriteEntireFile(FilePath, Out);
+              }
              }
              
              ui_box *PieceBox;
@@ -3132,7 +3280,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
               {               
                if(M_SimpleToggleButton(S8("Play"), Piece->IsPlaying, Color_Green))
                {
-                tsf_note_off_all(GlobalTSF);
+                tsf_channel_note_off_all(GlobalTSF, Piece->Channel);
                 Piece->IsPlaying ^= true;
                 if(Piece->IsPlaying) Piece->PlayPos = 0.f;
                }
@@ -3224,25 +3372,49 @@ UPDATE_AND_RENDER(UpdateAndRender)
                
                if(Note->Kind == PieceNoteKind_Pitch)
                {
-                f32 Start = Note->Start;
-                f32 End = Start + Note->Length;
-                
-                b32 NoteIsPlaying = PieceWasTimestampPlayed(Piece, Start);
-                b32 NoteHasEnded = PieceWasTimestampPlayed(Piece, End);
-                
-                s32 Pitch = Note->Pitch + 0*12;
-                
                 if(Piece->IsPlaying)
                  
-                {                 
-                 if(NoteIsPlaying)
+                {
+                 if(Piece->Metronome)
                  {
-                  tsf_channel_note_on(GlobalTSF, 0, Pitch, .5f);
+                  f32 Duration = 0.2f; 
+                  f32 Start = FloorF32(Piece->PlayPos);
+                  f32 End = Start + Duration*BPS;
+                  b32 HasPlayed = PieceWasTimestampPlayed(Piece, Start);
+                  b32 HasStopped = PieceWasTimestampPlayed(Piece, End);
+                  
+                  s32 Pitch = Note_A + 6*12;
+                  
+                  if(HasPlayed)
+                  {
+                   tsf_channel_note_on(GlobalTSF, App->MetronomeChannel, Pitch, .05f);
+                  }
+                  
+                  if(HasStopped)
+                  {
+                   tsf_channel_note_off(GlobalTSF, App->MetronomeChannel, Pitch);
+                  }
                  }
                  
-                 if(NoteHasEnded)
-                 {
-                  tsf_channel_note_off(GlobalTSF, 0, Pitch);
+                 // Piece notes
+                 {                 
+                  f32 Start = Note->Start;
+                  f32 End = Start + Note->Length;
+                  
+                  b32 NoteIsPlaying = PieceWasTimestampPlayed(Piece, Start);
+                  b32 NoteHasEnded = PieceWasTimestampPlayed(Piece, End);
+                  
+                  s32 Pitch = Note->Pitch + 1*12;
+                  
+                  if(NoteIsPlaying)
+                  {
+                   tsf_channel_note_on(GlobalTSF, Piece->Channel, Pitch, .5f);
+                  }
+                  
+                  if(NoteHasEnded)
+                  {
+                   tsf_channel_note_off(GlobalTSF, Piece->Channel, Pitch);
+                  }
                  }
                 }
                 
@@ -3258,15 +3430,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
                {
                 Piece->PlayPos = 0.f;
                 if(!Loop) Piece->IsPlaying = false;
-               }
-              }
-              
-              if(Piece->Metronome)
-              {
-               b32 OnBeat = false;
-               if(OnBeat)
-               {
-                // TODO(luca): Play metronome beep
                }
               }
               

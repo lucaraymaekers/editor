@@ -26,6 +26,9 @@ struct piece_note
 typedef struct piece piece; 
 struct piece 
 {
+ s32 Channel;
+ s32 Preset;
+ 
  f32 BPM;
  f32 TimeSigNum;
  f32 TimeSigDen;
@@ -270,6 +273,9 @@ struct app_state
  // TSF 
  tsf *TrackerForTSF;
  arena *TSFArena;
+ s32 NextChannelIdx;
+ s32 MetronomeChannel;
+ s32 MetronomePreset;
  
  s32 InstrumentCount;
  str8 *InstrumentNames;

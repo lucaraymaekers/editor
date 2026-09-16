@@ -2,9 +2,6 @@
 - Serialization
   - Implement Undo for commands.
   - Serialize state along commands.
-- Metronome
-
-- SelectPanel() function that sets selectedvoice etc.
 - Reimplement Autoscroll
 
 Bugs:
@@ -14,7 +11,7 @@ Bugs:
 - bug: win32?: When clicking it only focuses the window and does not click the elements
        maybe there is a frame of delay?
 - bug: ui: When moving panels it animates the buttons
-
+- bug: ui: The lister sometimes has a "empty" element and selected.
 
 Demo:
 - Use showkey
@@ -193,3 +190,5 @@ x Selecting works even when another box is active/hot
 x bug: Some buttons and sliders in Controls are still getting clipped
 x bug: When adjusting BPM in piece it can time travel.
 x bug: Double line not drawn
+x Metronome
+x SelectPanel() function that sets selectedvoice etc.
