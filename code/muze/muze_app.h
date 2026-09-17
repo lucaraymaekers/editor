@@ -26,6 +26,8 @@ struct piece_note
 typedef struct piece piece; 
 struct piece 
 {
+ arena *Arena;
+ 
  s32 Channel;
  s32 Preset;
  

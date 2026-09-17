@@ -2119,8 +2119,8 @@ M_Scrollbar(axis2 Axis, f32 TotalSize, f32 Scroll)
 we wrap this in a macro called ADD, #define ADD(revision, field) if (r.version>=revision) Serialise(r, d.field);
 */
 
-typedef struct serializer serializer;
-struct serializer
+typedef struct ms_serializer ms_serializer;
+struct ms_serializer
 {
  u64 At;
  str8 Buffer;
@@ -2129,84 +2129,65 @@ struct serializer
  u64 Version;
 };
 
-enum serializer_version
+enum ms_version
 {
- SerializerVersion_Initial,
- SerializerVersion_Piece,
- SerializerVersion_Count,
+ MSV_Initial,
+ MSV_Count,
 };
 typedef enum serializer_version serializer_version;
-#define SerializerVersion_Latest (SerializerVersion_Count - 1)
+#define MSV_Latest (MSV_Count - 1)
 
 internal void
-SerializeU64(serializer *Serializer, u64 *Value)
+MS_Struct(ms_serializer *Serializer, void *Value, u64 Size)
 {
  u8 *Dest = Serializer->Buffer.Data + Serializer->At;
- u64 Size = sizeof(*Value);
  
- if(Serializer->IsReading)
- {
-  MemoryCopy(Value, Dest, Size);
- }
- else
- {
-  MemoryCopy(Dest, Value, Size);
- }
+ if(Serializer->IsReading) MemoryCopy(Value, Dest, Size);
+ else                      MemoryCopy(Dest, Value, Size);
  
  Assert(Serializer->At + Size <= Serializer->Buffer.Size);
  Serializer->At += Size;
 }
 
-internal void
-SerializeF32(serializer *Serializer, f32 *Value)
-{
- u8 *Dest = Serializer->Buffer.Data + Serializer->At;
- u64 Size = sizeof(*Value);
- 
- if(Serializer->IsReading)
- {
-  MemoryCopy(Value, Dest, Size);
- }
- else
- {
-  MemoryCopy(Dest, Value, Size);
- }
- 
- Assert(Serializer->At + Size <= Serializer->Buffer.Size);
- Serializer->At += Size;
-}
+#define MS_Ser(Serializer, Value) \
+MS_Struct(Serializer, Value, (sizeof(*Value)))
+
+#define MS_Add(VersionAdded, Value) \
+if(Serializer->Version >= VersionAdded) MS_Ser(Serializer, Value)
+
+#define MS_Rem(VersionAdded, VersionRemoved, Value) \
+do { \
+TypeOf(*Value) Dummy = {0}; \
+if(Serializer->Version >= VersionAdded && \
+Serializer->Version < VersionRemoved) \
+{ \
+MS_Ser(Serializer, &Dummy); \
+} \
+} while(0)
 
 internal void
-SerializeS32(serializer *Serializer, s32 *Value)
+MS_Piece(ms_serializer *Serializer, piece *Piece)
 {
- u8 *Dest = Serializer->Buffer.Data + Serializer->At;
- u64 Size = sizeof(*Value);
+ MS_Add(MSV_Initial, &Piece->BPM);
+ MS_Add(MSV_Initial, &Piece->TimeSigNum);
+ MS_Add(MSV_Initial, &Piece->TimeSigDen);
+ MS_Add(MSV_Initial, &(s32)Piece->Key);
+ MS_Add(MSV_Initial, &Piece->Major);
+ MS_Add(MSV_Initial, &Piece->RecordLength);
+ MS_Add(MSV_Initial, &Piece->NoteCount);
  
- if(Serializer->IsReading)
+ if(Serializer->Version >= MSV_Initial)
  {
-  MemoryCopy(Value, Dest, Size);
- }
- else
- {
-  MemoryCopy(Dest, Value, Size);
+  if(Serializer->IsReading)
+  {
+   Piece->NoteMaxCount = KB(1);
+   Piece->Notes = PushArrayZero(Piece->Arena, piece_note, Piece->NoteMaxCount);
+  }
+  MS_Struct(Serializer, Piece->Notes, sizeof(piece_note)*Piece->NoteCount);
  }
  
- Assert(Serializer->At + Size <= Serializer->Buffer.Size);
- Serializer->At += Size;
+ MS_Add(MSV_Initial, &Piece->BarWrapping);
 }
-
-internal void
-SerializePiece(serializer *Serializer, piece *Piece)
-{
- if(Serializer->Version >= SerializerVersion_Piece)
- {
-  SerializeF32(Serializer, &Piece->BPM);
-  SerializeF32(Serializer, &Piece->TimeSigNum);
-  SerializeF32(Serializer, &Piece->TimeSigDen);
-  SerializeS32(Serializer, &(s32)Piece->Key);
- }
-}
-
 
 //~ EntryPoint
 C_LINKAGE
@@ -3108,12 +3089,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
              b32 Loop = true;
              piece *Piece = Panel->Piece;
-             local_persist b32 DoItOnce = false;
+             local_persist b32 DoItOnce = true;
              if(Panel->Piece == 0 || !DoItOnce)
              {
               DoItOnce = true;
-              Panel->Piece = PushArrayZero(App->Arena, piece, 1);
-              Piece = Panel->Piece;
+              
+              arena *PieceArena = ArenaAlloc();
+              Piece = Panel->Piece = PushArrayZero(PieceArena, piece, 1);
+              Piece->Arena = PieceArena;
               
               Piece->Preset = 73;
               Piece->Channel = App->NextChannelIdx;
@@ -3128,7 +3111,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
               
               Piece->NoteMaxCount = KB(1);
               Piece->NoteCount = 0;
-              Piece->Notes = PushArrayZero(App->Arena, piece_note, Piece->NoteMaxCount);
+              Piece->Notes = PushArrayZero(Piece->Arena, piece_note, Piece->NoteMaxCount);
               Piece->Octave = 4;
               
               Piece->BarWrapping = true;
@@ -3138,7 +3121,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
               Piece->StaffLineWidth = 2.f;
               Piece->TailHeight = 24.f;
               
-#if 1              
+#if 1             
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/1.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/2.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch, Note_Fs, 1.f/4.f);
@@ -3166,7 +3149,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
               PieceNoteAdd(Piece, PieceNoteKind_Silence, 0,      1.f/1.f);
               
               // Double repeat
-#endif
               
               PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_D  + 0,  1.f/4.f);
               PieceNoteAdd(Piece, PieceNoteKind_Pitch,   Note_B  - 12, 1.f/2.f);
@@ -3228,14 +3210,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
               PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
               PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
               PieceNoteAdd(Piece, PieceNoteKind_Silence, 0, 2.f/1.f);
+#endif
              }
              
              //- Piece Serialization
              {
-              serializer Serializer = {0};
+              ms_serializer Serializer = {0};
               Serializer.IsReading = !Memory->Initialized;
               
-              str8 FileName = S8("data.muze");
+              str8 FileName = S8("../data/muze/lecon_11.muze_piece");
               char *FilePath = PathFromExe(FrameArena, FileName);
               
               if(Serializer.IsReading)
@@ -3243,26 +3226,28 @@ UPDATE_AND_RENDER(UpdateAndRender)
                Serializer.Buffer = OS_ReadEntireFileIntoMemory(FilePath);
                if(Serializer.Buffer.Size)
                {               
-                SerializeU64(&Serializer, &Serializer.Version);
-                Assert(Serializer.Version <= SerializerVersion_Latest);
+                MS_Ser(&Serializer, &Serializer.Version);
+                if(Serializer.Version <= MSV_Latest)
+                {
+                 MS_Piece(&Serializer, Piece);
+                }
+                else
+                {
+                 DebugBreak();
+                 ErrorLog("Cannot read file from the future.");
+                }
+                
+                OS_FreeFileMemory(Serializer.Buffer);
                }
               }
               else
               {
                Serializer.Buffer = PushS8(FrameArena, MB(8));
+               Serializer.Version = MSV_Latest;
                
-               SerializeU64(&Serializer, &Serializer.Version);
-               Serializer.Version = SerializerVersion_Latest;
-              }
-              
-              SerializePiece(&Serializer, Piece);
-              
-              if(Serializer.IsReading)
-              {
-               OS_FreeFileMemory(Serializer.Buffer);
-              }
-              else
-              {
+               MS_Ser(&Serializer, &Serializer.Version);
+               MS_Piece(&Serializer, Piece);
+               
                str8 Out = {.Data = Serializer.Buffer.Data, .Size = Serializer.At};
                OS_WriteEntireFile(FilePath, Out);
               }
@@ -3327,7 +3312,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  s32 BarsPerWidth = PieceBarsPerWidth(Piece, WholeBarWidth);
                  f32 StaffHeight = PieceStaffHeight(Piece);
                  
-                 s32 Rows = ((BarCount/BarsPerWidth + 1)*2 + 1);
+                 s32 Rows = ((BarCount/BarsPerWidth + 1)*2);
                  f32 Height = StaffHeight*Rows; 
                  
                  // Or something like this
@@ -3342,7 +3327,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  
                  f32 Height = PieceBox->FixedSize.Y;
                  s32 Rows = BarCount/BarsPerWidth + 1;
-                 Rows = 2*Rows + 1;
+                 Rows *= 2;
                  f32 HeightForRows = (f32)Rows*StaffHeight; 
                  
                  VerticalOverflow = HeightForRows - Height;

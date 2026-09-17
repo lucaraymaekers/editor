@@ -36,6 +36,8 @@ Improving your playing:
   - Maybe (un)toggle depending on what you're practicing
 - Diff with the piece your practicing
 
+Real error messages to user when needed instead of ErrorLog
+
 Fast font rendering
 
 SDF rects:
