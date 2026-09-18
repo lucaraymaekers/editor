@@ -1463,6 +1463,8 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
  s32 BarsPerWidth = (s32)((Box->FixedSize.X - 2.f*BarPadding)/WholeBarWidth);
  BarsPerWidth = Max(1, BarsPerWidth);
  
+ v4 StaffColor = Box->TextColor;
+ 
  // Draw staff
  {    
   v2 StaffPos = Pos;
@@ -1473,14 +1475,14 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
    for EachIndex(Idx, (s32)BarCount)
    {
     v4 Dest = RectFromSize(BarPos, V2(2.f, StaffHeight));
-    DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
+    DrawRect(Dest, StaffColor, 0.f, 0.f, 0.f); 
     
     for EachIndex(LineIdx, StaffLineCount)
     {
      v2 LinePos = BarPos;
      LinePos.Y += (f32)LineIdx*NoteSize;
      v4 LineDest = RectFromSize(LinePos, V2(WholeBarWidth, StaffLineWidth));
-     DrawRect(LineDest, Box->TextColor, 0.f, 0.f, 0.f);
+     DrawRect(LineDest, StaffColor, 0.f, 0.f, 0.f);
     }
     
     BarPos.X += WholeBarWidth;
@@ -1492,7 +1494,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
      
      LastBarPos.X -= 4.f;
      Dest = RectFromSize(LastBarPos, V2(2.f, StaffHeight));
-     DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
+     DrawRect(Dest, StaffColor, 0.f, 0.f, 0.f); 
     }
     
     // TODO(luca): Reduce world's biggest condition.
@@ -1502,7 +1504,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
     if(LastBar)
     {
      Dest = RectFromSize(BarPos, V2(2.f, StaffHeight));
-     DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f); 
+     DrawRect(Dest, StaffColor, 0.f, 0.f, 0.f); 
      
      if(Piece->BarWrapping)
      {
@@ -1530,7 +1532,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
   {
    piece_note *Note = Piece->Notes + Idx;
    
-   v4 NoteColor = Box->TextColor;
+   v4 NoteColor = StaffColor;
    
    b32 NoteIsPlaying = false;
    if(Piece->IsPlaying)
@@ -1611,7 +1613,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
       
       for EachCount(FlagCount)
       {
-       v4 Dest = RectFromSize(FlagPos, V2(8.f, TailDim.X));
+       v4 Dest = RectFromSize(FlagPos, V2(8.f, TailDim.X*2.f));
        DrawRect(Dest, NoteColor, 0.f, 0.f, 0.f);
        
        FlagPos.Y += 5.f;
@@ -1656,7 +1658,7 @@ UI_CUSTOM_DRAW(CustomDrawPiece)
      HeadBarPos.X -= Portrusion;
      HeadBarPos.Y += .5f*(NoteDim.Y - HeadBarDim.Y);
      v4 Dest = RectFromSize(HeadBarPos, HeadBarDim);
-     DrawRect(Dest, Box->TextColor, 0.f, 0.f, 0.f);
+     DrawRect(Dest, StaffColor, 0.f, 0.f, 0.f);
     }
     
     // Draw sharp
@@ -2355,7 +2357,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
     InitFont(&App->Font, FontPath);
    }
    {
-    char *FontPath = PathFromExe(FrameArena, S8("../data/icons.ttf"));
+    char *FontPath = PathFromExe(FrameArena, S8("../data/muze/muze_icons.ttf"));
     InitFont(&App->IconsFont, FontPath);
    }
    
@@ -3054,10 +3056,12 @@ UPDATE_AND_RENDER(UpdateAndRender)
              
              // Close button 
              {
+              rune Codepoint = 0xe80a;
               ui_box *Close;
               UI_BackgroundColor(Color_ButtonBackground)
                UI_SemanticWidth(UI_SizeText(2.f, 1.f))
-               Close = UI_AddBox(S8("X"), (UI_BoxFlag_DrawBackground|
+               UI_FontKind(FontKind_Icon)
+               Close = UI_AddBox(S8("a"), (UI_BoxFlag_DrawBackground|
                                            UI_BoxFlag_DrawBorders|
                                            UI_BoxFlag_MouseClickable|
                                            UI_BoxFlag_DrawHotEffects|
@@ -3065,6 +3069,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
                                            UI_BoxFlag_DrawDisplayString|
                                            UI_BoxFlag_CenterTextVertically|
                                            UI_BoxFlag_CenterTextHorizontally));
+              Close->DisplayString = S8("a");
+              
               if(Close->WasClicked)
               {
                command *Command = PushCommand(App, Command_ClosePanel);
@@ -3089,7 +3095,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
              b32 Loop = true;
              piece *Piece = Panel->Piece;
-             local_persist b32 DoItOnce = true;
+             local_persist b32 DoItOnce = false;
              if(Panel->Piece == 0 || !DoItOnce)
              {
               DoItOnce = true;
@@ -3118,7 +3124,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
               Piece->BarPadding = 16.f;
               Piece->BeatWidth = 64.f;
               Piece->NoteSize = 11.f;
-              Piece->StaffLineWidth = 2.f;
+              Piece->StaffLineWidth = 1.f;
               Piece->TailHeight = 24.f;
               
 #if 1             
@@ -3288,12 +3294,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
                           UI_BoxFlag_DrawBorders);
               }
               UI_Row()
-               
-              {               
-               UI_FillAll()
+              {
+               UI_TextColor(Color_Black)
+                UI_FillAll()
                 PieceBox = UI_AddBox(S8("Piece"), 
                                      UI_BoxFlag_Scroll|
-                                     UI_BoxFlag_MouseClickable);
+                                     UI_BoxFlag_MouseClickable|
+                                     UI_BoxFlag_DrawBackground);
                
                f32 VerticalOverflow = 0.f;
                // Find out if vertically overflowing and if it is, add a scrollbar

@@ -12,7 +12,7 @@ RenderBuildAtlas(arena *Arena,
   Atlas->FirstCodepoint = ' ';
   // NOTE(luca): 2 bytes =>small alphabets.
   Atlas->CodepointsCount = ((2048 - 1) - Atlas->FirstCodepoint);
-  Atlas->IconsFirstCodepoint = 'a';
+  Atlas->IconsFirstCodepoint = 0xE80A;
   Atlas->IconsCodepointsCount = 2;
   
   Atlas->Width = 1024;
