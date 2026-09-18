@@ -110,6 +110,7 @@ OS_WriteEntireFile(char *FileName, str8 File)
   {
    ErrorLog("Could not write to '%s'.", FileName);
   }
+  close(Handle);
  }
  else
  {

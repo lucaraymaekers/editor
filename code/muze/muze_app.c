@@ -2173,7 +2173,7 @@ MS_Piece(ms_serializer *Serializer, piece *Piece)
  MS_Add(MSV_Initial, &Piece->BPM);
  MS_Add(MSV_Initial, &Piece->TimeSigNum);
  MS_Add(MSV_Initial, &Piece->TimeSigDen);
- MS_Add(MSV_Initial, &(s32)Piece->Key);
+ MS_Add(MSV_Initial, &Piece->Key);
  MS_Add(MSV_Initial, &Piece->Major);
  MS_Add(MSV_Initial, &Piece->RecordLength);
  MS_Add(MSV_Initial, &Piece->NoteCount);
@@ -3061,14 +3061,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
               UI_BackgroundColor(Color_ButtonBackground)
                UI_SemanticWidth(UI_SizeText(2.f, 1.f))
                UI_FontKind(FontKind_Icon)
-               Close = UI_AddBox(S8("a"), (UI_BoxFlag_DrawBackground|
-                                           UI_BoxFlag_DrawBorders|
-                                           UI_BoxFlag_MouseClickable|
-                                           UI_BoxFlag_DrawHotEffects|
-                                           UI_BoxFlag_DrawActiveEffects|
-                                           UI_BoxFlag_DrawDisplayString|
-                                           UI_BoxFlag_CenterTextVertically|
-                                           UI_BoxFlag_CenterTextHorizontally));
+               UI_Debug(true)
+               Close = UI_AddBox(S8("CloseButton"), (UI_BoxFlag_DrawBackground|
+                                                     UI_BoxFlag_DrawBorders|
+                                                     UI_BoxFlag_MouseClickable|
+                                                     UI_BoxFlag_DrawHotEffects|
+                                                     UI_BoxFlag_DrawActiveEffects|
+                                                     UI_BoxFlag_DrawDisplayString|
+                                                     UI_BoxFlag_CenterTextVertically|
+                                                     UI_BoxFlag_CenterTextHorizontally));
               Close->DisplayString = S8("a");
               
               if(Close->WasClicked)
@@ -3536,7 +3537,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  
                  App->TimeSig = (s32)M_Slider(S8("TimeSig"), S8("Set time signature"), 
                                               Str8Fmt("%d/4",  App->TimeSig),
-                                              App->TimeSig, 1.f, 4.f, 1.f, false, 
+                                              (f32)App->TimeSig, 1.f, 4.f, 1.f, false, 
                                               .SliderSize = SliderSize).Value;
                  
                  //- Song 
@@ -3722,7 +3723,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
                  UI_SemanticWidth(UI_SizePx(200.f, 1.f))
                   NewIdx = M_Slider(S8("VoiceSelect"), S8("Voice"),
                                     Str8Fmt("%2llu", Idx + 1),
-                                    (f32)Idx + 1.f, 1.f, App->VoiceCount, 1.f, false,
+                                    (f32)Idx + 1.f, 1.f, (f32)App->VoiceCount, 1.f, false,
                                     .Align = false).Value;
                  NewIdx -= 1.f;
                  

@@ -11,9 +11,9 @@ RenderBuildAtlas(arena *Arena,
  {
   Atlas->FirstCodepoint = ' ';
   // NOTE(luca): 2 bytes =>small alphabets.
-  Atlas->CodepointsCount = ((2048 - 1) - Atlas->FirstCodepoint);
+  Atlas->CodepointCount = (((s32)KB(2) - 1) - Atlas->FirstCodepoint);
   Atlas->IconsFirstCodepoint = 0xE80A;
-  Atlas->IconsCodepointsCount = 2;
+  Atlas->IconsCodepointCount = 15;
   
   Atlas->Width = 1024;
   Atlas->Height = 1024;
@@ -21,9 +21,9 @@ RenderBuildAtlas(arena *Arena,
   
   ArenaSetPos(Arena, 0);
   Atlas->Data = PushArray(Arena, u8, Size);
-  s32 CodepointsCount = (Atlas->CodepointsCount + Atlas->IconsCodepointsCount);
-  Atlas->PackedChars = PushArray(Arena, stbtt_packedchar, (u64)CodepointsCount);
-  Atlas->AlignedQuads = PushArray(Arena, stbtt_aligned_quad, (u64)CodepointsCount);
+  s32 CodepointCount = (Atlas->CodepointCount + Atlas->IconsCodepointCount);
+  Atlas->PackedChars = PushArray(Arena, stbtt_packedchar, (u64)CodepointCount);
+  Atlas->AlignedQuads = PushArray(Arena, stbtt_aligned_quad, (u64)CodepointCount);
   
   Atlas->HeightPx = HeightPx;
   Atlas->FontScale = stbtt_ScaleForPixelHeight(&TextFont->Info, HeightPx);
@@ -37,7 +37,7 @@ RenderBuildAtlas(arena *Arena,
                    0, 1, 0);
    
    stbtt_PackFontRange(&Ctx, TextFont->Info.data, 0, HeightPx, 
-                       Atlas->FirstCodepoint, Atlas->CodepointsCount, 
+                       Atlas->FirstCodepoint, Atlas->CodepointCount, 
                        Atlas->PackedChars);
    
    // Icons
@@ -48,14 +48,14 @@ RenderBuildAtlas(arena *Arena,
     f32 ScaledHeight = HeightPx*(IconsEmHeight/TextEmHeight);
     
     stbtt_PackFontRange(&Ctx, IconsFont->Info.data, 0, ScaledHeight, 
-                        Atlas->IconsFirstCodepoint, Atlas->IconsCodepointsCount, 
-                        Atlas->PackedChars + Atlas->CodepointsCount);
+                        Atlas->IconsFirstCodepoint, Atlas->IconsCodepointCount, 
+                        Atlas->PackedChars + Atlas->CodepointCount);
    }
    
    stbtt_PackEnd(&Ctx);
   }
   
-  for EachIndex(Idx, CodepointsCount)
+  for EachIndex(Idx, CodepointCount)
   {
    float UnusedX, UnusedY;
    stbtt_GetPackedQuad(Atlas->PackedChars, Atlas->Width, Atlas->Height, 
@@ -106,7 +106,7 @@ DrawRectChar(font_atlas *Atlas, v2 Pos, rune Codepoint, v4 Color)
  // NOTE(luca): Evereything happens in pixel coordinates in here.
  
  b32 Supported = (Codepoint >= Atlas->FirstCodepoint && 
-                  Codepoint < Atlas->CodepointsCount - Atlas->FirstCodepoint);
+                  Codepoint < Atlas->CodepointCount - Atlas->FirstCodepoint);
  // TODO(luca): Proper glyph cache
  if(Supported)
  {        

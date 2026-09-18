@@ -14,10 +14,10 @@ struct font_atlas
  font *Font;
  
  rune FirstCodepoint;
- s32 CodepointsCount;
+ s32 CodepointCount;
  
  rune IconsFirstCodepoint;
- s32 IconsCodepointsCount;
+ s32 IconsCodepointCount;
  
  f32 PixelScaleWidth;
  f32 PixelScaleHeight;

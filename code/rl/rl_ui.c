@@ -349,9 +349,7 @@ UI_GetShiftForFont(font_kind Kind)
   } break;
   case FontKind_Icon:
   {        
-   Result = (Atlas->FirstCodepoint + 
-             Atlas->CodepointsCount -
-             Atlas->IconsFirstCodepoint);
+   Result = Atlas->CodepointCount - (s32)'a';
   } break;
   default: break;
  }
